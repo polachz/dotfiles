@@ -1,0 +1,32 @@
+#Allow sudo for other aliases
+alias sudo='sudo '
+ 
+alias lla='ls -Al'
+alias gh='history|grep'
+alias left='ls -t -1'
+alias count='find . -type f | wc -l'
+alias lt='ls --human-readable --size -1 -S --classify'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias makeme='sudo chown $USER:$USER'
+alias makeroot='sudo chown 0:0'
+alias hh='cd ~'
+alias ee='cd /etc'
+
+alias sha='shasum -a 256 '
+
+alias ping='ping -c 5'
+alias ports='netstat -tulanp'
+
+if [ $UID -ne 0 ]; then
+   alias reboot='sudo /sbin/reboot'
+   alias poweroff='sudo /sbin/poweroff'
+   alias halt='sudo /sbin/halt'
+   alias shutdown='sudo /sbin/shutdown'
+   alias shutdownnow='sudo /sbin/shutdown -h now'
+else
+   alias shutdownnow='/sbin/shutdown -h now'
+fi
+
+alias root='sudo -i'
+
