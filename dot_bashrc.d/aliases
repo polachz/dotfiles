@@ -30,3 +30,4 @@ fi
 
 alias root='sudo -i'
 
+alias ch='chezmoi'

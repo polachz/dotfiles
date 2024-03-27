@@ -1,0 +1,10 @@
+packages:
+  dnf:
+    common:
+      - 'git'
+    virtualbox:
+    - 'virtualbox-guest-additions'
+
+
+
+
