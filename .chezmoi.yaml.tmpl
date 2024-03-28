@@ -1,0 +1,4 @@
+ {{- $deployment_type := env "CHEZMOI_DEPLOYMENT_TYPE" -}}
+
+data:
+  deployment_type: {{ $deployment_type | quote }}
