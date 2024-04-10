@@ -30,4 +30,5 @@ fi
 
 alias root='sudo -i'
 
-alias ch='chezmoi'
+alias ch='history -a && chezmoi'
+
