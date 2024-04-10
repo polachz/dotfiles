@@ -3,7 +3,10 @@ packages:
     common:
       - 'git'
     virtualbox:
-    - 'virtualbox-guest-additions'
+      - 'virtualbox-guest-additions'
+    wks:
+      - openssl
+
 
 
 
