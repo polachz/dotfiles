@@ -1,23 +1,81 @@
+#!/usr/bin/env bash
+
+# Easier navigation: .., ..., ...., ....., ~ and -
+alias ..="cd .."
+alias ...="cd ../.."
+alias ....="cd ../../.."
+alias .....="cd ../../../.."
+# Change CWD to home folder
+alias hh='cd ~'
+# CD to /etc
+alias ee='cd /etc'
+# Move to previous directory
+alias -- -="cd -"
+
+# Shortcuts
+alias d="cd ~/devel"
+alias dl="cd ~/Downloads"
+alias dt="cd ~/Desktop"
+
+alias g="git"
+
 #Allow sudo for other aliases
 alias sudo='sudo '
  
-alias lla='ls -Al'
-alias gh='history|grep'
-alias left='ls -t -1'
-alias count='find . -type f | wc -l'
+# Detect which `ls` flavor is in use
+if ls --color > /dev/null 2>&1; then # GNU `ls`
+	colorflag="--color"
+#	export LS_COLORS='no=00:fi=00:di=01;31:ln=01;36:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.gz=01;31:*.bz2=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.avi=01;35:*.fli=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.ogg=01;35:*.mp3=01;35:*.wav=01;35:'
+else # macOS `ls`
+	colorflag="-G"
+#	export LSCOLORS='BxBxhxDxfxhxhxhxhxcxcx'
+fi
+
+# List all files and folders in long format
+alias ll="ls -l ${colorflag}"
+
+# List files and folders (include hidden ones) in long format
+alias la="ls -A ${colorflag}"
+# List all files (and folders include hidden ones) in long format
+alias lla="ls -Al ${colorflag}"
+
+# List only directories
+alias ld="ls -d ${colorflag} */"
+# List only directories in long format
+alias lld="ls -ld ${colorflag} */"
+
+# List only hidden files and directories
+alias lh="ls -ld ${colorflag} .[^.]* ..?*"
+# List only hidden files and directories in long format
+alias llh="ls -ld ${colorflag} .[^.]* ..?*"
+
+#List folder content sorted by size with item type classification 
 alias lt='ls --human-readable --size -1 -S --classify'
-alias ..='cd ..'
-alias ...='cd ../..'
+
+# List files sorted by modification date - last modified first
+alias lm='ls -t -1 ${colorflag}'
+
+# Show history items only with specified pattern
+alias gh='history | grep'
+
+alias count='find . -type f | wc -l'
+
+# Set ofner of the file to curent user (me)
 alias makeme='sudo chown $USER:$USER'
+
+# Set owner of the file to root
 alias makeroot='sudo chown 0:0'
-alias hh='cd ~'
-alias ee='cd /etc'
+
 
 alias sha='shasum -a 256 '
 
+#Reduce ping count to 5 tries (same as on Windows)
 alias ping='ping -c 5'
+
+# Display all listening ports on this machine
 alias ports='netstat -tulanp'
 
+# Make reboot and shutdown easier
 if [ $UID -ne 0 ]; then
    alias reboot='sudo /sbin/reboot'
    alias poweroff='sudo /sbin/poweroff'
@@ -28,7 +86,24 @@ else
    alias shutdownnow='/sbin/shutdown -h now'
 fi
 
+# Always enable colored `grep` output
+# Note: `GREP_OPTIONS="--color=auto"` is deprecated, hence the alias usage.
+alias grep='grep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias egrep='egrep --color=auto'
+
+# Get week number
+alias week='date +%V'
+
+# Run root shell
 alias root='sudo -i'
 
+# Invoke Chezmoi. Fix problem with lost history when invoke the chezmoi
 alias ch='history -a && chezmoi'
+
+# Print each PATH entry on a separate line
+alias path='echo -e ${PATH//:/\\n}'
+
+# Reload the shell (i.e. invoke as a login shell)
+alias reload="exec ${SHELL} -l"
 
