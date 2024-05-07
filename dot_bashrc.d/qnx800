@@ -1,0 +1,16 @@
+#~/bin/bash
+# QNX needs to initialize build environment 
+# before we can use make in the terminal
+# This script initialize the environment
+# but only if it's called by java, what is
+# signal thar shell is called from 
+# the QNX IDE
+
+PARENT_NAME=`ps -ocomm --no-header $PPID`
+
+if [ "${PARENT_NAME}" == "java" ]; then
+   if [ -f "${HOME}/qnx800/qnxsdp-env.sh" ]; then
+      source "${HOME}/qnx800/qnxsdp-env.sh"
+   fi
+fi
+
