@@ -20,6 +20,8 @@ alias dl="cd ~/Downloads"
 alias dt="cd ~/Desktop"
 
 alias g="git"
+#create git commits more easily
+alias gcm='git commit -m'
 
 #Allow sudo for other aliases
 alias sudo='sudo '
@@ -108,4 +110,5 @@ alias path='echo -e ${PATH//:/\\n}'
 
 # Reload the shell (i.e. invoke as a login shell)
 alias reload="exec ${SHELL} -l"
-
+# run make for qnx8 projects
+alias qmake='source "${HOME}/qnx800/qnxsdp-env.sh";make'
