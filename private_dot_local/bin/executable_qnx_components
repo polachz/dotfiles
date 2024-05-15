@@ -1,0 +1,139 @@
+#!/bin/bash
+
+#How to use script:
+#
+# The script manages qnx packages installed on the system
+# Especially is able to store list of currently installed packages
+# and then install them later or on another system
+# default location for the components_list file is CWD, but is possible
+# to specify different file by -c|--components-file <file-path> paremeter
+#
+# To create components_list file with list of all currently instelled 
+# packages, prelas use -m|--make-list command
+#
+# To review missing packages from the components_list against the 
+# current local state, please use -s|--show-diff command.
+# This command doesn't modify anything. Just show missing packages
+#
+# To install missing packages from the components_list file, please use
+# -i|--install-missing command
+#
+# To install packages successfully, provide valid qnx account credentials
+# is necessary. The script expects file with name qnx_creds in the CWD.
+# Is possibe to provide path to the file by -p|--pass-file <file-path> 
+# parameter alternatively.
+# file must contains these two lines:
+#
+#-myqnx.user=<your-qnx-registered-user-name-or-email>
+#-myqnx.password=<your-qnx-account-very-secret-password>
+#
+#
+# Define the command to list installed software
+list_cmd="${HOME}/qnx/qnxsoftwarecenter/qnxsoftwarecenter_clt -listInstalled"
+install_cmd="${HOME}/qnx/qnxsoftwarecenter/qnxsoftwarecenter_clt" 
+make_list='false'
+show_diff='false'
+install_missing='false'
+pass_file="qnx_creds"
+# Define the file to store the component list
+components_file="components_list"
+
+# Parse command line arguments
+while (( "$#" )); do
+  case "$1" in
+    -m|--make-list)
+      make_list='true'
+      shift
+      ;;
+    -s|--show-diff)
+      show_diff='true'
+      shift
+      ;;
+    -i|--install-missing)
+      install_missing='true'
+      shift
+      ;;
+    -c|--components-file)
+      components_file="$2"
+      shift 2
+      ;;
+    -p|--pass-file)
+      pass_file="$2"
+      shift 2
+      ;;
+    *)
+      echo "Error: Invalid argument"
+      exit 1
+  esac
+done
+
+dir_name=$(dirname "$components_file")
+if [ ! -d "$dir_name" ]; then
+   echo " Path to components $dir_name file doesn't exist!!"
+   exit 1
+fi
+
+# Check the script parameters
+if [ "${install_missing}" == "true" ]; then
+   if [ ! -f "${pass_file}" ]; then
+      echo "Error: Password file not found. Please specify with -p or --pass-file."
+      exit 1
+   fi
+fi
+
+# Go to processing
+
+if [ "${make_list}" == 'true' ]; then
+    if [ -e "$components_file" ]; then
+        echo "Warning: The file $components_file exists."
+
+        # Prompt the user to overwrite the file
+        read -p "Do you want to overwrite the file? (y/n) " reply
+
+        # Convert the reply to lowercase
+        reply=${reply,,}
+
+        if [[ "$reply" == "y" || "$reply" == "yes" ]]; then
+            # Delete the file
+            rm "${components_file}"
+            echo "The file '${components_file}' will be overwritten by new components list"
+        else
+            echo "Overwritting of the file '${components_file}' has been canceled. Exiting"
+            exit 0
+        fi
+    fi
+    # Get the output of the command, ignore the first line, and store the first part of each line in the file
+    ${list_cmd} | tail -n +1 | cut -d '/' -f 1 > "${components_file}"
+    exit 0
+fi
+if [ "${install_missing}" == "true" ] || [ "${show_diff}" == "true" ]; then
+    # Check if the components file exists
+    if [ ! -f "${components_file}" ]; then
+        echo "Error: '${components_file} not found. Run the script with --make-list first."
+        exit 1
+    fi
+
+    # Get the list of installed components
+    installed_components=($(${list_cmd} | tail -n +1 | cut -d '/' -f 1))
+
+    # Read the components file line by line
+    while IFS= read -r line; do
+        # check if line contains /
+        if [[ "${line}" == */* ]]; then
+            # process only part before /
+            line="${line%%/*}"
+        fi
+        # Check if the component is not installed
+        if [[ ! " ${installed_components[@]} " =~ " ${line} " ]]; then
+            if [ "${install_missing}" == "true" ]; then
+                # Call the install command for the component
+                ${install_cmd} "@${pass_file}" -installPackage "${line}"
+            elif [ "${show_diff}" == "true" ]; then
+                echo "${line}"
+            fi
+        fi
+    done < "${components_file}"
+else
+    echo "Error: Invalid parameter. Use --make-list or --install-missing."
+    exit 1
+fi

@@ -13,6 +13,8 @@ alias ee='cd /etc'
 alias -- -="cd -"
 
 # Shortcuts
+alias loc="cd ~/.local"
+alias lb="cd ~/.local/bin"
 alias d="cd ~/devel"
 alias dl="cd ~/Downloads"
 alias dt="cd ~/Desktop"
