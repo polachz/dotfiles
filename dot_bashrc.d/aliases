@@ -22,6 +22,8 @@ alias dt="cd ~/Desktop"
 alias g="git"
 #create git commits more easily
 alias gcm='git commit -m'
+#getting startus is very odten command
+alias gst='git status'
 
 #Allow sudo for other aliases
 alias sudo='sudo '
