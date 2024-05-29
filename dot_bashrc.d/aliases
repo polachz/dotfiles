@@ -106,6 +106,8 @@ alias root='sudo -i'
 
 # Invoke Chezmoi. Fix problem with lost history when invoke the chezmoi
 alias ch='history -a && chezmoi'
+# Switch to Chezmoi directory
+alias chcd='history -a && chezmoi cd'
 
 # Print each PATH entry on a separate line
 alias path='echo -e ${PATH//:/\\n}'
