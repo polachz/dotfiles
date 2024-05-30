@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# Gets download url for latest release of a project on the github
+#
+# Return Value stored in variable: zpfn_ret_github_download_url
+#
+zpfn_get_github_project_latest_release_download_link() {
+   # Expects username/repo string to specify release of interest
+   local user_and_repo=$1
+   # Release often contains more files. To get specific one, use this grep pattern
+   local grep_search_pattern=$2
+
+   zpfn_ret_github_download_url=$(\
+      curl -s "https://api.github.com/repos/${user_and_repo}/releases/latest" \
+      | grep "browser_download_url.*${grep_search_pattern}" \
+      | cut -d : -f 2,3 \
+      | tr -d \" \
+      )
+}
+
+# Gets version number for latest release of a project on the github
+#
+# Return Value stored in variable: zpfn_ret_github_project_version_number
+#
+zpfn_get_github_project_latest_release_version_number() {
+   # Expects username/repo string to specify release of interest
+   local user_and_repo=$1
+   # Release often contains more files. To get specific one, use this grep pattern
+   local grep_search_pattern=$2
+
+   zpfn_get_github_project_latest_release_download_link "${user_and_repo}" "${grep_search_pattern}"
+   zpfn_ret_github_project_version_number=$(basename $(dirname "${zpfn_ret_github_download_url}") )
+   echo "$zpfn_ret_github_project_version_number"
+}
