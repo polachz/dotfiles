@@ -32,3 +32,17 @@ zpfn_get_github_project_latest_release_version_number() {
    zpfn_ret_github_project_version_number=$(basename $(dirname "${zpfn_ret_github_download_url}") )
    echo "$zpfn_ret_github_project_version_number"
 }
+
+# Checks if systemd service exists or not
+#
+# Returns 0 (OK) when exists, 1 otherwise
+#
+zpfn_systemd_service_exists() {
+  # Name of the service to be checked
+  local service_name=$1
+  if [[ $(systemctl list-units --all -t service --full --no-legend "${service_name}.service" | sed 's/^\s*//g' | cut -f1 -d' ') == ${service_name}.service ]]; then
+    return 0
+  else
+    return 1
+  fi
+}

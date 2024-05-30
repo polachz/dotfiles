@@ -7,8 +7,4 @@ packages:
     wks:
       - openssl
       - keepassxc
-
-
-
-
-
+      - doublecmd-gtk
