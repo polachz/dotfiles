@@ -1,4 +1,35 @@
- {{- $deployment_type := env "CHEZMOI_DEPLOYMENT_TYPE" -}}
+{{- $deployment_string_id := env "CHEZMOI_DEPLOYMENT_STRING_ID" -}}
 
 data:
-  deployment_type: {{ $deployment_type | quote }}
+  deployment:
+{{- if eq $deployment_string_id "server" }}
+    string_id: {{ $deployment_string_id | quote }}
+    type: {{ "server" | quote }}
+    environment: {{ "personal" | quote }}
+    gui: false
+{{- else if eq $deployment_string_id "workstation" }}
+    string_id: {{ $deployment_string_id | quote }}
+    type: {{ "workstation" | quote }}
+    environment: {{ "personal" | quote }}
+    gui: false
+{{- else if eq $deployment_string_id "gui-workstation" }}
+    string_id: {{ $deployment_string_id | quote }}
+    type: {{ "workstation" | quote }}
+    environment: {{ "personal" | quote }}
+    gui: true
+{{- else if eq $deployment_string_id "workstation-work" }}
+    string_id: {{ $deployment_string_id | quote }}
+    type: {{ "workstation" | quote }}
+    environment: {{ "nxp" | quote }}
+    gui: false
+{{- else if eq $deployment_string_id "gui-workstation-work" }}
+    string_id: {{ $deployment_string_id | quote }}
+    type: {{ "workstation" | quote }}
+    environment: {{ "nxp" | quote }}
+    gui: true
+{{- end }}
+
+encryption: 'age'
+age:
+  identity: '~/.config/chezmoi/zamecek.txt'
+  recipient: 'age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0'
