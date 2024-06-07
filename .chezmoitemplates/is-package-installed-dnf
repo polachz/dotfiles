@@ -1,3 +1,5 @@
+{{- /* If template result is not empty, it's handled as true by if statement */ -}}
+{{- /* If template result is empty, it's handled as false */ -}}
 {{- $package := index . 0 -}}
 {{- if ne (output "sh" "-c" (print "dnf list installed " $package "  > /dev/null 2>&1 || echo false") | trim) "false" -}}
 true

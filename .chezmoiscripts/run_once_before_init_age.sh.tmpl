@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# See chezmoi FAQ - Encryption section for more details
+
+if [ ! -f "${HOME}/.config/chezmoi/zamecek.txt" ]; then
+    mkdir -p "${HOME}/.config/chezmoi"
+    chezmoi age decrypt --output "${HOME}/.config/chezmoi/zamecek.txt" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
+    chmod 600 "${HOME}/.config/chezmoi/zamecek.txt"
+fi
+
+if [ ! -f "${HOME}/.config/chezmoi/ezamecek.txt" ]; then
+    mkdir -p "${HOME}/.config/chezmoi"
+    chezmoi decrypt --output "${HOME}/.config/chezmoi/ezamecek.txt" "{{ .chezmoi.sourceDir }}/ezamecek"
+    chmod 600 "${HOME}/.config/chezmoi/ezamecek.txt"
+fi

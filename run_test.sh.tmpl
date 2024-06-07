@@ -1,0 +1,16 @@
+#!/bin/bash
+echo BB: {{ .deployment.environment }} 
+{{- if .deployment.gui }}
+    echo "Gui true"
+{{- else }}
+    echo "Gui false"
+{{- end }}
+{{ $template_out := (includeTemplate "is-package-installed-dnf" (list "git")) }}
+{{- if $template_out }}
+echo " Is Installed"
+{{- else }}
+echo "@@ Not Installed"
+{{- end }}
+
+
+echo MM: {{ .identities.personal.email }} 

@@ -1,7 +1,11 @@
-{{- $deployment_string_id := env "CHEZMOI_DEPLOYMENT_STRING_ID" -}}
-
+{{- $deployment_string_id := env "CHZ_DEPLOYMENT_STRING_ID" -}}
+{{- $osid := .chezmoi.os -}}
+{{- if hasKey .chezmoi.osRelease "id" -}}
+{{-   $osid = printf "%s-%s" .chezmoi.os .chezmoi.osRelease.id -}}
+{{- end -}}
 data:
   deployment:
+    osid: {{ $osid | quote }}
 {{- if eq $deployment_string_id "server" }}
     string_id: {{ $deployment_string_id | quote }}
     type: {{ "server" | quote }}
@@ -28,8 +32,30 @@ data:
     environment: {{ "nxp" | quote }}
     gui: true
 {{- end }}
-
+{{- $virt_type := (output "systemd-detect-virt" | trim) -}}
+{{- if eq $virt_type "oracle" }}
+    vm: true 
+    vm_type: virtualbox
+{{- else if eq $virt_type "KVM" }}
+    vm: true
+    vm_type: qemu
+{{- else if eq $virt_type "vmware" }}
+    vm: true
+    vm_type: vmware
+{{- else }}
+    vm: false
+    vm_type: none
+{{- end }}
+{{- if eq .chezmoi.osRelease.id "ubuntu" }}
+package_manager: apt
+{{- else if eq .chezmoi.osRelease.id "fedora" }}
+package_manager: dnf
+{{- else if eq .chezmoi.osRelease.id "debian" }}
+package_manager: apt
+{{- end }}
 encryption: 'age'
 age:
   identity: '~/.config/chezmoi/zamecek.txt'
   recipient: 'age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0'
+
+{{ joinPath .chezmoi.sourceDir ".ignored-encrypted_identities.age" | include | decrypt }}
