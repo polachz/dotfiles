@@ -1,4 +1,11 @@
 {
   "_public_key": "c5b2fc15042763cbc638a9a2aa46c960bc66495aba6f5e51fb4b04da9fda6f26",
+  "personal": {
+    "name": "EJ[1:/keZBuvo6VqDadXx5V6Dui74/Td/JmKxQDkygODmsUU=:6LrDQWa4GIJXSpZd2Y199KG4u6jE/4UI:JjQe2QHw0dnJztTYeZws2amWC2LMN55sbs3bt3M=]",
+    "email": "EJ[1:/keZBuvo6VqDadXx5V6Dui74/Td/JmKxQDkygODmsUU=:b3RMPFLQJp6G20R85kq8RJnoRer6kEC8:8hYTZ9PGt6kZpqx3wQDNZb7AQijc03xbNesub1vOjao=]"
+  },
+  "nxp": {
+    "name": "EJ[1:/keZBuvo6VqDadXx5V6Dui74/Td/JmKxQDkygODmsUU=:JFiOOD3dbvh6HCyidznqwyza8yfWA2VW:+iDc3TJcT0kvunLRyOQex/cyLDsMFivGq1zgd6Y=]",
+    "email": "EJ[1:/keZBuvo6VqDadXx5V6Dui74/Td/JmKxQDkygODmsUU=:KYearxj1uHmRprgN0yp4KinN7LtDE9cV:FpLv3obt1devqf6pskD9iuqemvCV4EHlkJ67MdfZzTn56eKMvg==]"
+  }
 }
-

@@ -1,8 +1,9 @@
 {{- $deployment_string_id := env "CHZ_DEPLOYMENT_STRING_ID" -}}
 {{- $osid := .chezmoi.os -}}
 {{- if hasKey .chezmoi.osRelease "id" -}}
-{{-   $osid = printf "%s-%s" .chezmoi.os .chezmoi.osRelease.id -}}
+{{- $osid = printf "%s-%s" .chezmoi.os .chezmoi.osRelease.id -}}
 {{- end -}}
+        {{- $ejdkey := joinPath .chezmoi.homeDir ".config/chezmoi/ezamecek.txt" -}}
 data:
   deployment:
     osid: {{ $osid | quote }}
@@ -47,15 +48,14 @@ data:
     vm_type: none
 {{- end }}
 {{- if eq .chezmoi.osRelease.id "ubuntu" }}
-package_manager: apt
+  package_manager: apt
 {{- else if eq .chezmoi.osRelease.id "fedora" }}
-package_manager: dnf
+  package_manager: dnf
 {{- else if eq .chezmoi.osRelease.id "debian" }}
-package_manager: apt
+  package_manager: apt
 {{- end }}
+  ejdkey: {{ $ejdkey | quote }}
 encryption: 'age'
 age:
   identity: '~/.config/chezmoi/zamecek.txt'
   recipient: 'age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0'
-
-{{ joinPath .chezmoi.sourceDir ".ignored-encrypted_identities.age" | include | decrypt }}

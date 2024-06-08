@@ -12,5 +12,6 @@ echo " Is Installed"
 echo "@@ Not Installed"
 {{- end }}
 
-
-echo MM: {{ .identities.personal.email }} 
+echo {{ .package_manager }}
+pmko={{- (ejsonDecryptWithKey "evault" (include .ejdkey )).nxp.email }}
+echo MM: $pmko
