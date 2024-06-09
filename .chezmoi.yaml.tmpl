@@ -3,10 +3,15 @@
 {{- if hasKey .chezmoi.osRelease "id" -}}
 {{- $osid = printf "%s-%s" .chezmoi.os .chezmoi.osRelease.id -}}
 {{- end -}}
-        {{- $ejdkey := joinPath .chezmoi.homeDir ".config/chezmoi/ezamecek.txt" -}}
+{{- $ejdkey := joinPath .chezmoi.homeDir ".config/chezmoi/ezamecek.txt" -}}
+{{- $desktop := "none" -}}
+{{- if lookPath "inxi" -}}
+{{- $desktop = (output "bash" "-c" "inxi -c -S | sed -n -e 's/^.*Desktop: \\([^ ]*\\).*$/\\1/p' | awk '{print tolower($0)}'") | trim -}}
+{{- end -}}
 data:
   deployment:
     osid: {{ $osid | quote }}
+    desktop: {{ $desktop | quote }}
 {{- if eq $deployment_string_id "server" }}
     string_id: {{ $deployment_string_id | quote }}
     type: {{ "server" | quote }}
@@ -59,3 +64,5 @@ encryption: 'age'
 age:
   identity: '~/.config/chezmoi/zamecek.txt'
   recipient: 'age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0'
+ejson:
+  key: {{ (include $ejdkey) | quote }}

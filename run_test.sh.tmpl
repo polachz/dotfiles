@@ -1,4 +1,12 @@
 #!/bin/bash
+
+#Include common bash functions and helpers
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
 echo BB: {{ .deployment.environment }} 
 {{- if .deployment.gui }}
     echo "Gui true"
@@ -13,5 +21,18 @@ echo "@@ Not Installed"
 {{- end }}
 
 echo {{ .package_manager }}
-pmko={{- (ejsonDecryptWithKey "evault" (include .ejdkey )).nxp.email }}
+pmko={{- (ejsonDecrypt "evault").nxp.email }}
 echo MM: $pmko
+
+wks_packages="{{- .packages.dnf.workstation | quoteList | join " " -}}"
+append_missing_packages_to_list_dnf $wks_packages
+
+echo "Miss: ${missing_packages[@]}"
+
+{{ $cmd := "inxi -c -S | sed -n -e 's/^.*Desktop: \\([^ ]*\\).*$/\\1/p'" }}
+{{- $dd := (output "bash" "-c" "inxi -c -S | sed -n -e 's/^.*Desktop: \\([^ ]*\\).*$/\\1/p' | awk '{print tolower($0)}'") }}
+
+echo "DD: {{ $cmd }}"
+echo "DD: {{ $dd }}"
+
+

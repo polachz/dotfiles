@@ -130,3 +130,15 @@ function service_exists() {
     return 1
   fi
 }
+
+function append_missing_packages_to_list_dnf() {
+  local wanted_packages=("$@")
+
+  for package in "${wanted_packages[@]}"; do
+    # shellcheck disable=SC2310
+    if ! is_dnf_package_installed "${package}"; then
+      missing_packages+=("${package}")
+    fi
+  done
+
+}

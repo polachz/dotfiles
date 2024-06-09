@@ -1,0 +1,43 @@
+#!/bin/bash
+
+#Include common bash functions and helpers
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+missing_packages=()
+START_TIME=$SECONDS
+{{- if eq .package_manager "dnf" }}
+log_task "Processing common DNF packages"
+required_packages="{{- .packages.dnf.common  | quoteList | join " " -}}"
+append_missing_packages_to_list_dnf ${required_packages}
+{{- if eq .deployment.type "workstation" }}
+log_task "Processing workstation DNF packages"
+required_packages="{{- .packages.dnf.workstation  | quoteList | join " " -}}"
+append_missing_packages_to_list_dnf ${required_packages}
+{{- end }}
+{{- if eq .deployment.vm_type "virtualbox" }}
+log_task "Processing VirtualBox DNF packages"
+required_packages="{{- .packages.dnf.virtualbox  | quoteList | join " " -}}"
+append_missing_packages_to_list_dnf ${required_packages}
+{{- end }}
+{{- if eq .deployment.vm_type "vmware" }}
+log_task "Processing VmWare DNF packages"
+required_packages="{{- .packages.dnf.vmware  | quoteList | join " " -}}"
+append_missing_packages_to_list_dnf ${required_packages}
+{{- end }}
+{{- if .deployment.gui }}
+log_task "Processing GUI DNF packages"
+required_packages="{{- .packages.dnf.gui  | quoteList | join " " -}}"
+append_missing_packages_to_list_dnf ${required_packages}
+{{- end }}
+log_task "Installing missing DNF packages: ${missing_packages[@]}"
+{{- end }}
+echo "${missing_packages[@]}"
+
+END_TIME=$SECONDS
+DURATION=$((END_TIME - START_TIME))
+echo "The task took $DURATION seconds to complete."
+

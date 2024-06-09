@@ -28,5 +28,21 @@ Then switch to ssh
 
 chezmoi cd && git remote set-url origin git@github.com:polachz/dotfiles.git
 
+Deployment types:
+- server
+- workstation
+
+Boolean attributes:
+- gui
+- vm
+
+VM types:
+
+- virtualbox
+- vmware
+- qemu
+
+
+
 
 

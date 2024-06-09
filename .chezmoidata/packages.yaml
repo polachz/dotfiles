@@ -4,7 +4,12 @@ packages:
       - 'git'
     virtualbox:
       - 'virtualbox-guest-additions'
-    wks:
+    vmware:
+      - 'open-vm-tools'
+    workstation:
       - openssl
+    gui:
       - keepassxc
       - doublecmd-gtk
+      - pokus
+    
