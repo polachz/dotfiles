@@ -11,33 +11,29 @@
 data:
   deployment:
     osid: {{ $osid | quote }}
-    desktop: {{ $desktop | quote }}
-{{- if eq $deployment_string_id "server" }}
     string_id: {{ $deployment_string_id | quote }}
+{{- if eq $deployment_string_id "server" }}
     type: {{ "server" | quote }}
     environment: {{ "personal" | quote }}
     gui: false
 {{- else if eq $deployment_string_id "workstation" }}
-    string_id: {{ $deployment_string_id | quote }}
     type: {{ "workstation" | quote }}
     environment: {{ "personal" | quote }}
     gui: false
 {{- else if eq $deployment_string_id "gui-workstation" }}
-    string_id: {{ $deployment_string_id | quote }}
     type: {{ "workstation" | quote }}
     environment: {{ "personal" | quote }}
     gui: true
 {{- else if eq $deployment_string_id "workstation-work" }}
-    string_id: {{ $deployment_string_id | quote }}
     type: {{ "workstation" | quote }}
     environment: {{ "nxp" | quote }}
     gui: false
 {{- else if eq $deployment_string_id "gui-workstation-work" }}
-    string_id: {{ $deployment_string_id | quote }}
     type: {{ "workstation" | quote }}
     environment: {{ "nxp" | quote }}
     gui: true
 {{- end }}
+    desktop: {{ $desktop | quote }}
 {{- $virt_type := (output "systemd-detect-virt" | trim) -}}
 {{- if eq $virt_type "oracle" }}
     vm: true 
@@ -59,7 +55,6 @@ data:
 {{- else if eq .chezmoi.osRelease.id "debian" }}
   package_manager: apt
 {{- end }}
-  ejdkey: {{ $ejdkey | quote }}
 encryption: 'age'
 age:
   identity: '~/.config/chezmoi/zamecek.txt'

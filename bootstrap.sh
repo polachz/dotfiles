@@ -110,6 +110,10 @@ while [[ "$#" -gt 0 ]]; do
         CHZ_DEPLOYMENT_STRING_ID="${2}"
         shift # value
         ;;  
+        -r|--reinit)
+        bootstrap_chezmoi_reinit=1
+        shift # value
+        ;;  
         -h|--help)
         echo "$HELP"
         exit 0
@@ -175,9 +179,15 @@ else
     log_info "Chezmoi installed successfully."
 fi
 # Prepare for chezmoi run
-log_task "Preparing Chezmoi run..."
-set -- init
 #
+log_task "Preparing Chezmoi run..."
+if [ -n "${bootstrap_chezmoi_reinit-}" ]; then
+chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1
+chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1
+chezmoi update --init
+fi
+set -- init
+
 if [ -n "${bootstrap_force_apply-}" ]; then
     set -- "$@" --apply
 elif [ -n "${CHZ_BOOTSTRAP_ONE_SHOT-}" ]; then

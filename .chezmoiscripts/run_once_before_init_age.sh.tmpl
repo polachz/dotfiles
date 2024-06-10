@@ -2,14 +2,32 @@
 
 # See chezmoi FAQ - Encryption section for more details
 
+#Include common bash functions and helpers
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+
+log_task "Processing locks"
 if [ ! -f "${HOME}/.config/chezmoi/zamecek.txt" ]; then
+    log_task "Processing AGE"
     mkdir -p "${HOME}/.config/chezmoi"
     chezmoi age decrypt --output "${HOME}/.config/chezmoi/zamecek.txt" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
     chmod 600 "${HOME}/.config/chezmoi/zamecek.txt"
 fi
 
 if [ ! -f "${HOME}/.config/chezmoi/ezamecek.txt" ]; then
+    log_task "Processing EJSON"
+    echo 'encryption = "age"
+[age]
+    identity = "~/.config/chezmoi/zamecek.txt"
+    recipient = "age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0"
+' > "${HOME}/.config/chezmoi/tmp_cfg.toml"
+    
     mkdir -p "${HOME}/.config/chezmoi"
-    chezmoi decrypt --output "${HOME}/.config/chezmoi/ezamecek.txt" "{{ .chezmoi.sourceDir }}/ezamecek"
+    chezmoi -c  "${HOME}/.config/chezmoi/tmp_cfg.toml" decrypt --output "${HOME}/.config/chezmoi/ezamecek.txt" "{{ .chezmoi.sourceDir }}/ezamecek"
+    rm -f "${HOME}/.config/chezmoi/tmp_cfg.toml"
     chmod 600 "${HOME}/.config/chezmoi/ezamecek.txt"
 fi
