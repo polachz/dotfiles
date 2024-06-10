@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+alias qnb="cd ~/devel/qnx/qnx8-bsp"
+alias qne="cd /home/polachz/devel/qnx/qnx8-ele/qnx-imx-secure-enclave"
