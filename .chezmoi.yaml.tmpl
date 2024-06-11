@@ -7,7 +7,7 @@
 {{- $session_type := env "XDG_SESSION_TYPE" -}}
 {{- $desktop := "none" -}}
 {{- if ne $session_type "tty" -}}
-{{- $desktop = (env "XDG_SESSION_DESKTOP") -}}
+{{- $desktop = (env "XDG_SESSION_DESKTOP") | lower -}}
 {{- end -}}
 data:
   deployment:
