@@ -4,9 +4,10 @@
 {{- $osid = printf "%s-%s" .chezmoi.os .chezmoi.osRelease.id -}}
 {{- end -}}
 {{- $ejdkey := joinPath .chezmoi.homeDir ".config/chezmoi/ezamecek.txt" -}}
+{{- $session_type := env "XDG_SESSION_TYPE" -}}
 {{- $desktop := "none" -}}
-{{- if lookPath "inxi" -}}
-{{- $desktop = (output "bash" "-c" "inxi -c -S | sed -n -e 's/^.*Desktop: \\([^ ]*\\).*$/\\1/p' | awk '{print tolower($0)}'") | trim -}}
+{{- if ne $session_type "tty" -}}
+{{- $desktop = (env "XDG_SESSION_DESKTOP") -}}
 {{- end -}}
 data:
   deployment:
