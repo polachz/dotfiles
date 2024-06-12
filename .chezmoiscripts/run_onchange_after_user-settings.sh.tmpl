@@ -7,6 +7,8 @@
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
+# Checks if current user is not member of the group
+
 function not_in_group() {
     local group_name=$1
     if ! getent group "${group_name}" | grep -qw "${USER}"; then
@@ -15,6 +17,8 @@ function not_in_group() {
         return 1
     fi
 }
+# Add user to group, but provide add only if is not member of
+# the group yet, to avoid sudo requirement for this
 
 function add_to_group() {
     local group_name=$1
@@ -24,12 +28,14 @@ function add_to_group() {
         sudo usermod -a -G "${group_name}" "${USER}"
     fi
 }
+
 log_task "Processing groups membership for user ${USER}"
 add_to_group wheel
 {{- if eq .deployment.vm_type "virtualbox" }}
 add_to_group vboxsf
 {{- end }}
 {{- if eq .deployment.type "workstation" }}
+# we can use serial console without sudo -> to connect to RPI/NXP boards
 add_to_group dialout
 {{- end }}
 
