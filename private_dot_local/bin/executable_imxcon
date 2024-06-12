@@ -1,0 +1,9 @@
+#!/bin/bash
+
+usb_port_num=2
+if [ -n "${1}" ]; then
+   usb_port_num="${1}"
+fi
+
+tio "/dev/ttyUSB${usb_port_num}"
+
