@@ -21,7 +21,7 @@ echo "@@ Not Installed"
 {{- end }}
 
 echo {{ .package_manager }}
-pmko={{- (ejsonDecrypt "evault").nxp.email }}
+pmko={{- (ejsonDecrypt .ejson_vault).personal.email }}
 echo MM: $pmko
 
 wks_packages="{{- .packages.dnf.workstation | quoteList | join " " -}}"

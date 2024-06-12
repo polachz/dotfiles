@@ -39,6 +39,10 @@ function log_yellow() {
   log_color "1;33" "$@"
 }
 
+function log_brown() {
+  log_color "0;33" "$@"
+}
+
 function log_task() {
   log_blue "🔃" "$@"
 }
@@ -67,6 +71,10 @@ function log_error() {
 
 function log_info() {
   log_blue "ℹ️" "$@"
+}
+
+function log_debug() {
+    log_brown "🔎" "$@"
 }
 
 function error() {

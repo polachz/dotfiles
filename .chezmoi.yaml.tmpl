@@ -56,6 +56,7 @@ data:
 {{- else if eq .chezmoi.osRelease.id "debian" }}
   package_manager: apt
 {{- end }}
+  ejson_vault: {{ joinPath .chezmoi.sourceDir "evault" | quote }}
 encryption: 'age'
 age:
   identity: '~/.config/chezmoi/zamecek.txt'

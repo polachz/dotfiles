@@ -8,8 +8,12 @@ packages:
       - 'open-vm-tools'
     workstation:
       - openssl
+      # Serial device I/O - to debug RPI/NXP boards easily
+      - tio
     gui:
       - keepassxc
       - doublecmd-gtk
-      - pokus
+
+        
+
     
