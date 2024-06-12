@@ -10,7 +10,9 @@ true || source ../.chezmoitemplates/scripts-library
 # Checks if current user is not member of the group
 
 function not_in_group() {
+    
     local group_name=$1
+
     if ! getent group "${group_name}" | grep -qw "${USER}"; then
         return 0
     else
@@ -21,11 +23,16 @@ function not_in_group() {
 # the group yet, to avoid sudo requirement for this
 
 function add_to_group() {
+    
     local group_name=$1
 
-    if not_in_group "${group_name}"; then
-        log_info "Adding user to group ${group_name}"
-        sudo usermod -a -G "${group_name}" "${USER}"
+    if getent group ${group_name} > /dev/null 2>&1; then
+        if not_in_group "${group_name}"; then
+            log_info "Adding user to group ${group_name}"
+            sudo usermod -a -G "${group_name}" "${USER}" > /dev/null 2>&1
+        fi
+    else
+        log_error "The Group ${group_name} doesn't exist on the computer"
     fi
 }
 
