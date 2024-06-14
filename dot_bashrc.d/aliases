@@ -18,7 +18,7 @@ alias lb="cd ~/.local/bin"
 alias d="cd ~/devel"
 alias dl="cd ~/Downloads"
 alias dt="cd ~/Desktop"
-alias rcd="cd ~/.bashrc.d"
+alias brc="cd ~/.bashrc.d"
 
 alias g="git"
 #create git commits more easily
