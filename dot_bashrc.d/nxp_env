@@ -1,3 +1,9 @@
 #!/usr/bin/env bash
 alias qnb="cd ~/devel/qnx/qnx8-bsp"
 alias qne="cd /home/polachz/devel/qnx/qnx8-ele/qnx-imx-secure-enclave"
+
+alias qc="imxcon"
+
+# run make for qnx8 projects
+alias qmake='source "${HOME}/qnx800/qnxsdp-env.sh";make'
+

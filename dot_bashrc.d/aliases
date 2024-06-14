@@ -18,12 +18,15 @@ alias lb="cd ~/.local/bin"
 alias d="cd ~/devel"
 alias dl="cd ~/Downloads"
 alias dt="cd ~/Desktop"
+alias rcd="cd ~/.bashrc.d"
 
 alias g="git"
 #create git commits more easily
 alias gcm='git commit -m'
-#getting startus is very odten command
+#getting startus is very often command
 alias gst='git status'
+#Add modified and deleted files to thash
+alias gam='git add -u'
 
 #Allow sudo for other aliases
 alias sudo='sudo '
@@ -107,12 +110,11 @@ alias root='sudo -i'
 # Invoke Chezmoi. Fix problem with lost history when invoke the chezmoi
 alias ch='history -a && chezmoi'
 # Switch to Chezmoi directory
-alias chcd='history -a && chezmoi cd'
+alias chd='history -a && chezmoi cd'
 
 # Print each PATH entry on a separate line
 alias path='echo -e ${PATH//:/\\n}'
 
 # Reload the shell (i.e. invoke as a login shell)
 alias reload="exec ${SHELL} -l"
-# run make for qnx8 projects
-alias qmake='source "${HOME}/qnx800/qnxsdp-env.sh";make'
+
