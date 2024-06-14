@@ -24,9 +24,7 @@ CHZ_BOOTSTRAP_VERBOSE
 -- deprecated ---
 sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply polachz
 
-Then switch to ssh
-
-chezmoi cd && git remote set-url origin git@github.com:polachz/dotfiles.git
+Switch to SSH is now provided automatically by chezmoi scripts
 
 Deployment types:
 - server

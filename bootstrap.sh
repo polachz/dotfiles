@@ -60,9 +60,16 @@ function log_info() {
   log_blue "ℹ️" "$@"
 }
 
-function log_debug() {
+function log_debug_force() {
     log_brown "🔎" "$@"
 }
+
+function log_debug() {
+    if [ -n "${CHZ_DOTFILES_DEBUG}" ]; then
+       log_brown "🔎" "$@"
+    fi
+}
+
 
 # Function to display menu
 function display_menu {
@@ -75,12 +82,10 @@ function display_menu {
     echo "e) Exit"
 }
 
-log_debug Picovinka testovaci
-
 while [[ "$#" -gt 0 ]]; do
 
     if [ -n "${DEBUG_SCRIPT}" ]; then
-        log_debug "Processing cmdline param ${1}"
+        log_debug_force "Processing cmdline param ${1}"
     fi
 
     case ${1} in

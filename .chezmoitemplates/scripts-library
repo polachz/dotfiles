@@ -73,8 +73,14 @@ function log_info() {
   log_blue "ℹ️" "$@"
 }
 
-function log_debug() {
+function log_debug_force() {
     log_brown "🔎" "$@"
+}
+
+function log_debug() {
+    if [ -n "${CHZ_DOTFILES_DEBUG}" ]; then
+       log_brown "🔎" "$@"
+    fi
 }
 
 function error() {

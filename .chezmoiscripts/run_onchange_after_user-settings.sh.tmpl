@@ -46,5 +46,18 @@ add_to_group vboxsf
 add_to_group dialout
 {{- end }}
 
+# switch repo access from https to ssh 
+# If any modifications will be provided, ssh is required for push
+# 
+# CHEZMOI_SOURCE_DIR is git repository for this instance
+#
+git_repo_url=$(git --git-dir="${CHEZMOI_SOURCE_DIR}/.git" remote get-url origin)
+if ! echo "${git_repo_url}" | grep -q "^git"; then
+    log_task "Changing chezmoi source remote repo access from https to ssh"
+    new_repo_url=$(echo "${git_repo_url}" | grep -oP 'https://\K\S+')
+    new_repo_url="git@${new_repo_url}"
+    git remote set-url origin "${new_repo_url}" || error "Change remote repo url from https to ssh failed!"
+fi
+
 #make chezmoi config readable only by user
 chmod 0600 "${HOME}/.config/chezmoi/chezmoi.yaml"
