@@ -46,3 +46,24 @@ zpfn_systemd_service_exists() {
     return 1
   fi
 }
+
+##################
+# Code # Color   #
+##################
+#  00  # Off     #
+#  30  # Black   #
+#  31  # Red     #
+#  32  # Green   #
+#  33  # Yellow  #
+#  34  # Blue    #
+#  35  # Magenta #
+#  36  # Cyan    #
+#  37  # White   #
+##################
+
+# Dark colors: \[\033[0;??m\]
+# Light colors: \[\033[1;??m\]
+
+function color {
+  echo "\[\033[$1;$2m\]"
+}
