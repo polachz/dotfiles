@@ -1,15 +1,31 @@
+{{- $enc_age_recipient := "age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0" -}}
+{{- $enc_ejson_key_id := "c5b2fc15042763cbc638a9a2aa46c960bc66495aba6f5e51fb4b04da9fda6f26" -}}
+
+{{- $ch_cfg_dir := joinPath .chezmoi.homeDir ".config/chezmoi" -}}
+{{- $enc_keys_dir:= joinPath $ch_cfg_dir "keys" -}}
+{{- $enc_age_key_file := joinPath $ch_cfg_dir "zamecek.txt" -}}
+
 {{- $deployment_string_id := env "CHZ_DEPLOYMENT_STRING_ID" -}}
 {{- $osid := .chezmoi.os -}}
 {{- if hasKey .chezmoi.osRelease "id" -}}
 {{- $osid = printf "%s-%s" .chezmoi.os .chezmoi.osRelease.id -}}
 {{- end -}}
-{{- $ejdkey := joinPath .chezmoi.homeDir ".config/chezmoi/ezamecek.txt" -}}
+
 {{- $session_type := env "XDG_SESSION_TYPE" -}}
 {{- $desktop := "none" -}}
+
 {{- if ne $session_type "tty" -}}
 {{- $desktop = (env "XDG_SESSION_DESKTOP") | lower -}}
 {{- end -}}
 data:
+  chezmoi_config_dir: {{ $ch_cfg_dir | quote"
+  crypt: 
+    keys_dir: {{ $enc_keys_dir | quote }}
+    age:
+      age_recipient: {{ $enc_age_recipient | quote }}
+      age_key_file: {{ $enc_age_key_file | quote }}
+    ejson:
+      key_id: {{ $enc_ejson_key_id | quote }}
   deployment:
     osid: {{ $osid | quote }}
     string_id: {{ $deployment_string_id | quote }}
@@ -59,10 +75,10 @@ data:
   ejson_vault: {{ joinPath .chezmoi.sourceDir "evault" | quote }}
 encryption: 'age'
 age:
-  identity: '~/.config/chezmoi/zamecek.txt'
-  recipient: 'age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0'
+  identity: {{ $enc_age_key_file | quote }}
+  recipient: {{ $enc_age_recipient | quote }}
 ejson:
-  keyDir: '~/.config/chezmoi'
+  keyDir: {{ $enc_keys_dir | quote }}
 diff:
   exclude:
     - scripts
