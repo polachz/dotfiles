@@ -51,6 +51,8 @@ add_to_group dialout
 # 
 # {{ .chezmoi.sourceDir }}  is git repository for this instance
 #
+git_local_dir="{{ joinPath .chezmoi.sourceDir ".git" }}"
+echo "GDX: ${git_local_dir}"
 git_repo_url=$(git --git-dir="{{ joinPath .chezmoi.sourceDir ".git" }}" remote get-url origin)
 if ! echo "${git_repo_url}" | grep -q "^git"; then
     log_task "Changing chezmoi source remote repo access from https to ssh"
