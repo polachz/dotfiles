@@ -9,7 +9,7 @@
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
-ch_cfg_dir='{{ chezmoi_config_dir }}'
+ch_cfg_dir='{{ .chezmoi_config_dir }}'
 
 age_recipient='{{ .crypt.age.age_recipient }}'
 ekey_id='{{ .crypt.ejson.key_id }}'
