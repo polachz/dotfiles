@@ -18,7 +18,7 @@
 {{- $desktop = (env "XDG_SESSION_DESKTOP") | lower -}}
 {{- end -}}
 data:
-  chezmoi_config_dir: {{ $ch_cfg_dir | quote"
+  chezmoi_config_dir: {{ $ch_cfg_dir | quote }}
   crypt: 
     keys_dir: {{ $enc_keys_dir | quote }}
     age:
