@@ -9,13 +9,14 @@
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
-age_recipient='age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0'
-ekey_id='c5b2fc15042763cbc638a9a2aa46c960bc66495aba6f5e51fb4b04da9fda6f26'
+ch_cfg_dir='{{ chezmoi_config_dir }}'
 
-ch_cfg_dir="${HOME}/.config/chezmoi"
-keys_dir="${ch_cfg_dir}/keys"
+age_recipient='{{ .crypt.age.age_recipient }}'
+ekey_id='{{ .crypt.ejson.key_id }}'
 
-age_key_file="${keys_dir}/zamecek.txt"
+keys_dir='{{ .crypt.keys_dir }}'
+
+age_key_file='{{ .crypt.age.age_key_file }}'
 ekey_file="${keys_dir}/${ekey_id}"
 
 ch_tmp_cfg="${ch_cfg_dir}/tmp_cfg.toml"
