@@ -49,9 +49,9 @@ add_to_group dialout
 # switch repo access from https to ssh 
 # If any modifications will be provided, ssh is required for push
 # 
-# CHEZMOI_SOURCE_DIR is git repository for this instance
+# {{ .chezmoi.sourceDir }}  is git repository for this instance
 #
-git_repo_url=$(git --git-dir="${CHEZMOI_SOURCE_DIR}/.git" remote get-url origin)
+git_repo_url=$(git --git-dir="{{ joinPath .chezmoi.sourceDir ".git" }}" remote get-url origin)
 if ! echo "${git_repo_url}" | grep -q "^git"; then
     log_task "Changing chezmoi source remote repo access from https to ssh"
     new_repo_url=$(echo "${git_repo_url}" | grep -oP 'https://\K\S+')
