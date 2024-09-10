@@ -169,8 +169,8 @@ if  command -v "chezmoi" > /dev/null 2>&1 ; then
     chezmoi="chezmoi"
 else
     log_task "Installing Chezmoi..."
-    chezmoi_bin_dir="$HOME/.local/bin"
-    chezmoi="$bin_dir/chezmoi"
+    chezmoi_bin_dir="${HOME}/.local/bin"
+    chezmoi="${chezmoi_bin_dir}/chezmoi"
     if command -v "curl" >/dev/null 2>&1; then
         chezmoi_install_script="$(curl -fsSL https://get.chezmoi.io)"
     elif command -v "wget" >/dev/null 2>&1; then
