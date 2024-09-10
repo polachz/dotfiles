@@ -52,14 +52,15 @@ add_to_group dialout
 # {{ .chezmoi.sourceDir }}  is git repository for this instance
 #
 git_local_dir="{{ joinPath .chezmoi.sourceDir ".git" }}"
-echo "GDX: ${git_local_dir}"
-git_repo_url=$(git --git-dir="{{ joinPath .chezmoi.sourceDir ".git" }}" remote get-url origin)
+git_repo_url=$(git --git-dir="${git_local_dir}" remote get-url origin)
 if ! echo "${git_repo_url}" | grep -q "^git"; then
     log_task "Changing chezmoi source remote repo access from https to ssh"
     new_repo_url=$(echo "${git_repo_url}" | grep -oP 'https://\K\S+')
     new_repo_url="git@${new_repo_url}"
+    pushd "${git_local_dir}"
     git remote set-url origin "${new_repo_url}" || error "Change remote repo url from https to ssh failed!"
+    popd
 fi
 
 #make chezmoi config readable only by user
-chmod 0600 "${HOME}/.config/chezmoi/chezmoi.yaml"
+chmod 0600 "{{ joinPath .chezmoi_config_dir "chezmoi.yaml" }}"
