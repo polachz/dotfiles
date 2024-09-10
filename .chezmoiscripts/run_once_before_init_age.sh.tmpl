@@ -37,7 +37,7 @@ if [ ! -f "${ekey_file}" ]; then
     recipient = "${age_recipient}"
 ' > "${ch_tmp_cfg}"
     
-    mkdir -p "${ekeys_dir}"
+    mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
     chezmoi -c  "${ch_tmp_cfg}" decrypt --output "${ekey_file}" "{{ .chezmoi.sourceDir }}/ezamecek"
     rm -f "${ch_tmp_cfg}"
     chmod 600 "${ekey_file}"
