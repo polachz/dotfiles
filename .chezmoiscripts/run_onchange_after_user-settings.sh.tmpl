@@ -63,4 +63,5 @@ if ! echo "${git_repo_url}" | grep -q "^git"; then
 fi
 
 #make chezmoi config readable only by user
+log_task "Changing chezmoi config file rights"
 chmod 0600 "{{ joinPath .chezmoi_config_dir "chezmoi.yaml" }}"
