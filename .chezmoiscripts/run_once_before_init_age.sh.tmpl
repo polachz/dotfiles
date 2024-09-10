@@ -24,7 +24,7 @@ ch_tmp_cfg="${ch_cfg_dir}/tmp_cfg.toml"
 log_task "Processing locks"
 if [ ! -f "${age_key_file}" ]; then
     log_task "Processing AGE"
-    mkdir -p "${keys_dir}" && chmod 700 "$keys_dir}"
+    mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
     chezmoi age decrypt --output "${age_key_file}" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
     chmod 600 "${age_key_file}"
 fi
