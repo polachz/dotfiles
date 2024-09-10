@@ -9,6 +9,7 @@
 # The format is  "Menu description @ selected-value"
 # with @ as separator  between menu  item 
 # and returned value if item is selected
+$GITHUB_USERNAME="polachz"
 menu_items=(
     "Server VM @ server"
     "Non-GUI Workstation @ workstation"
@@ -161,7 +162,7 @@ if [ -z "${CHZ_DEPLOYMENT_STRING_ID-}" ]; then
     export CHZ_DEPLOYMENT_STRING_ID="${menu_selection}"
 fi
 
-chezmoi_github_user=""
+chezmoi_github_url=""
 
 if  command -v "chezmoi" > /dev/null 2>&1 ; then
     log_info "Chezmoi already installed. Dry run will be provided"
@@ -171,7 +172,7 @@ else
     log_task "Installing Chezmoi..."
     chezmoi_bin_dir="${HOME}/.local/bin"
     chezmoi="${chezmoi_bin_dir}/chezmoi"
-    chezmoi_github_user="polachz"
+    chezmoi_github_url="https://github.com/$GITHUB_USERNAME/dotfiles.git"
     if command -v "curl" >/dev/null 2>&1; then
         chezmoi_install_script="$(curl -fsSL https://get.chezmoi.io)"
     elif command -v "wget" >/dev/null 2>&1; then
@@ -203,7 +204,7 @@ elif [ -n "${CHZ_BOOTSTRAP_ONE_SHOT-}" ]; then
 elif [ -n "${CHZ_BOOTSTRAP_DRY_RUN-}" ]; then
     set -- "$@" --dry-run
 else
-    set -- "$@" --apply "${chezmoi_github_user}"
+    set -- "$@" --apply "${chezmoi_github_url}"
 fi
 if [ -n "${bootstrap_chezmoi_debug-}" ]; then
     set -- "$@" --debug
