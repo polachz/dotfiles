@@ -57,9 +57,9 @@ if ! echo "${git_repo_url}" | grep -q "^git"; then
     log_task "Changing chezmoi source remote repo access from https to ssh"
     new_repo_url=$(echo "${git_repo_url}" | grep -oP 'https://\K\S+')
     new_repo_url="git@${new_repo_url}"
-    pushd "${git_local_dir}"
+    pushd "${git_local_dir}" > /dev/null
     git remote set-url origin "${new_repo_url}" || error "Change remote repo url from https to ssh failed!"
-    popd
+    popd > /dev/null
 fi
 
 #make chezmoi config readable only by user
