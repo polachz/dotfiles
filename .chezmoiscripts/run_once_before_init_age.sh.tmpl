@@ -9,25 +9,35 @@
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
+age_recipient='age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0'
+ekey_id='c5b2fc15042763cbc638a9a2aa46c960bc66495aba6f5e51fb4b04da9fda6f26'
+
+ch_cfg_dir="${HOME}/.config/chezmoi"
+keys_dir="${ch_cfg_dir}/keys"
+
+age_key_file="${keys_dir}/zamecek.txt"
+ekey_file="${keys_dir}/${ekey_id}"
+
+ch_tmp_cfg="${ch_cfg_dir}/tmp_cfg.toml"
 
 log_task "Processing locks"
-if [ ! -f "${HOME}/.config/chezmoi/zamecek.txt" ]; then
+if [ ! -f "${age_key_file}" ]; then
     log_task "Processing AGE"
-    mkdir -p "${HOME}/.config/chezmoi"
-    chezmoi age decrypt --output "${HOME}/.config/chezmoi/zamecek.txt" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
-    chmod 600 "${HOME}/.config/chezmoi/zamecek.txt"
+    mkdir -p "${keys_dir}" && chmod 700 "$keys_dir}"
+    chezmoi age decrypt --output "${age_key_file}" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
+    chmod 600 "${age_key_file}"
 fi
 
-if [ ! -f "${HOME}/.config/chezmoi/ezamecek.txt" ]; then
+if [ ! -f "${ekey_file}" ]; then
     log_task "Processing EJSON"
     echo 'encryption = "age"
 [age]
-    identity = "~/.config/chezmoi/zamecek.txt"
-    recipient = "age1sad3t52ysu0gavfar2yjqvmwv5msvfpzagyudgm8tmz6pvpr8f7qctd4f0"
-' > "${HOME}/.config/chezmoi/tmp_cfg.toml"
+    identity = "${age_key_file}"
+    recipient = "${age_recipient}"
+' > "${ch_tmp_cfg}"
     
-    mkdir -p "${HOME}/.config/chezmoi"
-    chezmoi -c  "${HOME}/.config/chezmoi/tmp_cfg.toml" decrypt --output "${HOME}/.config/chezmoi/ezamecek.txt" "{{ .chezmoi.sourceDir }}/ezamecek"
-    rm -f "${HOME}/.config/chezmoi/tmp_cfg.toml"
-    chmod 600 "${HOME}/.config/chezmoi/ezamecek.txt"
+    mkdir -p "${ekeys_dir}"
+    chezmoi -c  "${ch_tmp_cfg}" decrypt --output "${ekey_file}" "{{ .chezmoi.sourceDir }}/ezamecek"
+    rm -f "${ch_tmp_cfg}"
+    chmod 600 "${ekey_file}"
 fi
