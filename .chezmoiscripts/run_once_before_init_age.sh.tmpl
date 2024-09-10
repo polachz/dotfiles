@@ -31,11 +31,11 @@ fi
 
 if [ ! -f "${ekey_file}" ]; then
     log_task "Processing EJSON"
-    echo 'encryption = "age"
+    echo "encryption = 'age'
 [age]
-    identity = "${age_key_file}"
-    recipient = "${age_recipient}"
-' > "${ch_tmp_cfg}"
+    identity = '${age_key_file}'
+    recipient = '${age_recipient}'
+" > "${ch_tmp_cfg}"
     
     mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
     chezmoi -c  "${ch_tmp_cfg}" decrypt --output "${ekey_file}" "{{ .chezmoi.sourceDir }}/ezamecek"
