@@ -161,7 +161,7 @@ if [ -z "${CHZ_DEPLOYMENT_STRING_ID-}" ]; then
     export CHZ_DEPLOYMENT_STRING_ID="${menu_selection}"
 fi
 
-
+chezmoi_github_user=""
 
 if  command -v "chezmoi" > /dev/null 2>&1 ; then
     log_info "Chezmoi already installed. Dry run will be provided"
@@ -171,6 +171,7 @@ else
     log_task "Installing Chezmoi..."
     chezmoi_bin_dir="${HOME}/.local/bin"
     chezmoi="${chezmoi_bin_dir}/chezmoi"
+    chezmoi_github_user="polachz"
     if command -v "curl" >/dev/null 2>&1; then
         chezmoi_install_script="$(curl -fsSL https://get.chezmoi.io)"
     elif command -v "wget" >/dev/null 2>&1; then
@@ -180,12 +181,14 @@ else
     fi
     # Provide chezmoi installation:
     sh -c "${chezmoi_install_script}" -- -b "$chezmoi_bin_dir"
+    unset chezmoi_install_script bin_dir
     #sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply polachz
     log_info "Chezmoi installed successfully."
 fi
 # Prepare for chezmoi run
 #
 log_task "Preparing Chezmoi run..."
+
 if [ -n "${bootstrap_chezmoi_reinit-}" ]; then
 chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1
 chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1
@@ -200,7 +203,7 @@ elif [ -n "${CHZ_BOOTSTRAP_ONE_SHOT-}" ]; then
 elif [ -n "${CHZ_BOOTSTRAP_DRY_RUN-}" ]; then
     set -- "$@" --dry-run
 else
-    set -- "$@" --apply
+    set -- "$@" --apply "${chezmoi_github_user}"
 fi
 if [ -n "${bootstrap_chezmoi_debug-}" ]; then
     set -- "$@" --debug
