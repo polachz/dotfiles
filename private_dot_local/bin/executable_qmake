@@ -1,0 +1,23 @@
+#!/bin/bash
+
+if [ ! -f "${QNX_SDP_ENV_FILE}" ]; then
+
+   echo "Unable to find 'qnxsdp-env.sh' file.!!"
+   echo "please install QNX SDP to the '${QNX_SDP_PATH}' folder!"
+   echo
+   exit 1
+fi
+
+source "${QNX_SDP_ENV_FILE}"
+
+# Variables required by some project(s) Makefiles
+
+export PLATFORM='aarch64le'
+export CROSS_COMPILE="${QNX_HOST}/usr/bin/ntoaarch64-"
+export CXX=${CROSS_COMPILE}c++;
+export CC=${CROSS_COMPILE}gcc;
+export LD="${CC}"
+export AR=${CROSS_COMPILE}ar;
+export RANLIB=${CROSS_COMPILE}ranlib;
+
+make "$@"
