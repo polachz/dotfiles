@@ -1,14 +1,20 @@
 #!/bin/bash
 
-if [ ! -f "${QNX_SDP_ENV_FILE}" ]; then
+if [ -z "${QNX_SDP_ENV_FILE_NAME}" ]; then
+   QNX_SDP_ENV_FILE_NAME='qnxsdp-env.sh'
+fi
 
-   echo "Unable to find 'qnxsdp-env.sh' file.!!"
+QNX_SDP_ENV_FILE_PATH="${QNX_SDP_PATH}/${QNX_SDP_ENV_FILE_NAME}"
+
+if [ ! -f "${QNX_SDP_ENV_FILE_PATH}" ]; then
+
+   echo "Unable to find '${QNX_SDP_ENV_FILE_NAME}' file.!!"
    echo "please install QNX SDP to the '${QNX_SDP_PATH}' folder!"
    echo
    exit 1
 fi
 
-source "${QNX_SDP_ENV_FILE}"
+source "${QNX_SDP_ENV_FILE_PATH}"
 
 # Variables required by some project(s) Makefiles
 
