@@ -28,7 +28,7 @@ log_task "Processing locks"
 if [ ! -f "${age_key_file}" ]; then
     log_task "Processing AGE"
     mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
-    chezmoi age decrypt --output "${age_key_file}" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
+    {{ .chezmoi.executable }} age decrypt --output "${age_key_file}" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
     chmod 600 "${age_key_file}"
 fi
 
@@ -41,7 +41,7 @@ if [ ! -f "${ekey_file}" ]; then
 " > "${ch_tmp_cfg}"
     
     mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
-    chezmoi -c  "${ch_tmp_cfg}" decrypt --output "${ekey_file}" "{{ .chezmoi.sourceDir }}/ezamecek"
+    {{ .chezmoi.executable }}  -c  "${ch_tmp_cfg}" decrypt --output "${ekey_file}" "{{ .chezmoi.sourceDir }}/ezamecek"
     rm -f "${ch_tmp_cfg}"
     chmod 600 "${ekey_file}"
 fi
