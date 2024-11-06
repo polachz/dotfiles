@@ -21,6 +21,9 @@ ekey_file="${keys_dir}/${ekey_id}"
 
 ch_tmp_cfg="${ch_cfg_dir}/tmp_cfg.toml"
 
+log_task "Install age tool if necessary"
+{{ template install-os-package dict "package_manager" $.package_manager "package_name" "age" }}
+
 log_task "Processing locks"
 if [ ! -f "${age_key_file}" ]; then
     log_task "Processing AGE"

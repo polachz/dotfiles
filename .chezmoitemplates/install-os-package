@@ -1,0 +1,3 @@
+#!/bin/sh
+
+sudo {{- .package_manager -}} install {{- .package_name -}}
