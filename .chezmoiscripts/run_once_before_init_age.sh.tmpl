@@ -30,13 +30,10 @@ log_task "Processing locks"
 if [ ! -f "${age_key_file}" ]; then
     log_task "Processing AGE"
     mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
-    success=false    
-    while [ $success = false ]; do
-        {{ .chezmoi.executable }} age decrypt --output "${age_key_file}" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
-        if [ $? -eq 0 ]; then
-            success=true
-        else
-            echo "Decrypting failed. Trying again..."
+    while [ ! -f "${age_key_file}" ]; do
+        {{ .chezmoi.executable }} age decrypt --output "${age_key_file}" --passphrase "{{ .chezmoi.sourceDir }}/zamecek" || decrypted=false
+        if [ ! -f "${age_key_file}" ]; then
+           echo "Decrypting failed. Trying again..."
         fi
     done
     chmod 600 "${age_key_file}"
