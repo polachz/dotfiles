@@ -23,10 +23,12 @@ alias brc="cd ~/.bashrc.d"
 alias g="git"
 #create git commits more easily
 alias gcm='git commit -m'
-#getting startus is very often command
+#getting git status is very often command
 alias gst='git status'
-#Add modified and deleted files to thash
+#Add modified and deleted files to stash
 alias gam='git add -u'
+#Add files to stash
+alias ga='git add'
 
 #Allow sudo for other aliases
 alias sudo='sudo '

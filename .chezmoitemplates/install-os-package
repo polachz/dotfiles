@@ -1,3 +1,8 @@
-#!/bin/sh
-
-sudo {{ .package_manager }} -y install {{ .package_name -}}
+{{- /* Expect dict as input with keys package_manager and package */ -}}
+{{- if eq .package_manager "dnf" }}
+sudo dnf -y install {{ .package }}
+{{- else if eq .package_manager "apt" }}
+sudo apt-get -y install {{ .package }}
+{{- else -}}
+error "Unknown Package manager. Can't install {{ .package }}"
+{{- end -}}

@@ -22,13 +22,23 @@ ekey_file="${keys_dir}/${ekey_id}"
 ch_tmp_cfg="${ch_cfg_dir}/tmp_cfg.toml"
 
 log_task "Install age tool if necessary"
-{{ template "install-os-package" dict "package_manager" $.package_manager "package_name" "age" }}
+{{- if  not (includeTemplate "is-os-command-available" (list "age")) -}}
+{{ template "install-os-package" (dict "package_manager" $.package_manager "package" "age") }}
+{{- end }}
 
 log_task "Processing locks"
 if [ ! -f "${age_key_file}" ]; then
     log_task "Processing AGE"
     mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
-    {{ .chezmoi.executable }} age decrypt --output "${age_key_file}" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
+    success=false    
+    while [ $success = false ]; do
+        {{ .chezmoi.executable }} age decrypt --output "${age_key_file}" --passphrase "{{ .chezmoi.sourceDir }}/zamecek"
+        if [ $? -eq 0 ]; then
+            success=true
+        else
+            echo "Decrypting failed. Trying again..."
+        fi
+    done
     chmod 600 "${age_key_file}"
 fi
 

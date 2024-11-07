@@ -13,7 +13,7 @@ echo BB: {{ .deployment.environment }}
 {{- else }}
     echo "Gui false"
 {{- end }}
-{{ $template_out := (includeTemplate "is-package-installed-dnf" (list "git")) }}
+{{ $template_out := (includeTemplate "is-package-installed" (dict "package_manager" .package_manager "package" "gitx")) }}
 {{- if $template_out }}
 echo " Is Installed"
 {{- else }}
@@ -34,5 +34,3 @@ echo "Miss: ${missing_packages[@]}"
 
 echo "DD: {{ $cmd }}"
 echo "DD: {{ $dd }}"
-
-
