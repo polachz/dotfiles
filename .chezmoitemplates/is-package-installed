@@ -1,0 +1,13 @@
+{{- /* If template result is not empty, it's handled as true by if statement */ -}}
+{{- /* If template result is empty, it's handled as false */ -}}
+{{- /* Expect dict as input with keys package_manager and package */ -}}
+
+{{- if eq .package_manager "dnf" -}}
+{{- if ne (output "sh" "-c" (print "dnf list installed " .package "  > /dev/null 2>&1 || echo false") | trim) "false" -}}
+true
+{{- end -}}
+{{- else if eq .package_manager "apt" -}}
+{{- if ne (output "sh" "-c" (print "apt list --installed " .package "  > /dev/null 2>&1 || echo false") | trim) "false" -}}
+true
+{{- end -}}
+{{- end -}}

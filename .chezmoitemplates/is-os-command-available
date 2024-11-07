@@ -1,0 +1,6 @@
+{{- /* If template result is not empty, it's handled as true by if statement */ -}}
+{{- /* If template result is empty, it's handled as false */ -}}
+{{- $cmd_to_check := index . 0 -}}
+{{- if ne (output "sh" "-c" (print "command -v " $cmd_to_check " > /dev/null 2>&1 || echo false") | trim ) "false" -}}
+true
+{{- end -}}
