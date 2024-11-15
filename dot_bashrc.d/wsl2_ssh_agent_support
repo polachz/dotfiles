@@ -1,0 +1,30 @@
+#!/bin/sh
+# Configure Windows ssh agent forwarding to WSL
+
+# Check if we are on WSL subsytem
+if [ -n "${WSL_DISTRO_NAME}" ]; then
+   NPIPE_RELAY_PATH=$(wslpath "C:/wsl/npiperelay/npiperelay.exe")
+
+   if [ ! -f "${NPIPE_RELAY_PATH}" ]; then
+      echo "Error: Can't find `npiperelay.exe` on Windows host!"
+	  exit 1
+   fi
+
+   if ! command -v socat &> /dev/null; then
+      echo "Error: socat is not installed! Please install it."
+	  exit 1
+   fi
+
+   export SSH_AUTH_SOCK="${HOME}/.ssh/agent.sock"
+   # need `ps -ww` to get non-truncated command for matching
+   # use square brackets to generate a regex match for the process we want but that doesn't match the grep command running it!
+   ALREADY_RUNNING=$(ps -auxww | grep -q "[n]piperelay.exe -ei -s //./pipe/openssh-ssh-agent"; echo $?)
+   if [ "${ALREADY_RUNNING}" != "0" ]; then
+      if [ -S "${SSH_AUTH_SOCK}" ]; then
+	   		# clean possible previous socket 
+	        rm "${SSH_AUTH_SOCK}"
+	    fi
+	    # Start relaying of the Windows SSH agent to the wsl
+	    (setsid socat UNIX-LISTEN:"${SSH_AUTH_SOCK}",fork EXEC:"${NPIPE_RELAY_PATH} -ei -s //./pipe/openssh-ssh-agent",nofork &) >/dev/null 2>&1
+	fi
+fi

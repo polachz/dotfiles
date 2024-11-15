@@ -1,43 +1,52 @@
+#!/bin/sh
+
 #!/usr/bin/env bash
 
 # Gets download url for latest release of a project on the github
 #
 # Return Value stored in variable: zpfn_ret_github_download_url
 #
-zpfn_get_github_project_latest_release_download_link() {
+function zpfn_get_github_project_latest_release_download_link {
    # Expects username/repo string to specify release of interest
    local user_and_repo=$1
    # Release often contains more files. To get specific one, use this grep pattern
    local grep_search_pattern=$2
 
-   zpfn_ret_github_download_url=$(\
+   zpfn_ret_github_download_url=$( \
       curl -s "https://api.github.com/repos/${user_and_repo}/releases/latest" \
       | grep "browser_download_url.*${grep_search_pattern}" \
       | cut -d : -f 2,3 \
-      | tr -d \" \
-      )
+      | tr -d '\"' \
+   )
+   echo "${zpfn_ret_github_download_url}"
 }
+
+export -f zpfn_get_github_project_latest_release_download_link 
 
 # Gets version number for latest release of a project on the github
 #
 # Return Value stored in variable: zpfn_ret_github_project_version_number
 #
-zpfn_get_github_project_latest_release_version_number() {
+function zpfn_get_github_project_latest_release_version_number {
    # Expects username/repo string to specify release of interest
    local user_and_repo=$1
    # Release often contains more files. To get specific one, use this grep pattern
    local grep_search_pattern=$2
-
-   zpfn_get_github_project_latest_release_download_link "${user_and_repo}" "${grep_search_pattern}"
-   zpfn_ret_github_project_version_number=$(basename $(dirname "${zpfn_ret_github_download_url}") )
+   local github_url=''
+	
+   github_url=$(zpfn_get_github_project_latest_release_download_link "${user_and_repo}" "${grep_search_pattern}")
+   #pfn_ret_github_project_version_number=$(basename $(dirname "${zpfn_ret_github_download_url}") )
+   zpfn_ret_github_project_version_number=$(basename $(dirname "${github_url}") )
    echo "$zpfn_ret_github_project_version_number"
 }
+
+export -f zpfn_get_github_project_latest_release_version_number
 
 # Checks if systemd service exists or not
 #
 # Returns 0 (OK) when exists, 1 otherwise
 #
-zpfn_systemd_service_exists() {
+function zpfn_systemd_service_exists {
   # Name of the service to be checked
   local service_name=$1
   if [[ $(systemctl list-units --all -t service --full --no-legend "${service_name}.service" | sed 's/^\s*//g' | cut -f1 -d' ') == ${service_name}.service ]]; then
@@ -47,6 +56,7 @@ zpfn_systemd_service_exists() {
   fi
 }
 
+export -f zpfn_systemd_service_exists
 ##################
 # Code # Color   #
 ##################
@@ -65,5 +75,11 @@ zpfn_systemd_service_exists() {
 # Light colors: \[\033[1;??m\]
 
 function color {
-  echo "\[\033[$1;$2m\]"
+  echo "\033[$1;$2m"
+}
+
+export -f color
+
+function zpfn_edit {
+	"${EDITOR}" "$@"
 }
