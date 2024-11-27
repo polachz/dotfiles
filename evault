@@ -1,11 +1,13 @@
 {
   "_public_key": "c5b2fc15042763cbc638a9a2aa46c960bc66495aba6f5e51fb4b04da9fda6f26",
   "personal": {
-    "name": "EJ[1:/keZBuvo6VqDadXx5V6Dui74/Td/JmKxQDkygODmsUU=:6LrDQWa4GIJXSpZd2Y199KG4u6jE/4UI:JjQe2QHw0dnJztTYeZws2amWC2LMN55sbs3bt3M=]",
-    "email": "EJ[1:/keZBuvo6VqDadXx5V6Dui74/Td/JmKxQDkygODmsUU=:b3RMPFLQJp6G20R85kq8RJnoRer6kEC8:8hYTZ9PGt6kZpqx3wQDNZb7AQijc03xbNesub1vOjao=]"
+    "name": "EJ[1:mKZ14KgVr7QPWKLKQd8QIjXitm/RM6EJhY9MwbxW+Vw=:2gMoEgV9OYpsgXWgVJesannuXoW20jBS:cCrj39e1aSVWe1FoLp9D3JBHnxWSJ2CUFdrXxok=]",
+    "email": "EJ[1:mKZ14KgVr7QPWKLKQd8QIjXitm/RM6EJhY9MwbxW+Vw=:su9+NdoxUuab5U+UHTbclRRaJ0H1XSud:CJ0BnTg7szoA0PdDD8Xi69oHlYcJPZeaK8Xs+T0BDTs=]",
+    "email-github": "EJ[1:mKZ14KgVr7QPWKLKQd8QIjXitm/RM6EJhY9MwbxW+Vw=:7LvDovffAECCm4Mhxjz/WT+OPEIqSeba:QoInykwOU1GIQkDaJBDh79CwmPz1f6ERtZGCiDNLN6SHVP0nfrtuABlParAOCvyXGWGJ4Xz8Zce6]"
   },
   "nxp": {
-    "name": "EJ[1:/keZBuvo6VqDadXx5V6Dui74/Td/JmKxQDkygODmsUU=:JFiOOD3dbvh6HCyidznqwyza8yfWA2VW:+iDc3TJcT0kvunLRyOQex/cyLDsMFivGq1zgd6Y=]",
-    "email": "EJ[1:/keZBuvo6VqDadXx5V6Dui74/Td/JmKxQDkygODmsUU=:KYearxj1uHmRprgN0yp4KinN7LtDE9cV:FpLv3obt1devqf6pskD9iuqemvCV4EHlkJ67MdfZzTn56eKMvg==]"
+    "name": "EJ[1:mKZ14KgVr7QPWKLKQd8QIjXitm/RM6EJhY9MwbxW+Vw=:dMOKTM5nUDV18Rsir7mM5TpJccyXb6VN:6VP8dfU2THJotS/zkd3j8eSpENEqXRv3/6HroSo=]",
+    "email": "EJ[1:mKZ14KgVr7QPWKLKQd8QIjXitm/RM6EJhY9MwbxW+Vw=:bZ6SiiheC1KnfECMRXd1mtbv4rrJOeKd:G82RZn36SqyQuqiG45fmozDi+nxgZ0R3ZiYBVZrjGF7CPDYiqA==]",
+    "email-github": "EJ[1:mKZ14KgVr7QPWKLKQd8QIjXitm/RM6EJhY9MwbxW+Vw=:LVa8oR+QJSh5S5wF7W3k480m15DTMQxw:qanhAiTy73/nnMtS13a2H+0wf34/qPfYfLNKh43Sx/baNa8LLpvxCT+YZLFxnulIpg9qJ7lv+A66lHme9xc=]"
   }
 }

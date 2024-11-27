@@ -42,5 +42,22 @@ VM types:
 
 
 
+-------------------------
+
+ejson support:
+
+install from github:
+
+https://github.com/Shopify/ejson/releases/download/latest/
+
+ch data | grep keys
+
+ejson -k <key_folder_path> decrypt evault > evault_dec
+
+ejson -k <key_folder_path> encrypt evault_dec
+
+mv evault_dec evault
+
+
 
 
