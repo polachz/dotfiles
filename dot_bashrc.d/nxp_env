@@ -6,3 +6,9 @@ alias qns="cd /home/polachz/devel/qnx/qnx8-ele/qnx-imx-secure-enclave"
 alias qc="imxcon"
 
 export QNX_SDP_PATH="${HOME}/qnx800"
+
+function source_qnx_env {
+    source "${QNX_SDP_PATH}/qnxsdp-env.sh"
+}
+
+alias qsrc="source_qnx_env"
