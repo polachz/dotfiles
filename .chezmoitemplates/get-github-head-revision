@@ -1,1 +1,1 @@
-{{- printf "https://github.com/%s/releases/latest" . | getRedirectedURL | base | trimPrefix "v" -}}
+{{- printf "https://github.com/%s/raw/HEAD/README.md" . | getRedirectedURL | trimSuffix "/README.md" | base -}}
