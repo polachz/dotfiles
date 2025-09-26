@@ -9,6 +9,11 @@
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
+log_task "Install Git tool if necessary"
+{{- if  not (includeTemplate "is-os-command-available" (list "age")) -}}
+{{ template "install-os-package" (dict "package_manager" $.package_manager "package" "git") }}
+{{- end }}
+
 ch_cfg_dir='{{ .chezmoi_config_dir }}'
 
 age_recipient='{{ .crypt.age.age_recipient }}'
