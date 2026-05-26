@@ -209,6 +209,11 @@ ch   # chezmoi
 chd  # chezmoi cd
 ```
 
+For comprehensive operator guidance — daily workflow scenarios, edge
+cases, recovery patterns, the two-repo (dev vs. managed source) mental
+model, and security risks specific to the commit/push flow — see
+[`DAILY_WORKFLOW.md`](./DAILY_WORKFLOW.md).
+
 ---
 
 ## Encryption
