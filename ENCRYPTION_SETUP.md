@@ -22,12 +22,20 @@ For most cases, use the helper script that does Steps 1-7 automatically:
 # Generate keys in CWD only (then copy to repo manually)
 ./helpers/setup-encryption.sh personal
 
-# Or generate + auto-deploy to the dotfiles repo (chezmoi source-path)
-./helpers/setup-encryption.sh personal --deploy
+# Generate + auto-deploy to the dotfiles dev repo (recommended)
+./helpers/setup-encryption.sh personal --deploy --repo ~/devel/homelab/dotfiles
 
-# Or specify the repo path explicitly
-./helpers/setup-encryption.sh work --deploy --repo ~/devel/homelab/dotfiles
+# Or set DOTFILES_REPO once per shell and omit --repo
+export DOTFILES_REPO=~/devel/homelab/dotfiles
+./helpers/setup-encryption.sh work --deploy
 ```
+
+**Critical**: `--deploy` writes to your **development repo** (where you
+`git commit`), not to chezmoi's managed source-path
+(`~/.local/share/chezmoi/`). The script refuses to deploy into the
+managed copy — chezmoi would overwrite your edits on the next
+`chezmoi update`. Use the dev repo path, push from there, and other
+machines pick up the change via `chezmoi update`.
 
 The script prompts once for the Age passphrase (and once for verify),
 generates Age + EJSON key pairs, runs the round-trip test inside the
@@ -378,7 +386,282 @@ isolation guarantee holds.
 
 ---
 
-## Troubleshooting
+## Operational security after deploy
+
+Once `chezmoi apply` has run successfully, the following plaintext material
+lives on disk **permanently** (mode 600, owned by your user):
+
+```
+~/.config/chezmoi/age_<profile>.key       ← Age private key (plaintext)
+~/.config/chezmoi/keys/<ejson_pub_id>     ← EJSON private key (plaintext)
+~/.gitconfig                               ← rendered template — contains
+                                             plaintext decrypted from evault
+~/<other rendered templates>               ← any file using ejsonValue
+```
+
+This is **by design** — Age + EJSON protect data **in the repo**, not on
+the running machine. Anyone with read access to your home directory can
+read these files.
+
+### Backup considerations — CRITICAL
+
+If your backup tool includes `~/.config/chezmoi/`, the **plaintext private
+keys end up in the backup**. Combined with the encrypted blobs from the
+public dotfiles repo, anyone who obtains the backup can decrypt everything.
+
+**Always one of the following:**
+
+1. **Exclude key material from backups** (recommended for cloud sync):
+   ```
+   # Add to rsync --exclude / restic --exclude / borg --exclude / etc.
+   .config/chezmoi/age_*.key
+   .config/chezmoi/keys/
+   .config/chezmoi/chezmoi.yaml      # contains rendered key paths
+   ```
+
+2. **Encrypt the backup itself** (e.g. restic, borg with passphrase, age-encrypted
+   tar). Then key files inside are protected by the backup's own crypto.
+
+If you use Nextcloud / Dropbox / OneDrive for home sync **without a
+client-side encryption layer**: keys leak to the cloud. Don't.
+
+### What's safe to publish (public repo)
+
+| File | Safe to push? | Why |
+|------|---------------|-----|
+| `age_key_<profile>.age` | ✅ yes | Passphrase-encrypted; brute force requires the passphrase |
+| `ejson_key_<profile>.age` | ✅ yes | Encrypted with Age recipient |
+| `secrets/<profile>/evault` | ✅ yes | Per-field encrypted with EJSON |
+| `.chezmoi.yaml.tmpl` | ✅ yes | Contains only public recipient strings and EJSON key IDs |
+| `~/.config/chezmoi/age_*.key` | ❌ NEVER | Plaintext Age private key |
+| `~/.config/chezmoi/keys/*` | ❌ NEVER | Plaintext EJSON private key |
+| Plaintext evault content (`_public_key` `EJ[...]`) | n/a | Should never exist on disk; if it does, shred immediately |
+
+### What about `chezmoi cat` / `chezmoi data`?
+
+Both commands print **rendered plaintext** including decrypted values. Don't
+pipe their output to log files, pastebins, or chat tools.
+
+### Stale plaintext check
+
+After `edit-evault` or a failed setup-encryption run, plaintext may
+linger in tmpfs if a process was `kill -9`-ed (the `trap` cleanup doesn't
+run on SIGKILL):
+
+```bash
+# Should print nothing — if it does, shred them
+find /dev/shm -maxdepth 2 \( -name 'edit-evault-*' -o -name 'setup-encryption-*' \) 2>/dev/null
+```
+
+`/dev/shm` clears on reboot, so this is at worst a session-scoped leak.
+
+---
+
+## Editing evault — workflow
+
+Use the `edit-evault` helper to add or change fields:
+
+```bash
+# Decrypts into tmpfs, opens $EDITOR, re-encrypts on save
+edit-evault personal --repo ~/devel/homelab/dotfiles
+
+# Or with the env var (set once per shell)
+export DOTFILES_REPO=~/devel/homelab/dotfiles
+edit-evault personal
+```
+
+**Critical** — `edit-evault` writes to your **dev repo** (the one you
+`git push` from), not to chezmoi's managed source-path
+(`~/.local/share/chezmoi/`). If you pass `--repo ~/.local/share/chezmoi`,
+the script refuses. After editing, propagate the change:
+
+```bash
+cd ~/devel/homelab/dotfiles
+git diff secrets/personal/evault       # encrypted blob diff
+git add secrets/personal/evault
+git commit -m 'evault: add ssh.signing_key for personal'
+git push
+
+# On other machines that already have the key chain installed:
+chezmoi update                          # pulls + applies
+```
+
+### Adding new fields incrementally
+
+The evault starts as a skeleton (just `git.user` + `git.email`). Add
+fields when a template needs them, not preemptively:
+
+1. A new chezmoi template fails with `field not found` during `chezmoi apply`
+2. `edit-evault <profile>` → add the field as plaintext JSON
+3. Save → `edit-evault` re-encrypts in place
+4. Commit + push
+5. `chezmoi apply` succeeds
+
+### `edit-evault` no-op detection
+
+If you open the editor and exit without changes (same SHA256 before/after),
+the script skips re-encryption — no spurious commits.
+
+### If JSON gets broken during edit
+
+If you save invalid JSON, `edit-evault` refuses to encrypt and **disables
+its own cleanup**, leaving the plaintext file at
+`/dev/shm/edit-evault-<profile>-<pid>/evault.json`. Fix the JSON in
+another editor, then either:
+
+- Manually `cp` the fixed file to `<repo>/secrets/<profile>/evault` and
+  run `ejson encrypt <path>`
+- Or re-run `edit-evault <profile>` from scratch (it ignores the stale
+  tmpfs file)
+
+Either way, `shred -u /dev/shm/edit-evault-*/evault.json` when done.
+
+---
+
+## Recovery scenarios
+
+### Lost Age passphrase
+
+Without the passphrase, you cannot decrypt `age_key_<profile>.age` on any
+**new** machine. Existing machines still work — the decrypted Age key
+lives at `~/.config/chezmoi/age_<profile>.key` and only the bootstrap
+flow needs the passphrase.
+
+**Two paths:**
+
+1. **Re-encrypt the existing Age key with a new passphrase** (from any
+   machine where the key is already decrypted on disk):
+
+   ```bash
+   # Pick a new passphrase, save to password manager FIRST
+   chezmoi age encrypt --passphrase \
+       --output ~/devel/homelab/dotfiles/age_key_<profile>.age \
+       ~/.config/chezmoi/age_<profile>.key
+
+   cd ~/devel/homelab/dotfiles
+   git add age_key_<profile>.age
+   git commit -m 'rotate: <profile> Age passphrase'
+   git push
+   ```
+
+   The Age key pair stays the same — only the passphrase wrapper changes.
+   All evault content remains valid, no re-encryption needed.
+
+2. **Full re-key the profile** (if no machine has the decrypted Age key
+   anymore): see "Re-keying a profile" below.
+
+### Broken JSON during edit-evault
+
+See "If JSON gets broken during edit" in the editing workflow section above.
+
+### Stuck setup-encryption / corrupted blob state
+
+If a setup run was interrupted mid-stream and one of the four blobs is
+missing or won't round-trip:
+
+```bash
+# Remove the broken blobs from the dev repo
+cd ~/devel/homelab/dotfiles
+rm age_key_<profile>.age ejson_key_<profile>.age secrets/<profile>/evault
+git add -A
+
+# Re-run setup from scratch (use a fresh CWD)
+mkdir /tmp/setup-redo && cd /tmp/setup-redo
+~/devel/homelab/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
+    --repo ~/devel/homelab/dotfiles
+
+# Clean up CWD output
+shred -u /tmp/setup-redo/* && rmdir /tmp/setup-redo
+```
+
+### Machine compromise — emergency rotation
+
+If you suspect a machine that had the decrypted keys was compromised
+(stolen laptop, malware, leaked backup):
+
+1. **Don't trust the existing key material.** Generate a new Age + EJSON
+   key pair for the affected profile (see "Re-keying" below).
+2. **Re-key all profiles** if the compromise might extend to both.
+3. **Rotate any secrets that lived in the evault** (passwords, signing
+   keys, API tokens). The encryption protected them in the repo, but if
+   the attacker had the decrypted keys, they had the plaintext.
+4. **Wipe the compromised machine.** Reinstall from clean media.
+
+---
+
+## Re-keying a profile
+
+Generate fresh Age + EJSON keys, re-encrypt the evault, replace all four
+blobs + the public identifiers in `.chezmoi.yaml.tmpl`. Use when the
+existing key material is suspected compromised or you simply want a
+fresh start.
+
+### Step-by-step
+
+1. **Capture current evault content** (so you can re-seal it after re-key):
+
+   ```bash
+   edit-evault <profile> --repo ~/devel/homelab/dotfiles
+   # In the editor: copy the full JSON content to a password manager
+   # secure note. Then exit WITHOUT changes (no re-encrypt fires).
+   ```
+
+2. **Remove the old blobs and reset `.chezmoi.yaml.tmpl` placeholders**:
+
+   ```bash
+   cd ~/devel/homelab/dotfiles
+   rm age_key_<profile>.age ejson_key_<profile>.age secrets/<profile>/evault
+
+   # Restore placeholders in .chezmoi.yaml.tmpl (use the actual values you
+   # see; the script needs the placeholder string to update it)
+   # Hand-edit:
+   #   $enc_age_recipient_<profile>  := "REPLACE_WITH_<PROFILE>_AGE_PUBLIC_KEY"
+   #   $enc_ejson_key_id_<profile>   := "REPLACE_WITH_<PROFILE>_EJSON_PUBLIC_KEY"
+   ```
+
+3. **Generate new key chain** (fresh CWD, new passphrase in password
+   manager first):
+
+   ```bash
+   mkdir /tmp/rekey && cd /tmp/rekey
+   ~/devel/homelab/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
+       --repo ~/devel/homelab/dotfiles
+   ```
+
+4. **Restore evault content** with the captured JSON:
+
+   ```bash
+   # Wait for chezmoi apply on this machine to install the new EJSON key
+   chezmoi init                    # if you reset the chezmoi state
+   # (or follow the bootstrap flow below for a fresh decrypt)
+
+   edit-evault <profile> --repo ~/devel/homelab/dotfiles
+   # Paste the JSON content captured in step 1
+   # Save → re-encrypts under the new EJSON key
+   ```
+
+5. **Commit + propagate**:
+
+   ```bash
+   cd ~/devel/homelab/dotfiles
+   git add age_key_<profile>.age ejson_key_<profile>.age \
+           secrets/<profile>/evault .chezmoi.yaml.tmpl
+   git commit -m 'rekey: <profile> Age + EJSON keys'
+   git push
+   ```
+
+6. **On other machines**: the old `~/.config/chezmoi/age_<profile>.key`
+   and `~/.config/chezmoi/keys/<old_pub>` are stale. Either:
+
+   - **Clean bootstrap**: `chezmoi purge && chezmoi init --apply <repo-url>`
+     — chezmoi re-runs `run_once_before_init_age.sh.tmpl`, prompts for the
+     new passphrase, deploys fresh keys.
+
+   - **In-place swap**: `rm ~/.config/chezmoi/age_<profile>.key
+     ~/.config/chezmoi/keys/<old_pub>`, then `chezmoi apply` re-runs the
+     init script and prompts for the new passphrase.
+
+---
 
 ### "chezmoi age decrypt failed" or "no identity matched any of the recipients"
 

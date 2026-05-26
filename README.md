@@ -279,17 +279,26 @@ is not available to extract the key.
 Use the `edit-evault` helper installed at `~/.local/bin/edit-evault`:
 
 ```bash
-edit-evault personal     # opens decrypted personal evault in $EDITOR
-edit-evault work         # opens decrypted work evault in $EDITOR
+# With --repo flag (one-off)
+edit-evault personal --repo ~/devel/homelab/dotfiles
+
+# Or set DOTFILES_REPO once per shell
+export DOTFILES_REPO=~/devel/homelab/dotfiles
+edit-evault personal
+edit-evault work
 ```
 
 The script decrypts into `/dev/shm` (tmpfs, never on disk), opens
 `$EDITOR` (defaults to `nano`), then re-encrypts and writes back to the
-repo. Cleanup is automatic — even on Ctrl-C the plaintext is shredded.
+**development repo** (where you `git commit`). It refuses to write into
+chezmoi's managed source-path (`~/.local/share/chezmoi/`) — those edits
+would be reset by `chezmoi update`. Cleanup is automatic — even on
+Ctrl-C the plaintext is shredded.
 
 If you skip editing (close editor without changes), no re-encrypt happens
 and git stays clean. After a real edit, the file is modified in place:
-review with `git diff` and commit.
+review with `git diff`, commit, and push. On other machines, run
+`chezmoi update` to pull and apply.
 
 Manual workflow (if `edit-evault` is unavailable):
 

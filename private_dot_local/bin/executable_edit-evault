@@ -8,49 +8,121 @@
 # Uses $EDITOR (defaults to nano). The decrypted JSON lives in tmpfs
 # (/dev/shm) for the duration of editing — never on disk. Falls back to
 # /tmp with 0600 perms + shred on shutdown if /dev/shm is unavailable.
+#
+# IMPORTANT — write target:
+#   This script edits the evault in your DEVELOPMENT repo (where you
+#   `git commit`), NOT in chezmoi's managed source-path
+#   (~/.local/share/chezmoi). Chezmoi would overwrite the latter on the
+#   next `chezmoi update`. After editing, commit + push from the dev
+#   repo; the changes propagate to other machines via `chezmoi update`.
+#
+# Resolution order for the dev repo path (first match wins):
+#   1. --repo <path>             explicit, always wins
+#   2. $DOTFILES_REPO env var
+#   3. Interactive prompt        last resort
 
 set -uo pipefail
 
-# ───── Resolve profile + repo ────────────────────────────────────────────────
+# ───── Colors ────────────────────────────────────────────────────────────────
 
-PROFILE="${1:-}"
-if [ -z "${PROFILE}" ]; then
-    echo "Usage: $(basename "$0") <personal|work>" >&2
-    exit 1
-fi
+RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[1;33m'; NC='\033[0m'
+ok()   { printf "${GREEN}✓ %s${NC}\n" "$*"; }
+err()  { printf "${RED}✗ %s${NC}\n" "$*" >&2; }
+warn() { printf "${YELLOW}⚠ %s${NC}\n" "$*"; }
+info() { printf "${BLUE}ℹ %s${NC}\n" "$*"; }
 
-case "${PROFILE}" in
-    personal|work) ;;
-    *) echo "Invalid profile '${PROFILE}' — must be 'personal' or 'work'" >&2; exit 1;;
-esac
+die() { err "$*"; exit 1; }
 
-# Locate dotfiles source dir via chezmoi
-if command -v chezmoi >/dev/null 2>&1; then
-    DOTFILES=$(chezmoi source-path 2>/dev/null)
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <personal|work> [--repo /path/to/dev-repo]
+
+Decrypt, edit (in tmpfs), and re-encrypt an EJSON evault for the given profile.
+
+Arguments:
+  personal | work      Which profile's evault to edit
+
+Options:
+  --repo <path>        Dotfiles DEVELOPMENT repo path (where you 'git commit').
+                       Falls back to \$DOTFILES_REPO env var, then prompts.
+                       Do NOT use chezmoi's source-path — that's a managed
+                       working copy and gets overwritten by 'chezmoi update'.
+  -h, --help           Show this message
+EOF
+}
+
+# ───── Argument parsing ──────────────────────────────────────────────────────
+
+PROFILE=""
+EXPLICIT_REPO=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        personal|work)
+            [ -n "${PROFILE}" ] && die "Profile already set to '${PROFILE}' — only one allowed"
+            PROFILE="$1"
+            ;;
+        --repo)
+            EXPLICIT_REPO="${2:-}"
+            [ -z "${EXPLICIT_REPO}" ] && die "--repo requires a path argument"
+            shift
+            ;;
+        -h|--help)
+            usage; exit 0
+            ;;
+        *)
+            err "Unknown argument: $1"
+            usage; exit 1
+            ;;
+    esac
+    shift
+done
+
+[ -z "${PROFILE}" ] && { usage; die "Missing positional argument: profile"; }
+
+# ───── Resolve dev repo path ─────────────────────────────────────────────────
+
+if [ -n "${EXPLICIT_REPO}" ]; then
+    REPO="${EXPLICIT_REPO}"
+elif [ -n "${DOTFILES_REPO:-}" ]; then
+    REPO="${DOTFILES_REPO}"
+    info "Using \$DOTFILES_REPO: ${REPO}"
 else
-    echo "Error: chezmoi not installed — cannot locate dotfiles source dir" >&2
-    exit 1
+    warn "No --repo and \$DOTFILES_REPO not set."
+    warn "Note: do NOT use chezmoi's source-path (~/.local/share/chezmoi)."
+    warn "      That is chezmoi's working copy — your edits would get reset."
+    warn "      Use your DEVELOPMENT repo where you 'git commit'."
+    printf "Enter dotfiles development repo path: "
+    read -r REPO
 fi
 
-EVAULT="${DOTFILES}/secrets/${PROFILE}/evault"
-if [ ! -f "${EVAULT}" ]; then
-    echo "Error: evault not found at ${EVAULT}" >&2
-    exit 1
+[ -d "${REPO}" ] || die "Repo path does not exist: ${REPO}"
+[ -f "${REPO}/.chezmoi.yaml.tmpl" ] || die "Not a dotfiles repo (missing .chezmoi.yaml.tmpl): ${REPO}"
+[ -d "${REPO}/.git" ] || warn "Repo path has no .git/ — sure this is your dev repo? Continuing anyway."
+
+# Safety check — refuse to write into chezmoi-managed state
+if command -v chezmoi >/dev/null 2>&1; then
+    CHEZMOI_STATE=$(chezmoi source-path 2>/dev/null || true)
+    if [ -n "${CHEZMOI_STATE}" ] && [ "$(realpath "${REPO}" 2>/dev/null)" = "$(realpath "${CHEZMOI_STATE}" 2>/dev/null)" ]; then
+        die "Refusing to edit: target '${REPO}' is chezmoi's managed source-path. Use your dev repo instead."
+    fi
 fi
+
+EVAULT="${REPO}/secrets/${PROFILE}/evault"
+[ -f "${EVAULT}" ] || die "Evault not found at ${EVAULT}"
 
 # ───── Locate EJSON private key ──────────────────────────────────────────────
 
 EJSON_PUB=$(grep '"_public_key"' "${EVAULT}" | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
 if [ -z "${EJSON_PUB}" ] || [ "${EJSON_PUB}" = "REPLACE_WITH_${PROFILE^^}_EJSON_PUBLIC_KEY" ]; then
-    echo "Error: evault has no real _public_key — run ENCRYPTION_SETUP.md first" >&2
-    exit 1
+    die "Evault has no real _public_key — run ENCRYPTION_SETUP.md first"
 fi
 
 KEY_DIR="${HOME}/.config/chezmoi/keys"
 KEY_FILE="${KEY_DIR}/${EJSON_PUB}"
 if [ ! -r "${KEY_FILE}" ]; then
-    echo "Error: EJSON private key missing at ${KEY_FILE}" >&2
-    echo "Run 'chezmoi apply' first to unlock the key chain." >&2
+    err "EJSON private key missing at ${KEY_FILE}"
+    err "Run 'chezmoi apply' first to unlock the key chain."
     exit 1
 fi
 
@@ -60,7 +132,7 @@ if [ -d /dev/shm ] && [ -w /dev/shm ]; then
     WORK_BASE=/dev/shm
 else
     WORK_BASE=/tmp
-    echo "Warning: /dev/shm unavailable, falling back to /tmp (plaintext may touch disk)" >&2
+    warn "/dev/shm unavailable, falling back to /tmp (plaintext may touch disk)"
 fi
 
 WORK="${WORK_BASE}/edit-evault-${PROFILE}-$$"
@@ -80,41 +152,43 @@ trap cleanup EXIT INT TERM
 
 EDITOR_CMD="${EDITOR:-nano}"
 
-echo "Decrypting ${PROFILE} evault into ${WORK_BASE} (tmpfs)..."
+info "Decrypting ${PROFILE} evault into ${WORK_BASE} (tmpfs)..."
 if ! ejson -keydir "${KEY_DIR}" decrypt "${EVAULT}" > "${TMP_FILE}"; then
-    echo "Error: ejson decrypt failed" >&2
-    exit 1
+    die "ejson decrypt failed"
 fi
 chmod 600 "${TMP_FILE}"
 
 # Snapshot the file's content hash before editing — if unchanged, skip re-encrypt
 HASH_BEFORE=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
 
-echo "Opening ${EDITOR_CMD}..."
+info "Opening ${EDITOR_CMD}..."
 "${EDITOR_CMD}" "${TMP_FILE}"
 
 HASH_AFTER=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
 if [ "${HASH_BEFORE}" = "${HASH_AFTER}" ]; then
-    echo "No changes — skipping re-encrypt."
+    ok "No changes — skipping re-encrypt."
     exit 0
 fi
 
 # Sanity check — must still be valid JSON before encrypting
 if ! python3 -c "import json,sys; json.load(open('${TMP_FILE}'))" 2>/dev/null; then
-    echo "Error: edited file is not valid JSON — refusing to encrypt" >&2
-    echo "Plaintext is still at ${TMP_FILE}; copy your work somewhere before exit" >&2
+    err "Edited file is not valid JSON — refusing to encrypt"
+    err "Plaintext is still at ${TMP_FILE}; copy your work somewhere before exit"
     # Disable cleanup so user can recover
     trap - EXIT
     exit 1
 fi
 
-echo "Re-encrypting evault..."
-# ejson encrypt modifies in place — give it a fresh copy in the repo location
+info "Re-encrypting evault into ${REPO}..."
+# ejson encrypt modifies in place — give it a fresh copy at the repo location
 cp "${TMP_FILE}" "${EVAULT}"
 if ! ejson encrypt "${EVAULT}"; then
-    echo "Error: ejson encrypt failed — evault may be in a broken state" >&2
-    exit 1
+    die "ejson encrypt failed — evault may be in a broken state"
 fi
 
-echo "✓ ${PROFILE} evault updated and re-encrypted."
-echo "  Don't forget: cd $(dirname "${DOTFILES}") && git add secrets/${PROFILE}/evault && git commit"
+ok "${PROFILE} evault updated and re-encrypted in dev repo."
+info "Next steps:"
+info "  cd ${REPO}"
+info "  git add secrets/${PROFILE}/evault && git commit -m 'evault: update ${PROFILE}'"
+info "  git push"
+info "  # On other machines: chezmoi update  (pulls + applies)"
