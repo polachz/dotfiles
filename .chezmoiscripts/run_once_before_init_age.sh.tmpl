@@ -1,59 +1,64 @@
 #!/bin/sh
-
-# See chezmoi FAQ - Encryption section for more details
-
-#Include common bash functions and helpers
+# Profile-aware Age + EJSON key bootstrap (interactive).
+#
+# Each profile uses its own key set — a personal machine cannot decrypt
+# work blobs and vice versa.
+#
+# Flow: chezmoi prompts on TTY for the Age passphrase. Operator pastes it
+# from a password manager. The Age passphrase never touches disk — it only
+# lives in the chezmoi process memory for the duration of the decrypt.
 
 # {{ template "scripts-library" }}
 
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
+profile='{{ .deployment.profile }}'
+
+log_task "Install Age tool if necessary"
+{{- if not (includeTemplate "is-os-command-available" (list "age")) -}}
+{{ template "install-os-package" (dict "package_manager" $.package_manager "package" "age") }}
+{{- end }}
+
 log_task "Install Git tool if necessary"
-{{- if  not (includeTemplate "is-os-command-available" (list "age")) -}}
+{{- if not (includeTemplate "is-os-command-available" (list "git")) -}}
 {{ template "install-os-package" (dict "package_manager" $.package_manager "package" "git") }}
 {{- end }}
 
 ch_cfg_dir='{{ .chezmoi_config_dir }}'
-
 age_recipient='{{ .crypt.age.age_recipient }}'
 ekey_id='{{ .crypt.ejson.key_id }}'
-
 keys_dir='{{ .crypt.keys_dir }}'
-
 age_key_file='{{ .crypt.age.age_key_file }}'
-ekey_file="${keys_dir}/${ekey_id}"
 
+age_blob='{{ joinPath .chezmoi.sourceDir "age_key_" }}'"${profile}.age"
+ejson_blob='{{ joinPath .chezmoi.sourceDir "ejson_key_" }}'"${profile}.age"
+ekey_file="${keys_dir}/${ekey_id}"
 ch_tmp_cfg="${ch_cfg_dir}/tmp_cfg.toml"
 
-log_task "Install age tool if necessary"
-{{- if  not (includeTemplate "is-os-command-available" (list "age")) -}}
-{{ template "install-os-package" (dict "package_manager" $.package_manager "package" "age") }}
-{{- end }}
+log_task "Processing key files for profile '${profile}'"
 
-log_task "Processing locks"
+mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
+
 if [ ! -f "${age_key_file}" ]; then
-    log_task "Processing AGE"
-    mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
+    log_task "Decrypting Age key for profile '${profile}'"
+    log_info "Paste the ${profile} Age passphrase from your password manager when prompted."
     while [ ! -f "${age_key_file}" ]; do
-        {{ .chezmoi.executable }} age decrypt --output "${age_key_file}" --passphrase "{{ .chezmoi.sourceDir }}/zamecek" || decrypted=false
-        if [ ! -f "${age_key_file}" ]; then
-           echo "Decrypting failed. Trying again..."
-        fi
+        {{ .chezmoi.executable }} age decrypt --passphrase --output "${age_key_file}" "${age_blob}" \
+            || log_error "Decrypting ${age_blob} failed. Try again..."
     done
     chmod 600 "${age_key_file}"
 fi
 
 if [ ! -f "${ekey_file}" ]; then
-    log_task "Processing EJSON"
-    echo "encryption = 'age'
+    log_task "Decrypting EJSON key for profile '${profile}'"
+    cat > "${ch_tmp_cfg}" <<EOF
+encryption = 'age'
 [age]
     identity = '${age_key_file}'
     recipient = '${age_recipient}'
-" > "${ch_tmp_cfg}"
-    
-    mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
-    {{ .chezmoi.executable }}  -c  "${ch_tmp_cfg}" decrypt --output "${ekey_file}" "{{ .chezmoi.sourceDir }}/ezamecek"
+EOF
+    {{ .chezmoi.executable }} -c "${ch_tmp_cfg}" decrypt --output "${ekey_file}" "${ejson_blob}"
     rm -f "${ch_tmp_cfg}"
     chmod 600 "${ekey_file}"
 fi

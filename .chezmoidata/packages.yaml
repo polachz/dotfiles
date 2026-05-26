@@ -1,19 +1,24 @@
 packages:
   dnf:
+    # Common — installed on all profiles
     common:
-      - 'git'
-    virtualbox:
-      - 'virtualbox-guest-additions'
-    vmware:
-      - 'open-vm-tools'
-    workstation:
+      - git
       - openssl
-      # Serial device I/O - to debug RPI/NXP boards easily
-      - tio
-    gui:
+    # Personal profile — private machine packages
+    personal:
+      - tio          # serial terminal for RPI/microcontroller dev
       - keepassxc
       - doublecmd-gtk
-
-        
-
-    
+    # Work profile — work machine packages (populate when first work host arrives)
+    work: []
+    # VM guest tools — auto-detected via systemd-detect-virt
+    virtualbox:
+      - virtualbox-guest-additions
+    vmware:
+      - open-vm-tools
+  apt:
+    common:
+      - git
+      - openssl
+    personal: []
+    work: []

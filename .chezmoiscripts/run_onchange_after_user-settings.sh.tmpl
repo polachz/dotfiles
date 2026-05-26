@@ -1,56 +1,43 @@
 #!/usr/bin/env bash
-
-#Include common bash functions and helpers
+# Group memberships + git remote switch — runs after package install.
 
 # {{ template "scripts-library" }}
 
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
-# Checks if current user is not member of the group
-
-function not_in_group() {
-    
+# Returns 0 if user is NOT a member of the given group, 1 otherwise.
+not_in_group() {
     local group_name=$1
-
     if ! getent group "${group_name}" | grep -qw "${USER}"; then
         return 0
     else
         return 1
     fi
 }
-# Add user to group, but provide add only if is not member of
-# the group yet, to avoid sudo requirement for this
 
-function add_to_group() {
-    
+# Adds user to group only if not already a member (avoids needing sudo).
+add_to_group() {
     local group_name=$1
-
     if getent group ${group_name} > /dev/null 2>&1; then
         if not_in_group "${group_name}"; then
             log_info "Adding user to group ${group_name}"
             sudo usermod -a -G "${group_name}" "${USER}" > /dev/null 2>&1
         fi
     else
-        log_error "The Group ${group_name} doesn't exist on the computer"
+        log_error "Group ${group_name} does not exist on this machine"
     fi
 }
 
-log_task "Processing groups membership for user ${USER}"
+log_task "Processing group memberships for user ${USER}"
 add_to_group wheel
+add_to_group dialout
 {{- if eq .deployment.vm_type "virtualbox" }}
 add_to_group vboxsf
 {{- end }}
-{{- if eq .deployment.type "workstation" }}
-# we can use serial console without sudo -> to connect to RPI/NXP boards
-add_to_group dialout
-{{- end }}
 
-# switch repo access from https to ssh 
-# If any modifications will be provided, ssh is required for push
-# 
-# {{ .chezmoi.sourceDir }}  is git repository for this instance
-#
+# Switch chezmoi source repo from https to ssh so future pushes work without password.
+# {{ .chezmoi.sourceDir }} is the local clone.
 git_local_dir="{{ joinPath .chezmoi.sourceDir ".git" }}"
 git_repo_url=$(git --git-dir="${git_local_dir}" remote get-url origin)
 if ! echo "${git_repo_url}" | grep -q "^git"; then
@@ -62,6 +49,6 @@ if ! echo "${git_repo_url}" | grep -q "^git"; then
     popd > /dev/null
 fi
 
-#make chezmoi config readable only by user
+# Make chezmoi config readable only by the user.
 log_task "Changing chezmoi config file rights"
 chmod 0600 "{{ joinPath .chezmoi_config_dir "chezmoi.yaml" }}"

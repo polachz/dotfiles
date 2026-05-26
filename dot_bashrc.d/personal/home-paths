@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Personal home directory shortcuts.
+
+alias loc="cd ~/.local"
+alias lb="cd ~/.local/bin"
+alias d="cd ~/devel"
+alias dl="cd ~/Downloads"
+alias dt="cd ~/Desktop"
+alias brc="cd ~/.bashrc.d"

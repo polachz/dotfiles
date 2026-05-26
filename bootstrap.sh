@@ -1,171 +1,143 @@
 #!/bin/sh
 
-# !! We can't include any other file here !!!
+# Self-contained dotfiles bootstrap.
 #
-# This script is downloaded by curl/wget
-# and then directly fired without any other dependencies.
+# Downloaded directly by curl/wget — must not source any other repo file.
+# Downloads chezmoi, prompts for profile (personal/work), then runs
+# `chezmoi init --apply` against the dotfiles repo.
 
-# Define menu with variants for deployment
-# The format is  "Menu description @ selected-value"
-# with @ as separator  between menu  item 
-# and returned value if item is selected
 GITHUB_USERNAME="polachz"
-menu_items=(
-    "Server VM @ server"
-    "Non-GUI Workstation @ workstation"
-    "GUI Workstation @ gui-workstation"
-    "Work Non-GUI Workstation @ workstation-work"
-    "Work GUI Workstation @ gui-workstation-work"
-)
 
-function log_color {
+# ───── Helpers ───────────────────────────────────────────────────────────────
+
+log_color() {
   color_code="$1"
   shift
-
   printf "\033[${color_code}m%s\033[0m\n" "$*" >&2
 }
 
-function log_red {
-  log_color "0;31" "$@"
-}
+log_red()    { log_color "0;31" "$@"; }
+log_blue()   { log_color "0;34" "$@"; }
+log_green()  { log_color "1;32" "$@"; }
+log_yellow() { log_color "1;33" "$@"; }
+log_brown()  { log_color "0;33" "$@"; }
+log_task()   { log_blue "🔃" "$@"; }
+log_error()  { log_red "❌" "$@"; }
+log_info()   { log_blue "ℹ️" "$@"; }
+error()      { log_error "$@"; exit 1; }
 
-function log_blue {
-  log_color "0;34" "$@"
-}
-
-function log_green() {
-  log_color "1;32" "$@"
-}
-
-function log_yellow() {
-  log_color "1;33" "$@"
-}
-
-function log_brown() {
-  log_color "0;33" "$@"
-}
-function log_task {
-  log_blue "🔃" "$@"
-}
-
-function log_error {
-  log_red "❌" "$@"
-}
-
-function error {
-  log_error "$@"
-  exit 1
-}
-
-function log_info() {
-  log_blue "ℹ️" "$@"
-}
-
-function log_debug_force() {
-    log_brown "🔎" "$@"
-}
-
-function log_debug() {
+log_debug_force() { log_brown "🔎" "$@"; }
+log_debug() {
     if [ -n "${CHZ_DOTFILES_DEBUG}" ]; then
        log_brown "🔎" "$@"
     fi
 }
 
+# ───── Profile menu ──────────────────────────────────────────────────────────
 
-# Function to display menu
-function display_menu {
-    echo "Please select an option:"
+display_menu() {
+    echo "Select dotfiles profile:"
     echo
-    for i in "${!menu_items[@]}"; do
-        IFS="@" read -r desc value <<< "${menu_items[$i]}"
-        echo "$((i+1))) $desc"
-    done
-    echo "e) Exit"
+    echo "  1) Personal — private machines, personal email/git/ssh identity"
+    echo "  2) Work     — work machines, work email/git/ssh identity"
+    echo "  e) Exit"
+    echo
 }
 
-while [[ "$#" -gt 0 ]]; do
+# ───── CLI parsing ───────────────────────────────────────────────────────────
 
-    if [ -n "${DEBUG_SCRIPT}" ]; then
-        log_debug_force "Processing cmdline param ${1}"
-    fi
+HELP=$(cat <<EOF
+Usage: bootstrap.sh [options]
 
-    case ${1} in
-        -o|--one-shot)
-        CHZ_BOOTSTRAP_ONE_SHOT=1
-        ;;
+Options:
+  -p, --profile <personal|work>  Pre-select dotfiles profile (skip menu)
+  -d, --dry-run                  Run chezmoi in dry-run mode
+  -a, --apply                    Force apply (overrides default on re-runs)
+  -v, --verbose                  Verbose output
+  -r, --reinit                   Clear chezmoi state and re-apply from scratch
+  --debug                        Enable debug logging in dotfile scripts
+  --chezmoi-debug                Pass --debug to chezmoi itself
+  --debug-all                    Both --debug and --chezmoi-debug
+  -h, --help                     Show this message
+
+Env vars:
+  CHZ_DEPLOYMENT_PROFILE         Same as --profile
+  CHZ_BOOTSTRAP_DRY_RUN          Set to 1 to dry-run
+  CHZ_BOOTSTRAP_VERBOSE          Set to 1 for verbose output
+  CHZ_DOTFILES_DEBUG             Set to 1 to trace dotfile scripts
+EOF
+)
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -p|--profile)
+            CHZ_DEPLOYMENT_PROFILE="$2"
+            shift
+            ;;
         -d|--dry-run)
-        CHZ_BOOTSTRAP_DRY_RUN=1
-        ;;
+            CHZ_BOOTSTRAP_DRY_RUN=1
+            ;;
         -v|--verbose)
-        CHZ_BOOTSTRAP_VERBOSE=1
-        ;;
+            CHZ_BOOTSTRAP_VERBOSE=1
+            ;;
         --debug)
-        CHZ_DOTFILES_DEBUG=1
-        ;;
+            CHZ_DOTFILES_DEBUG=1
+            ;;
         --chezmoi-debug)
-        bootstrap_chezmoi_debug=1
-        ;;
+            bootstrap_chezmoi_debug=1
+            ;;
         --debug-all)
-        bootstrap_chezmoi_debug=1
-        CHZ_DOTFILES_DEBUG=1
-        ;;
+            bootstrap_chezmoi_debug=1
+            CHZ_DOTFILES_DEBUG=1
+            ;;
         -a|--apply)
-        bootstrap_force_apply=1
-        ;;
-        -i|--deployment-id)
-        CHZ_DEPLOYMENT_STRING_ID="${2}"
-        shift # value
-        ;;  
+            bootstrap_force_apply=1
+            ;;
         -r|--reinit)
-        bootstrap_chezmoi_reinit=1
-        shift # value
-        ;;  
+            bootstrap_chezmoi_reinit=1
+            ;;
         -h|--help)
-        echo "$HELP"
-        exit 0
-        ;;
-        *) # unknown option
-        log_error "Unknown cmdline option ${1}."
-        echo "$HELP" 
-        exit 1
-        ;;
+            echo "$HELP"
+            exit 0
+            ;;
+        *)
+            log_error "Unknown cmdline option $1."
+            echo "$HELP"
+            exit 1
+            ;;
     esac
-    shift # arg
+    shift
 done
-if [ -n "${CHZ_BOOTSTRAP_ONE_SHOT-}" ]; then
-    # For one shoot, select server deployment type
-    export CHZ_DEPLOYMENT_STRING_ID="server"
-fi
-if [ -z "${CHZ_DEPLOYMENT_STRING_ID-}" ]; then
-    # Deployment Id is empty, ask for it
-    echo
+
+# ───── Resolve profile ───────────────────────────────────────────────────────
+
+if [ -z "${CHZ_DEPLOYMENT_PROFILE-}" ]; then
     while true; do
         display_menu
-        echo
-        read -p "Enter your choice: " choice
-        if [[ $choice == "e" || $choice == "exit" ]]; then
-            echo "Selection has been aborted. Exiting..."
-            exit 0
-        elif [[ $choice -ge 1 && $choice -le ${#menu_items[@]} ]]; then
-            IFS="@" read -r menu_item_name menu_selection <<< "${menu_items[$((choice-1))]}"
-            #trim spaces 
-            menu_selection="${menu_selection// /}"
-            menu_item_name="${menu_item_name%"${menu_item_name##*[![:space:]]}"}"
-            
-        echo
-        break;
-        else
-            echo "Invalid selection. Please try again."
-        fi
+        printf "Enter your choice: "
+        read -r choice
+        case "$choice" in
+            1) CHZ_DEPLOYMENT_PROFILE="personal"; break;;
+            2) CHZ_DEPLOYMENT_PROFILE="work";     break;;
+            e|exit) echo "Aborted."; exit 0;;
+            *) echo "Invalid selection. Please try again.";;
+        esac
     done
-    log_info " You have selected: \"$menu_item_name\""
-    export CHZ_DEPLOYMENT_STRING_ID="${menu_selection}"
 fi
+
+case "${CHZ_DEPLOYMENT_PROFILE}" in
+    personal|work) ;;
+    *) error "Invalid --profile: '${CHZ_DEPLOYMENT_PROFILE}' (must be 'personal' or 'work')";;
+esac
+
+log_info "Selected profile: ${CHZ_DEPLOYMENT_PROFILE}"
+
+# ───── Install chezmoi ───────────────────────────────────────────────────────
 
 chezmoi_github_url=""
 
-if  command -v "chezmoi" > /dev/null 2>&1 ; then
-    log_info "Chezmoi already installed. Dry run will be provided"
+if command -v "chezmoi" > /dev/null 2>&1; then
+    log_info "Chezmoi already installed. Dry run will be provided."
     CHZ_BOOTSTRAP_DRY_RUN="1"
     chezmoi="chezmoi"
 else
@@ -180,50 +152,64 @@ else
     else
         error "To install chezmoi, you must have curl or wget installed!"
     fi
-    # Provide chezmoi installation:
     sh -c "${chezmoi_install_script}" -- -b "$chezmoi_bin_dir"
-    unset chezmoi_install_script bin_dir
-    #sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply polachz
+    unset chezmoi_install_script
     log_info "Chezmoi installed successfully."
 fi
-# Prepare for chezmoi run
-#
+
+# ───── Install EJSON if missing ──────────────────────────────────────────────
+
+if ! command -v "ejson" > /dev/null 2>&1; then
+    log_task "Installing EJSON..."
+    # EJSON release binary — Shopify publishes Linux/macOS amd64 builds.
+    ejson_os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    ejson_arch=$(uname -m)
+    case "${ejson_arch}" in
+        x86_64) ejson_arch="amd64";;
+        aarch64|arm64) ejson_arch="arm64";;
+    esac
+    ejson_url="https://github.com/Shopify/ejson/releases/latest/download/ejson_${ejson_os}_${ejson_arch}.tar.gz"
+    ejson_bin_dir="${HOME}/.local/bin"
+    mkdir -p "${ejson_bin_dir}"
+    if command -v "curl" >/dev/null 2>&1; then
+        curl -fsSL "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
+            || log_yellow "EJSON download/extract failed — install manually if needed."
+    elif command -v "wget" >/dev/null 2>&1; then
+        wget -qO- "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
+            || log_yellow "EJSON download/extract failed — install manually if needed."
+    fi
+fi
+
+# ───── Run chezmoi ───────────────────────────────────────────────────────────
+
 log_task "Preparing Chezmoi run..."
 
 if [ -n "${bootstrap_chezmoi_reinit-}" ]; then
-chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1
-chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1
-chezmoi update --init
+    chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1
+    chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1
+    chezmoi update --init
 fi
+
 set -- init
 
 if [ -n "${bootstrap_force_apply-}" ]; then
     set -- "$@" --apply
-elif [ -n "${CHZ_BOOTSTRAP_ONE_SHOT-}" ]; then
-  set -- "$@" --one-shot
 elif [ -n "${CHZ_BOOTSTRAP_DRY_RUN-}" ]; then
     set -- "$@" --dry-run
 else
     set -- "$@" --apply "${chezmoi_github_url}"
 fi
+
 if [ -n "${bootstrap_chezmoi_debug-}" ]; then
     set -- "$@" --debug
 elif [ -n "${CHZ_BOOTSTRAP_VERBOSE-}" ]; then
     set -- "$@" --verbose
 fi
-#
+
+export CHZ_DEPLOYMENT_PROFILE
 export CHZ_DOTFILES_DEBUG
-export CHZ_BOOTSTRAP_ONE_SHOT
 export CHZ_BOOTSTRAP_DRY_RUN
 
-log_task "Running 'chezmoi $*'"
-#chezmoi execute-template --init < .chezmoi.yaml.tmpl
-# replace current process with chezmoi
-#exec "${chezmoi}" init
+log_task "Running 'chezmoi $*' (profile=${CHZ_DEPLOYMENT_PROFILE})"
+
 exec "${chezmoi}" "$@"
-log_info "Chezmoi config tasks finished successfully"
-
-#make chezmoi config readable only by me
-chmod 0600 "${HOME}/.config/chezmoi/chezmoi.yaml"
-
-exit 0

@@ -1,21 +1,30 @@
-{{ if ne .deployment.environment "nxp" }}
-.bashrc.d/nxp_env
-.bashrc.d/qnx800
-.local/bin/make-qnx-95-card
-.local/bin/imxcon
-.local/bin/qmake
+{{/*
+  Per-profile masking — ensures only the active profile's files reach disk.
+
+  Files for the OTHER profile (bashrc subdir, evault, encryption keys) are
+  ignored, so a personal machine never has plaintext work secrets and vice
+  versa. The encrypted blobs that DO end up on disk (the ones for the other
+  profile via the public repo clone) can't be decrypted because the matching
+  Age key isn't on the machine.
+*/}}
+
+{{ if ne .deployment.profile "personal" }}
+.bashrc.d/personal
+secrets/personal
+ejson_key_personal.age
+age_key_personal.age
 {{ end }}
 
+{{ if ne .deployment.profile "work" }}
+.bashrc.d/work
+secrets/work
+ejson_key_work.age
+age_key_work.age
+{{ end }}
+
+# Repo docs / bootstrap / helpers are not part of the dotfiles set.
 README.md
-
 LICENSE
-
 bootstrap.sh
-
-helpers/
+helpers
 helpers/**
-
-zamecek
-ezamecek
-evault
-

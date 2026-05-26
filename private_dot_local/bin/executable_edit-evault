@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# edit-evault — decrypt, edit, re-encrypt an EJSON evault in one step.
+#
+# Usage:
+#   edit-evault personal     # edit secrets/personal/evault
+#   edit-evault work         # edit secrets/work/evault
+#
+# Uses $EDITOR (defaults to nano). The decrypted JSON lives in tmpfs
+# (/dev/shm) for the duration of editing — never on disk. Falls back to
+# /tmp with 0600 perms + shred on shutdown if /dev/shm is unavailable.
+
+set -uo pipefail
+
+# ───── Resolve profile + repo ────────────────────────────────────────────────
+
+PROFILE="${1:-}"
+if [ -z "${PROFILE}" ]; then
+    echo "Usage: $(basename "$0") <personal|work>" >&2
+    exit 1
+fi
+
+case "${PROFILE}" in
+    personal|work) ;;
+    *) echo "Invalid profile '${PROFILE}' — must be 'personal' or 'work'" >&2; exit 1;;
+esac
+
+# Locate dotfiles source dir via chezmoi
+if command -v chezmoi >/dev/null 2>&1; then
+    DOTFILES=$(chezmoi source-path 2>/dev/null)
+else
+    echo "Error: chezmoi not installed — cannot locate dotfiles source dir" >&2
+    exit 1
+fi
+
+EVAULT="${DOTFILES}/secrets/${PROFILE}/evault"
+if [ ! -f "${EVAULT}" ]; then
+    echo "Error: evault not found at ${EVAULT}" >&2
+    exit 1
+fi
+
+# ───── Locate EJSON private key ──────────────────────────────────────────────
+
+EJSON_PUB=$(grep '"_public_key"' "${EVAULT}" | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
+if [ -z "${EJSON_PUB}" ] || [ "${EJSON_PUB}" = "REPLACE_WITH_${PROFILE^^}_EJSON_PUBLIC_KEY" ]; then
+    echo "Error: evault has no real _public_key — run ENCRYPTION_SETUP.md first" >&2
+    exit 1
+fi
+
+KEY_DIR="${HOME}/.config/chezmoi/keys"
+KEY_FILE="${KEY_DIR}/${EJSON_PUB}"
+if [ ! -r "${KEY_FILE}" ]; then
+    echo "Error: EJSON private key missing at ${KEY_FILE}" >&2
+    echo "Run 'chezmoi apply' first to unlock the key chain." >&2
+    exit 1
+fi
+
+# ───── Set up safe workspace (tmpfs preferred) ───────────────────────────────
+
+if [ -d /dev/shm ] && [ -w /dev/shm ]; then
+    WORK_BASE=/dev/shm
+else
+    WORK_BASE=/tmp
+    echo "Warning: /dev/shm unavailable, falling back to /tmp (plaintext may touch disk)" >&2
+fi
+
+WORK="${WORK_BASE}/edit-evault-${PROFILE}-$$"
+TMP_FILE="${WORK}/evault.json"
+mkdir -p "${WORK}" && chmod 700 "${WORK}"
+
+# Always shred on exit (even on error / Ctrl-C)
+cleanup() {
+    if [ -f "${TMP_FILE}" ]; then
+        shred -u "${TMP_FILE}" 2>/dev/null || rm -f "${TMP_FILE}"
+    fi
+    rmdir "${WORK}" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# ───── Decrypt → edit → re-encrypt ───────────────────────────────────────────
+
+EDITOR_CMD="${EDITOR:-nano}"
+
+echo "Decrypting ${PROFILE} evault into ${WORK_BASE} (tmpfs)..."
+if ! ejson -keydir "${KEY_DIR}" decrypt "${EVAULT}" > "${TMP_FILE}"; then
+    echo "Error: ejson decrypt failed" >&2
+    exit 1
+fi
+chmod 600 "${TMP_FILE}"
+
+# Snapshot the file's content hash before editing — if unchanged, skip re-encrypt
+HASH_BEFORE=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
+
+echo "Opening ${EDITOR_CMD}..."
+"${EDITOR_CMD}" "${TMP_FILE}"
+
+HASH_AFTER=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
+if [ "${HASH_BEFORE}" = "${HASH_AFTER}" ]; then
+    echo "No changes — skipping re-encrypt."
+    exit 0
+fi
+
+# Sanity check — must still be valid JSON before encrypting
+if ! python3 -c "import json,sys; json.load(open('${TMP_FILE}'))" 2>/dev/null; then
+    echo "Error: edited file is not valid JSON — refusing to encrypt" >&2
+    echo "Plaintext is still at ${TMP_FILE}; copy your work somewhere before exit" >&2
+    # Disable cleanup so user can recover
+    trap - EXIT
+    exit 1
+fi
+
+echo "Re-encrypting evault..."
+# ejson encrypt modifies in place — give it a fresh copy in the repo location
+cp "${TMP_FILE}" "${EVAULT}"
+if ! ejson encrypt "${EVAULT}"; then
+    echo "Error: ejson encrypt failed — evault may be in a broken state" >&2
+    exit 1
+fi
+
+echo "✓ ${PROFILE} evault updated and re-encrypted."
+echo "  Don't forget: cd $(dirname "${DOTFILES}") && git add secrets/${PROFILE}/evault && git commit"

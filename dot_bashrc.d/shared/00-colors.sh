@@ -1,5 +1,7 @@
-# Foreground color codes
+#!/usr/bin/env bash
+# Terminal color codes — sourced early so other scripts can use them.
 
+# Foreground
 FG_BLACK='\033[00;30m'
 FG_RED='\033[00;31m'
 FG_GREEN='\033[00;32m'
@@ -16,12 +18,9 @@ FG_LBLUE='\033[01;34m'
 FG_LPURPLE='\033[01;35m'
 FG_LCYAN='\033[01;36m'
 FG_WHITE='\033[01;37m'
-
-#Reset text color to default
 FG_NO_COLOR='\033[00;39m'
 
-#Background color codes
-
+# Background
 BG_BLACK='\033[00;40m'
 BG_RED='\033[00;41m'
 BG_GREEN='\033[00;42m'
@@ -38,12 +37,4 @@ BG_LBLUE='\033[01;44m'
 BG_LPURPLE='\033[01;45m'
 BG_LCYAN='\033[01;46m'
 BG_WHITE='\033[01;47m'
-
-#Reset background color to default
 BK_NO_COLOR='\033[00;49m'
-
-if [ $EUID == 0 ]; then
-   export PS1="\[$FG_LRED\]\u\[$FG_LPURPLE\]@\[$FG_LCYAN\]\h \[$FG_LBLUE\]\W\$ \[$FG_NO_COLOR\]"
-else
-   export PS1="\[$FG_LGREEN\]\u\[$FG_LPURPLE\]@\[$FG_LCYAN\]\h \[$FG_LBLUE\]\W\$ \[$FG_NO_COLOR\]"
-fi
