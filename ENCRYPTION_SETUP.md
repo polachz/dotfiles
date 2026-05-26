@@ -529,26 +529,17 @@ flow needs the passphrase.
 
 **Two paths:**
 
-1. **Re-encrypt the existing Age key with a new passphrase** (from any
-   machine where the key is already decrypted on disk):
+1. **At least one machine still has the decrypted Age key**: rotate just
+   the passphrase wrapper. The Age key pair and evault content remain
+   unchanged. See [Scenario A](#scenario-a--passphrase-rotation-only)
+   below.
 
-   ```bash
-   # Pick a new passphrase, save to password manager FIRST
-   chezmoi age encrypt --passphrase \
-       --output ~/devel/homelab/dotfiles/age_key_<profile>.age \
-       ~/.config/chezmoi/age_<profile>.key
-
-   cd ~/devel/homelab/dotfiles
-   git add age_key_<profile>.age
-   git commit -m 'rotate: <profile> Age passphrase'
-   git push
-   ```
-
-   The Age key pair stays the same — only the passphrase wrapper changes.
-   All evault content remains valid, no re-encryption needed.
-
-2. **Full re-key the profile** (if no machine has the decrypted Age key
-   anymore): see "Re-keying a profile" below.
+2. **No machine has the decrypted Age key anymore** (e.g. all installs
+   wiped, only the encrypted blob in the public repo remains): the
+   profile is unrecoverable in the strict sense — but you can start
+   fresh. See [Scenario D](#scenario-d--full-re-key-age--ejson-both).
+   The evault content is permanently lost unless you have a separate
+   plaintext backup of the field values.
 
 ### Broken JSON during edit-evault
 
@@ -579,8 +570,8 @@ shred -u /tmp/setup-redo/* && rmdir /tmp/setup-redo
 If you suspect a machine that had the decrypted keys was compromised
 (stolen laptop, malware, leaked backup):
 
-1. **Don't trust the existing key material.** Generate a new Age + EJSON
-   key pair for the affected profile (see "Re-keying" below).
+1. **Don't trust the existing key material.** Rotate both layers — see
+   [Scenario D — full re-key](#scenario-d--full-re-key-age--ejson-both).
 2. **Re-key all profiles** if the compromise might extend to both.
 3. **Rotate any secrets that lived in the evault** (passwords, signing
    keys, API tokens). The encryption protected them in the repo, but if
@@ -589,77 +580,324 @@ If you suspect a machine that had the decrypted keys was compromised
 
 ---
 
-## Re-keying a profile
+## Rotating keys
 
-Generate fresh Age + EJSON keys, re-encrypt the evault, replace all four
-blobs + the public identifiers in `.chezmoi.yaml.tmpl`. Use when the
-existing key material is suspected compromised or you simply want a
-fresh start.
+The encryption chain has three independent key layers, each with its own
+rotation cost. Pick the lightest one that solves your problem.
 
-### Step-by-step
+### Which scenario do I have?
 
-1. **Capture current evault content** (so you can re-seal it after re-key):
+| Scenario | What changed | What still works | Use |
+|----------|--------------|------------------|-----|
+| Lost or weak **passphrase** only | Wrapper around Age key | Age key pair, EJSON key, evault content all valid | **Scenario A** — passphrase rotation |
+| Suspected **Age key** compromise (passphrase + key pair leaked) | Age key pair, all downstream broken trust | EJSON key + evault content technically intact, but EJSON key was Age-wrapped → re-wrap needed | **Scenario B** — Age key rotation only |
+| Suspected **EJSON key** compromise or starting fresh | EJSON key pair invalidated, evault must be re-sealed | Age key pair can be reused if not also compromised | **Scenario C** — EJSON key rotation (evault re-seal) |
+| **Full re-key** (worst case) | Everything | Nothing | **Scenario D** — all keys |
 
-   ```bash
-   edit-evault <profile> --repo ~/devel/homelab/dotfiles
-   # In the editor: copy the full JSON content to a password manager
-   # secure note. Then exit WITHOUT changes (no re-encrypt fires).
-   ```
+Why the table: the evault content (the actual git.user, git.email, …)
+only depends on the EJSON key. If only the Age passphrase changes, the
+evault stays bit-identical. If the EJSON key changes, the evault must be
+**decrypted with the old key and re-encrypted with the new one** — and
+that requires having the old EJSON private key on disk.
 
-2. **Remove the old blobs and reset `.chezmoi.yaml.tmpl` placeholders**:
+### Critical: capture evault content BEFORE removing old keys
 
-   ```bash
-   cd ~/devel/homelab/dotfiles
-   rm age_key_<profile>.age ejson_key_<profile>.age secrets/<profile>/evault
+In any scenario that touches the EJSON key (C or D), you must have the
+old EJSON private key accessible long enough to decrypt the evault. If
+you `rm ~/.config/chezmoi/keys/<old_pub>` first, the evault content is
+unrecoverable (the public repo blob is encrypted with a key you just
+deleted).
 
-   # Restore placeholders in .chezmoi.yaml.tmpl (use the actual values you
-   # see; the script needs the placeholder string to update it)
-   # Hand-edit:
-   #   $enc_age_recipient_<profile>  := "REPLACE_WITH_<PROFILE>_AGE_PUBLIC_KEY"
-   #   $enc_ejson_key_id_<profile>   := "REPLACE_WITH_<PROFILE>_EJSON_PUBLIC_KEY"
-   ```
+The flows below either keep a working machine intact during the rotation,
+or capture the evault content to tmpfs first.
 
-3. **Generate new key chain** (fresh CWD, new passphrase in password
-   manager first):
+---
 
-   ```bash
-   mkdir /tmp/rekey && cd /tmp/rekey
-   ~/devel/homelab/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
-       --repo ~/devel/homelab/dotfiles
-   ```
+### Scenario A — passphrase rotation only
 
-4. **Restore evault content** with the captured JSON:
+The Age key pair stays the same; only the passphrase that wraps it
+changes. Evault content remains bit-identical. **Cheapest rotation.**
 
-   ```bash
-   # Wait for chezmoi apply on this machine to install the new EJSON key
-   chezmoi init                    # if you reset the chezmoi state
-   # (or follow the bootstrap flow below for a fresh decrypt)
+**Prerequisite**: at least one machine has the decrypted Age key at
+`~/.config/chezmoi/age_<profile>.key` (i.e. you've completed bootstrap
+on it).
 
-   edit-evault <profile> --repo ~/devel/homelab/dotfiles
-   # Paste the JSON content captured in step 1
-   # Save → re-encrypts under the new EJSON key
-   ```
+```bash
+# 1. Pick a new passphrase, save to password manager FIRST
+# 2. Re-wrap the existing Age key with the new passphrase
+chezmoi age encrypt --passphrase \
+    --output ~/devel/homelab/dotfiles/age_key_<profile>.age \
+    ~/.config/chezmoi/age_<profile>.key
+# → enter NEW passphrase twice (encrypt prompt + confirm)
 
-5. **Commit + propagate**:
+# 3. Round-trip verify (avoid silent failure)
+chezmoi age decrypt --passphrase --output /tmp/rt.key \
+    ~/devel/homelab/dotfiles/age_key_<profile>.age
+diff /tmp/rt.key ~/.config/chezmoi/age_<profile>.key && echo OK
+shred -u /tmp/rt.key
 
-   ```bash
-   cd ~/devel/homelab/dotfiles
-   git add age_key_<profile>.age ejson_key_<profile>.age \
-           secrets/<profile>/evault .chezmoi.yaml.tmpl
-   git commit -m 'rekey: <profile> Age + EJSON keys'
-   git push
-   ```
+# 4. Commit and push
+cd ~/devel/homelab/dotfiles
+git add age_key_<profile>.age
+git commit -m 'rotate: <profile> Age passphrase'
+git push
+```
 
-6. **On other machines**: the old `~/.config/chezmoi/age_<profile>.key`
-   and `~/.config/chezmoi/keys/<old_pub>` are stale. Either:
+**Other machines**: do nothing. They already have the decrypted Age key
+at `~/.config/chezmoi/age_<profile>.key`. The passphrase is only used
+during fresh bootstrap. The next time you bootstrap a new machine, you'll
+use the new passphrase.
 
-   - **Clean bootstrap**: `chezmoi purge && chezmoi init --apply <repo-url>`
-     — chezmoi re-runs `run_once_before_init_age.sh.tmpl`, prompts for the
-     new passphrase, deploys fresh keys.
+**`.chezmoi.yaml.tmpl` unchanged** — public identifiers didn't change.
 
-   - **In-place swap**: `rm ~/.config/chezmoi/age_<profile>.key
-     ~/.config/chezmoi/keys/<old_pub>`, then `chezmoi apply` re-runs the
-     init script and prompts for the new passphrase.
+---
+
+### Scenario B — Age key rotation only
+
+The Age key pair was compromised but EJSON key was not (e.g. someone got
+the passphrase + the wrapped Age blob, but couldn't reach the decrypted
+EJSON key on a machine). Evault content remains bit-identical, but
+`ejson_key_<profile>.age` must be **re-wrapped** with the new Age
+recipient because it was encrypted to the old Age public key.
+
+**Prerequisite**: machine with both decrypted keys on disk
+(`~/.config/chezmoi/age_<profile>.key` + `~/.config/chezmoi/keys/<ejson_pub>`).
+
+```bash
+# Workspace on tmpfs — plaintext keys live here briefly
+WORK=/dev/shm/rekey-age-<profile>-$$
+mkdir -p "${WORK}" && chmod 700 "${WORK}"
+cd "${WORK}"
+trap 'find "${WORK}" -type f -exec shred -u {} \; ; rmdir "${WORK}"' EXIT INT TERM
+
+EJSON_PUB=$(grep '"_public_key"' \
+    ~/devel/homelab/dotfiles/secrets/<profile>/evault \
+    | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
+
+# 1. Generate new Age key pair
+age-keygen -o new_age.key
+NEW_AGE_PUB=$(grep "public key:" new_age.key | awk '{print $NF}')
+
+# 2. Re-wrap the EJSON private key with the NEW Age recipient
+age --recipient "${NEW_AGE_PUB}" \
+    --output ejson_key_<profile>.age \
+    ~/.config/chezmoi/keys/"${EJSON_PUB}"
+
+# 3. Round-trip verify
+age --decrypt --identity new_age.key --output rt.ejson ejson_key_<profile>.age
+diff rt.ejson ~/.config/chezmoi/keys/"${EJSON_PUB}" && echo "EJSON wrap OK"
+
+# 4. Wrap the new Age key with the NEW passphrase (new password manager entry FIRST)
+chezmoi age encrypt --passphrase --output age_key_<profile>.age new_age.key
+
+# 5. Round-trip verify Age passphrase
+chezmoi age decrypt --passphrase --output rt.age age_key_<profile>.age
+diff rt.age new_age.key && echo "Age wrap OK"
+
+# 6. Install the new Age key locally (replaces the old one)
+mv new_age.key ~/.config/chezmoi/age_<profile>.key
+chmod 600 ~/.config/chezmoi/age_<profile>.key
+
+# 7. Copy new blobs to dev repo
+cp age_key_<profile>.age ejson_key_<profile>.age \
+   ~/devel/homelab/dotfiles/
+
+# 8. Update .chezmoi.yaml.tmpl with new Age recipient
+sed -i 's|"<OLD_AGE_PUB>"|"'"${NEW_AGE_PUB}"'"|' \
+    ~/devel/homelab/dotfiles/.chezmoi.yaml.tmpl
+# Verify the sed worked:
+grep "age_recipient_<profile>" ~/devel/homelab/dotfiles/.chezmoi.yaml.tmpl
+
+# 9. Commit and push
+cd ~/devel/homelab/dotfiles
+git add age_key_<profile>.age ejson_key_<profile>.age .chezmoi.yaml.tmpl
+git commit -m 'rotate: <profile> Age key pair'
+git push
+```
+
+**Evault stays untouched** — EJSON private key is the same, just wrapped
+under a different Age recipient. `secrets/<profile>/evault` is not
+modified.
+
+**Other machines**: stale `~/.config/chezmoi/age_<profile>.key` — replace
+via `rm ~/.config/chezmoi/age_<profile>.key && chezmoi apply` (triggers
+init script to decrypt the new blob).
+
+---
+
+### Scenario C — EJSON key rotation (evault re-seal)
+
+EJSON private key compromised or you want to rotate it. Age key can be
+reused (if not also compromised). **Evault content must be decrypted
+with the old EJSON key and re-encrypted with the new one.**
+
+**Prerequisite**: working machine with current EJSON private key at
+`~/.config/chezmoi/keys/<old_ejson_pub>`.
+
+```bash
+WORK=/dev/shm/rekey-ejson-<profile>-$$
+mkdir -p "${WORK}" && chmod 700 "${WORK}"
+cd "${WORK}"
+trap 'find "${WORK}" -type f -exec shred -u {} \; ; rmdir "${WORK}"' EXIT INT TERM
+
+REPO=~/devel/homelab/dotfiles
+OLD_EJSON_PUB=$(grep '"_public_key"' "${REPO}/secrets/<profile>/evault" \
+    | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
+
+# 1. Decrypt the evault with the OLD EJSON key (still on disk)
+ejson -keydir ~/.config/chezmoi/keys decrypt \
+    "${REPO}/secrets/<profile>/evault" > evault_plain.json
+chmod 600 evault_plain.json
+
+# 2. Generate new EJSON key pair
+ejson keygen > new_ejson.keys
+NEW_EJSON_PUB=$(awk '/^Public Key:/{getline; print; exit}' new_ejson.keys)
+NEW_EJSON_PRIV=$(awk '/^Private Key:/{getline; print; exit}' new_ejson.keys)
+
+# 3. Build a new evault skeleton with the new _public_key, then merge
+#    the decrypted fields back in. Use jq for safe JSON manipulation.
+jq --arg pub "${NEW_EJSON_PUB}" \
+   '. + {_public_key: $pub}' evault_plain.json > new_evault.json
+
+# 4. Install new EJSON private key in chezmoi key dir (needed for encrypt)
+printf "%s" "${NEW_EJSON_PRIV}" > ~/.config/chezmoi/keys/"${NEW_EJSON_PUB}"
+chmod 600 ~/.config/chezmoi/keys/"${NEW_EJSON_PUB}"
+
+# 5. Re-encrypt the evault with the new key (ejson encrypt is in-place)
+ejson encrypt new_evault.json
+
+# 6. Decrypt-round-trip verify (sanity check before committing)
+ejson -keydir ~/.config/chezmoi/keys decrypt new_evault.json \
+    | jq -e '.git.user and .git.email' >/dev/null && echo "Evault re-seal OK"
+
+# 7. Re-wrap the new EJSON private key with the (unchanged) Age recipient
+AGE_PUB=$(grep "public key:" ~/.config/chezmoi/age_<profile>.key | awk '{print $NF}')
+age --recipient "${AGE_PUB}" \
+    --output ejson_key_<profile>.age \
+    ~/.config/chezmoi/keys/"${NEW_EJSON_PUB}"
+
+# 8. Copy new artifacts into the dev repo
+cp new_evault.json     "${REPO}/secrets/<profile>/evault"
+cp ejson_key_<profile>.age "${REPO}/"
+
+# 9. Update .chezmoi.yaml.tmpl with new EJSON public id
+sed -i 's|"'"${OLD_EJSON_PUB}"'"|"'"${NEW_EJSON_PUB}"'"|' \
+    "${REPO}/.chezmoi.yaml.tmpl"
+grep "ejson_key_id_<profile>" "${REPO}/.chezmoi.yaml.tmpl"
+
+# 10. (Optional but recommended) shred old EJSON private key on this machine
+shred -u ~/.config/chezmoi/keys/"${OLD_EJSON_PUB}"
+
+# 11. Commit and push
+cd "${REPO}"
+git add secrets/<profile>/evault ejson_key_<profile>.age .chezmoi.yaml.tmpl
+git commit -m 'rotate: <profile> EJSON key pair (evault re-sealed)'
+git push
+```
+
+**Age blob unchanged** — `age_key_<profile>.age` stays bit-identical.
+
+**Other machines**: stale `~/.config/chezmoi/keys/<old_ejson_pub>` —
+delete it and run `chezmoi apply`, which re-runs the init script and
+extracts the new EJSON key from the new `ejson_key_<profile>.age`.
+
+```bash
+# On other machines:
+rm ~/.config/chezmoi/keys/<OLD_EJSON_PUB>
+chezmoi apply
+```
+
+#### Why jq + skeleton rebuild in Step 3?
+
+The decrypted `evault_plain.json` from Step 1 still has the **old**
+`_public_key` field. If you `ejson encrypt` it directly, EJSON looks up
+the old key (still on disk in Step 3 — would work) but the resulting
+blob would be encrypted **to the old recipient** — defeating the
+rotation. Rewriting `_public_key` first ensures `ejson encrypt` picks
+the new key.
+
+If `jq` isn't installed, hand-edit `new_evault.json` and change
+`_public_key` to `"${NEW_EJSON_PUB}"` before running `ejson encrypt`.
+
+---
+
+### Scenario D — full re-key (Age + EJSON both)
+
+Worst case: both key layers compromised, or starting completely fresh.
+Easiest implementation: do **C first** (EJSON rotation), then **B**
+(Age rotation). Two commits, but each step is well-tested above.
+
+Alternative single-pass approach using `setup-encryption.sh` (loses the
+evault content unless you capture it first):
+
+```bash
+# 1. Capture evault content to tmpfs
+WORK=/dev/shm/full-rekey-<profile>-$$
+mkdir -p "${WORK}" && chmod 700 "${WORK}"
+trap 'find "${WORK}" -type f -exec shred -u {} \; ; rmdir "${WORK}"' EXIT INT TERM
+
+ejson -keydir ~/.config/chezmoi/keys decrypt \
+    ~/devel/homelab/dotfiles/secrets/<profile>/evault \
+    > "${WORK}/evault_plain.json"
+
+# 2. Hand-edit .chezmoi.yaml.tmpl: restore both placeholders
+#    REPLACE_WITH_<PROFILE>_AGE_PUBLIC_KEY
+#    REPLACE_WITH_<PROFILE>_EJSON_PUBLIC_KEY
+
+# 3. Remove old blobs from repo
+cd ~/devel/homelab/dotfiles
+rm age_key_<profile>.age ejson_key_<profile>.age secrets/<profile>/evault
+
+# 4. Run setup-encryption with new passphrase (saved to password manager FIRST)
+cd "${WORK}"
+~/devel/homelab/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
+    --repo ~/devel/homelab/dotfiles
+# → produces a SKELETON evault (just git.user/git.email) — we'll overwrite next
+
+# 5. On this machine: chezmoi apply will install the new EJSON private key
+#    from the freshly-deployed ejson_key_<profile>.age. Wait for that.
+chezmoi apply
+
+# 6. Restore the captured evault content with the new EJSON key
+NEW_EJSON_PUB=$(grep '"_public_key"' \
+    ~/devel/homelab/dotfiles/secrets/<profile>/evault \
+    | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
+
+# Rewrite the captured plaintext with the new _public_key, then encrypt
+jq --arg pub "${NEW_EJSON_PUB}" \
+   '. + {_public_key: $pub}' "${WORK}/evault_plain.json" \
+   > ~/devel/homelab/dotfiles/secrets/<profile>/evault
+ejson encrypt ~/devel/homelab/dotfiles/secrets/<profile>/evault
+
+# 7. Commit the restored evault
+cd ~/devel/homelab/dotfiles
+git add secrets/<profile>/evault
+git commit -m 'rotate: <profile> evault re-sealed under new EJSON key'
+git push
+```
+
+**Other machines** — same as the worst-case bootstrap:
+
+```bash
+chezmoi purge                                # nuke chezmoi state + keys
+chezmoi init --apply https://github.com/<you>/dotfiles.git
+# → prompts for new Age passphrase, deploys fresh chain
+```
+
+---
+
+### Verifying any rotation worked
+
+After any of A–D, run the standalone verify on a clean machine state:
+
+```bash
+# On a machine NOT involved in the rotation (or after fresh bootstrap)
+~/verify-encryption.sh <profile>
+```
+
+All four checks (A–D in the verify script) should pass. If "Step D —
+cross-profile isolation" fails, you accidentally reused a key between
+profiles — start over.
 
 ---
 

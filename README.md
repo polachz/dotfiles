@@ -322,6 +322,16 @@ EJSON chain, populating the evault, and a verification script that
 exercises the entire decrypt chain end-to-end (including cross-profile
 isolation checks).
 
+### Rotating keys (passphrase, Age key, EJSON key)
+
+The chain has three independent layers and each can be rotated
+separately. The evault content only depends on the EJSON key — rotating
+the passphrase or just the Age key pair does **not** require re-sealing
+the evault. See
+[`ENCRYPTION_SETUP.md` → Rotating keys](./ENCRYPTION_SETUP.md#rotating-keys)
+for the scenario table and the four flows (A: passphrase only, B: Age
+key only, C: EJSON key with evault re-seal, D: full re-key).
+
 ---
 
 ## Repository structure
