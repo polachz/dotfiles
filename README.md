@@ -209,6 +209,9 @@ ch   # chezmoi
 chd  # chezmoi cd
 ```
 
+For the complete, theme-grouped list of every alias and function — shared,
+personal, and top-level — see [`ALIASES.md`](./ALIASES.md).
+
 For comprehensive operator guidance — daily workflow scenarios, edge
 cases, recovery patterns, the two-repo (dev vs. managed source) mental
 model, and security risks specific to the commit/push flow — see
