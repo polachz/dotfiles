@@ -116,21 +116,18 @@ repo clone, but they can't be decrypted without the matching Age key.
 
 ### Bash configuration (`~/.bashrc.d/`)
 
-Loaded by `~/.bashrc.d/00-loader.sh` (Fedora's default `~/.bashrc` sources top-level
-files in `~/.bashrc.d/` but does not recurse into subdirectories — `00-loader.sh`
-handles the subdirs).
+Universal files live at the top level of `~/.bashrc.d/` and are loaded by
+Fedora's default `~/.bashrc` (which sources top-level files but does not
+recurse). Profile-specific files live in subdirectories, sourced by
+`~/.bashrc.d/00-loader.sh` (which iterates any profile subdir present):
 
-| Subdirectory | Contents | Loaded when |
+| Location | Contents | Loaded when |
 |---|---|---|
-| `shared/` | Universal: colors, aliases, functions, prompt | Always |
+| top level | Universal: colors, aliases, functions, prompt, exports | Always |
 | `personal/` | Personal: git/chezmoi aliases, dev shortcuts, home paths | Profile = personal |
 | `work/` | Work-specific aliases and shortcuts | Profile = work |
 
-Top-level files (loaded outside subdirs):
-- `exports` — `EDITOR`, locale, history size, colored man pages
-- `wsl2_ssh_agent_support` — WSL2 only: Windows SSH agent forwarding
-
-### Shared file inventory (`~/.bashrc.d/shared/`)
+### Universal file inventory (top level of `~/.bashrc.d/`)
 
 | File | Purpose |
 |---|---|
@@ -141,6 +138,8 @@ Top-level files (loaded outside subdirs):
 | `50-aliases-power.sh` | reboot, halt, shutdown, reload |
 | `80-functions-common.sh` | GitHub release helpers, systemd service check, editor wrapper |
 | `99-prompt.sh` | PS1 (root=red, user=green) |
+| `exports` | `EDITOR`, locale, history size, colored man pages |
+| `wsl2_ssh_agent_support` | WSL2 only: Windows SSH agent forwarding |
 
 ### Utilities installed to `~/.local/bin/`
 
@@ -209,8 +208,8 @@ ch   # chezmoi
 chd  # chezmoi cd
 ```
 
-For the complete, theme-grouped list of every alias and function — shared,
-personal, and top-level — see [`ALIASES.md`](./ALIASES.md).
+For the complete, theme-grouped list of every alias and function —
+universal and personal — see [`ALIASES.md`](./ALIASES.md).
 
 For comprehensive operator guidance — daily workflow scenarios, edge
 cases, recovery patterns, the two-repo (dev vs. managed source) mental
@@ -362,10 +361,13 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 │   ├── is-os-command-available      # Command existence check template
 │   └── is-package-installed         # Package installation check template
 ├── dot_bashrc.d/                    # Bash config → ~/.bashrc.d/
-│   ├── 00-loader.sh                 # Nested subdir loader
+│   ├── 00-loader.sh                 # Profile subdir loader
+│   ├── 00-colors.sh                 # Universal: colors, aliases, prompt, ...
+│   ├── 50-aliases-*.sh              #   (top-level files load on every profile)
+│   ├── 80-functions-common.sh
+│   ├── 99-prompt.sh
 │   ├── exports                      # EDITOR, LANG, HISTSIZE, ...
 │   ├── wsl2_ssh_agent_support       # WSL2 only
-│   ├── shared/                      # Universal subset (deployed to all profiles)
 │   ├── personal/                    # Personal profile only
 │   └── work/                        # Work profile only
 ├── private_dot_local/bin/           # Utility scripts → ~/.local/bin/
@@ -380,25 +382,6 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 ├── age_key_personal.age             # Age-encrypted personal Age key (passphrase-protected)
 └── age_key_work.age                 # Age-encrypted work Age key (passphrase-protected)
 ```
-
----
-
-## Sharing with homelab
-
-The `shared/` subset is the canonical source for the
-[`homelab-automation`](https://github.com/polachz/homelab-automation) shell
-profile (`shell_profile_shared/`). The homelab project vendors a snapshot of
-`dot_bashrc.d/shared/` and deploys it to `/etc/profile.d/` on homelab VMs.
-
-Workflow when modifying shared files:
-1. Edit `dot_bashrc.d/shared/<file>` here
-2. Commit + push
-3. In `homelab-automation`: `homelab shared-shell sync` (pulls and vendors
-   the new snapshot)
-4. `homelab vm update-shell-profile <vm>` deploys the new content
-
-See [`homelab-automation`](https://github.com/polachz/homelab-automation)
-docs for sync mechanism details.
 
 ---
 

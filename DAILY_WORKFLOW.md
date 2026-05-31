@@ -27,11 +27,11 @@ short-circuits the flow and leads to silent drift.
 
 ## Daily workflow scenarios
 
-### S1. Change a managed file (e.g. `dot_bashrc.d/shared/50-aliases-misc.sh`)
+### S1. Change a managed file (e.g. `dot_bashrc.d/50-aliases-misc.sh`)
 
 ```bash
 cd ~/devel/homelab/dotfiles
-$EDITOR dot_bashrc.d/shared/50-aliases-misc.sh
+$EDITOR dot_bashrc.d/50-aliases-misc.sh
 git add -p && git commit -m "aliases: add 'gst' shortcut"
 git push
 
@@ -40,7 +40,7 @@ chezmoi update -v
 ```
 
 **Common mistakes:**
-- Editing `~/.bashrc.d/shared/50-aliases-misc.sh` directly in HOME →
+- Editing `~/.bashrc.d/50-aliases-misc.sh` directly in HOME →
   next `chezmoi apply` detects the drift and (interactively) prompts;
   in non-interactive runs it silently overwrites.
 - Editing in `~/.local/share/chezmoi/` → next `chezmoi update` either

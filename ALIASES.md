@@ -4,25 +4,18 @@ Every alias and function deployed to a workstation by these dotfiles,
 grouped by theme. The source files live in `dot_bashrc.d/` and land in
 `~/.bashrc.d/` after `chezmoi apply`.
 
-Three scopes load in order (see `dot_bashrc.d/00-loader.sh`):
+Two scopes load (see `dot_bashrc.d/00-loader.sh`):
 
-| Scope | Directory | Loaded on |
-|-------|-----------|-----------|
-| Shared | `~/.bashrc.d/shared/` | every profile |
+| Scope | Location | Loaded on |
+|-------|----------|-----------|
+| Universal | `~/.bashrc.d/*` (top-level files) | every profile |
 | Personal | `~/.bashrc.d/personal/` | `profile = personal` only |
-| Top-level | `~/.bashrc.d/*` (flat files) | every profile |
-
-> **Shared vs. homelab VMs.** The `shared/` scope is vendored into the
-> homelab automation repo and also deployed to homelab VMs. VMs get an
-> *additional* server-only set (systemd / podman / network helpers) that
-> is **not** part of these dotfiles — see
-> `homelab-automation/docs/user-guide/customization/aliases-reference.md`.
 
 ---
 
-## Shared scope (`~/.bashrc.d/shared/`)
+## Universal scope (top level of `~/.bashrc.d/`)
 
-Universal — present on every machine and every homelab VM.
+Present on every machine.
 
 ### Colors (`00-colors.sh`)
 
@@ -166,9 +159,10 @@ which dotfiles set they are running under.
 
 ---
 
-## Top-level scope (`~/.bashrc.d/`)
+## Environment & integrations
 
-Flat files loaded on every profile.
+Top-level files that set environment variables / integrations rather than
+aliases (loaded on every profile).
 
 ### Environment (`exports`)
 
