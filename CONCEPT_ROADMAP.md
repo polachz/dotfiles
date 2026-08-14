@@ -542,12 +542,24 @@ výsledný nasazený soubor je čistý, netemplatovaný fish/bash/PowerShell sou
 
 ### 3.4 Generování dokumentace
 
-`ALIASES.md` (dnes ručně udržovaný) se má **generovat přímo z alias YAML dat**, ne psát zvlášť —
-kategorizace scope (adresář) → kategorie (klíč v `categories:`) → kind (abbr/alias). Zapojit na
-dvou místech:
-1. Automaticky na konci `edit-aliases-core` (viz 3.5) po úspěšném edit+apply.
-2. Jako pojistka v budoucím pre-commit hooku (stejná sada, kterou `DAILY_WORKFLOW.md` navrhuje
-   pro gitleaks/secrets, zatím nepostavená).
+**IMPLEMENTOVÁNO (2026-08-14).** `ALIASES.md` je teď **částečně** generovaný — bloky mezi
+`<!-- GENERATED:aliases-doc-{aliases,env}:start/end -->` značkami se generují přímo z
+`.chezmoidata/{aliases,env}/**/*.yaml` (kategorizace scope → kategorie → kind abbr/alias),
+zbytek (úvodní próza, sekce bez YAML zdroje jako Power management nebo personal/zsh-only obsah)
+zůstává ručně udržovaný mimo značky.
+
+- `.chezmoitemplates/generate-aliases-doc-aliases`/`-env` — dva samostatné generátory (ne jeden),
+  aby šly nezávisle vkládat do dvou různých míst v dokumentu bez zásahu do ruční prózy mezi nimi.
+  Používají stejnou `resolve-os-value` logiku jako reálné per-shell renderery. Každý OS sloupec se
+  vždy vypisuje zvlášť (i když jsou hodnoty identické) — víc řádků, ale mechanicky triviální a
+  nikdy špatně.
+- `edit-aliases-core` (viz 3.5) — `chezmoi -S <repo> execute-template` na oba generátory slouží
+  zároveň jako validace (YAML syntax i chybějící povinná pole spadnou tady, ne až při reálném
+  `chezmoi apply`), teprve pak se výsledek vloží do `ALIASES.md` přes `awk`-based marker-replace
+  (stejná technika jako Windows SSH config inline-embed).
+- Pre-commit hook pojistka (bod 2 v původním plánu) zůstává nepostavená — čeká na stejnou
+  gitleaks/secrets infrastrukturu, kterou navrhuje `DAILY_WORKFLOW.md`.
+
 `README.md` beze změny — jen odkazuje na `ALIASES.md`, obsah negeneruje.
 
 ### 3.5 Workflow pro přidání/úpravu aliasu
