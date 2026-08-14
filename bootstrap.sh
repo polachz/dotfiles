@@ -262,7 +262,7 @@ else
     chezmoi_github_url="https://github.com/${GITHUB_USERNAME}/dotfiles.git"
     if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
         log_task "Installing Chezmoi via Homebrew..."
-        NONINTERACTIVE=1 brew install chezmoi
+        HOMEBREW_NO_ASK=1 brew install chezmoi
         chezmoi="chezmoi"
     else
         log_task "Installing Chezmoi..."
@@ -288,8 +288,8 @@ if ! command -v "ejson" > /dev/null 2>&1; then
     if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
         # Official Shopify tap (not in homebrew-core) — verified 2026-08-07,
         # `shopify/shopify/ejson` is a real, working formula.
-        NONINTERACTIVE=1 brew tap shopify/shopify >/dev/null 2>&1
-        NONINTERACTIVE=1 brew install shopify/shopify/ejson
+        HOMEBREW_NO_ASK=1 brew tap shopify/shopify >/dev/null 2>&1
+        HOMEBREW_NO_ASK=1 brew install shopify/shopify/ejson
     else
         # EJSON release binary — Shopify publishes Linux/macOS amd64 builds. Used
         # when Homebrew isn't available (Linux, or a failed Homebrew bootstrap).

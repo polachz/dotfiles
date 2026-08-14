@@ -9,7 +9,7 @@ if ! command -v brew >/dev/null 2>&1; then
   NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   eval "$('/opt/homebrew/bin/brew' shellenv 2>/dev/null || '/usr/local/bin/brew' shellenv)"
 fi
-brew install {{ .package }}
+HOMEBREW_NO_ASK=1 brew install {{ .package }}
 {{- else -}}
 error "Unknown Package manager. Can't install {{ .package }}"
 {{- end -}}
