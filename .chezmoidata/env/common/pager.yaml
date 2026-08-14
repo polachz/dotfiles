@@ -1,0 +1,50 @@
+env:
+  common:
+    categories:
+      pager:
+        - name: MANPAGER
+          value:
+            default: 'less -X'
+            windows: skip
+          description: Don't clear the screen after quitting a manual page
+      # ANSI color codes for man pages, consumed by `less` via LESS_TERMCAP_*.
+      # Values use lowercase `\e` (not `\E`) for ESC — required so the fish
+      # renderer's `printf` (which, unlike bash/zsh `$'...'`, does not
+      # recognize `\E`) produces the same byte sequence as bash/zsh.
+      # windows: skip on the whole category — no `less`/man pages on Windows.
+      less_colors:
+        - name: LESS_TERMCAP_mb
+          value:
+            default: '\e[01;31m'
+            windows: skip
+          description: Begin blinking
+        - name: LESS_TERMCAP_md
+          value:
+            default: '\e[01;38;5;74m'
+            windows: skip
+          description: Begin bold
+        - name: LESS_TERMCAP_me
+          value:
+            default: '\e[0m'
+            windows: skip
+          description: End mode
+        - name: LESS_TERMCAP_se
+          value:
+            default: '\e[0m'
+            windows: skip
+          description: End standout-mode
+        - name: LESS_TERMCAP_so
+          value:
+            default: '\e[38;5;246m'
+            windows: skip
+          description: Begin standout-mode - info box
+        - name: LESS_TERMCAP_ue
+          value:
+            default: '\e[0m'
+            windows: skip
+          description: End underline
+        - name: LESS_TERMCAP_us
+          value:
+            default: '\e[04;38;5;146m'
+            windows: skip
+          description: Begin underline

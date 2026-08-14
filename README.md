@@ -2,10 +2,16 @@
 
 Personal dotfiles managed by [chezmoi](https://www.chezmoi.io/). Two profiles
 (`personal` and `work`) with **cryptographic separation** — a personal machine
-physically cannot decrypt work secrets, and vice versa.
+physically cannot decrypt work secrets, and vice versa. One data model drives
+**three shells** (bash, zsh, fish) plus terminal (Ghostty) and prompt
+(starship) configuration.
 
 `bootstrap.sh` is a self-contained installer — needs only `curl` or `wget`,
 downloads chezmoi automatically, and walks you through profile selection.
+
+See [`CONCEPT_ROADMAP.md`](./CONCEPT_ROADMAP.md) for the full design
+rationale, every empirically-verified gotcha, and what's still not built.
+This README covers day-one usage.
 
 ---
 
@@ -13,9 +19,16 @@ downloads chezmoi automatically, and walks you through profile selection.
 
 | Platform | Support |
 |---|---|
+| macOS (Apple Silicon) | Primary — real work-profile machine |
 | Fedora / RHEL (dnf) | Primary |
-| Debian / Ubuntu (apt) | Partial |
+| Debian / Ubuntu (apt) | Partial (see [`CONCEPT_ROADMAP.md`](./CONCEPT_ROADMAP.md) §2.1 for a known `~/.bashrc.d` auto-sourcing gap, self-healed) |
 | WSL2 (Windows Subsystem for Linux) | Supported (includes Windows SSH agent relay) |
+| Native Windows / PowerShell | Not yet implemented |
+
+Shells: **bash**, **zsh**, **fish** — one shared alias/env-variable data
+model renders into all three. Native prompt (root=red/user=green) is
+universal; [starship](https://starship.rs/) layers on top wherever it's
+installed.
 
 ---
 
@@ -35,9 +48,12 @@ downloads chezmoi automatically, and walks you through profile selection.
 - **EJSON binary** — installed automatically by bootstrap.sh during the first
   run (downloaded from
   [github.com/Shopify/ejson/releases](https://github.com/Shopify/ejson/releases/latest)).
+- **macOS only**: bootstrap headlessly installs Xcode Command Line Tools
+  (needed for `git`) if missing, and self-bootstraps
+  [Homebrew](https://brew.sh/) the first time a `brew`-managed package is
+  needed.
 - SSH key configured in GitHub — required only if you want to push changes
-  back after installation (bootstrap switches the remote from HTTPS to SSH
-  automatically).
+  back after installation.
 
 ---
 
@@ -65,20 +81,39 @@ CHZ_DEPLOYMENT_PROFILE=personal \
   sh -c "$(curl -fsSL https://raw.githubusercontent.com/polachz/dotfiles/main/bootstrap.sh)"
 ```
 
+`bootstrap.sh` only resolves the **profile** (personal/work) — the two
+newer, orthogonal init-time facts, **role** (`workstation`/`server`) and
+**has_gui** (whether to deploy GUI-only config like Ghostty), are resolved
+directly by chezmoi itself the first time it runs, env-var-first:
+
+```bash
+DOTFILES_ROLE=server DOTFILES_HAS_GUI=false \
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/polachz/dotfiles/main/bootstrap.sh)" -- --profile work
+```
+
+If `DOTFILES_ROLE`/`DOTFILES_HAS_GUI` aren't set, chezmoi prompts
+interactively (once — cached in `~/.config/chezmoi/chezmoi.yaml`, never
+committed to the repo). `DOTFILES_PROFILE` also works as a direct chezmoi-level
+override, equivalent to `bootstrap.sh --profile`.
+
 ---
 
-## Profiles
+## Profiles, role, and GUI — three independent axes
 
-| Profile | Use |
-|---|---|
-| `personal` | Private machines — personal email/git/ssh identity, personal `~/.ssh/config` |
-| `work` | Work machines — work email/git/ssh identity, work-specific aliases |
+| Axis | Values | Meaning |
+|---|---|---|
+| **Profile** | `personal` / `work` | Identity — separate Age/EJSON keys, separate secrets, separate git/SSH identity. Cryptographically isolated. |
+| **Role** | `workstation` / `server` | Orthogonal to profile — same identity/keys, different package selection. Every tool in `.chezmoidata/packages.yaml` declares which role(s) it installs on (default: both) — see `CONCEPT_ROADMAP.md` §7. |
+| **has_gui** | `true` / `false` | Orthogonal to role — a workstation can be headless. Gates GUI-only config/packages — Ghostty in `.chezmoiignore.tmpl`, plus any package with `requires_gui: true` (Bitwarden, Windows Terminal, Total Commander). Shell-level config (aliases, env, prompt, starship) deploys regardless. |
 
 Each profile has:
-- Its own bashrc subdirectory (`~/.bashrc.d/personal/` or `~/.bashrc.d/work/`)
+- Its own shell config subdirectory (`~/.bashrc.d/{personal,work}/`,
+  `~/.zshrc.d/{personal,work}/`)
 - Its own encrypted secrets vault (`secrets/personal/evault` or `secrets/work/evault`)
 - Its own Age key pair (`age_key_personal.age` / `age_key_work.age`)
 - Its own EJSON key pair (`ejson_key_personal.age` / `ejson_key_work.age`)
+- Its own git identity fragment (`~/.config/git/{personal,work}/common.gitconfig`)
+- Its own SSH config fragments (`~/.ssh/conf.d/*-{personal,work}-*.conf`)
 
 `.chezmoiignore.tmpl` ensures only the active profile's files reach disk on a
 given machine. The encrypted blobs for the OTHER profile come along with the
@@ -105,41 +140,159 @@ repo clone, but they can't be decrypted without the matching Age key.
 
 | Variable | Description |
 |---|---|
-| `CHZ_DEPLOYMENT_PROFILE` | Profile selector (`personal` or `work`) — same as `--profile` |
+| `CHZ_DEPLOYMENT_PROFILE` | Profile selector (`personal` or `work`) — same as `--profile`. Bridged internally to `DOTFILES_PROFILE` before invoking chezmoi. |
 | `CHZ_BOOTSTRAP_DRY_RUN` | Set to `1` to run in dry-run mode |
 | `CHZ_BOOTSTRAP_VERBOSE` | Set to `1` for verbose output |
 | `CHZ_DOTFILES_DEBUG` | Set to `1` to enable `set -x` debug mode in dotfile scripts |
+| `DOTFILES_ROLE` | `workstation` or `server` — read directly by chezmoi, no bootstrap.sh flag yet |
+| `DOTFILES_HAS_GUI` | `true` or `false` — read directly by chezmoi, no bootstrap.sh flag yet |
 
 ---
 
 ## What gets installed and configured
 
+### Shells: shared data, per-shell rendering
+
+Aliases (`.chezmoidata/aliases/**/*.yaml`) and environment variables
+(`.chezmoidata/env/**/*.yaml`) are defined **once**, in YAML, then rendered
+per-shell at `chezmoi apply` time — the deployed files are plain,
+non-templated shell scripts, only regenerated when the source YAML changes:
+
+| Shell | Renderer | Deployed to |
+|---|---|---|
+| bash + zsh (shared — `alias`/`export` syntax is identical) | `dot_bashrc.d/50-aliases-generated.sh.tmpl`, `dot_bashrc.d/05-env-generated.sh.tmpl` | `~/.bashrc.d/{50-aliases-generated.sh,05-env-generated.sh}`, sourced from zsh too via `~/.zshrc.d/00-shared.zsh` |
+| fish | `dot_config/fish/conf.d/{aliases,env}.fish.tmpl` | `~/.config/fish/conf.d/` (fish autoloads `conf.d/*.fish`) |
+
+Per-entry `command`/`value` can be a plain string or an OS-keyed map (with
+`skip` for "doesn't apply on this OS") — resolved by the shared
+`.chezmoitemplates/resolve-os-value` partial.
+
+**`~/.bashrc`, `~/.zshrc`, and `~/.ssh/config`/`~/.gitconfig` are never fully
+owned by chezmoi** — each already has, or can accumulate, genuinely
+important non-dotfiles content (shell rc files pick up SDK/tool init lines;
+`~/.gitconfig` gets edited by `git lfs`, credential managers, etc.). Instead,
+an idempotent, self-healing `run_after_ensure-*-sourcing.sh.tmpl` /
+`run_after_ensure-gitconfig-includes.sh.tmpl` script appends a small
+`source`/`Include`/`[include]` block **only if missing**, and everything
+else lives in a dedicated, fully chezmoi-owned location:
+
+| Owned by chezmoi | Never touched |
+|---|---|
+| `~/.bashrc.d/`, `~/.zshrc.d/` | `~/.bashrc`, `~/.zshrc` (just gets one sourcing block appended once) |
+| `~/.ssh/conf.d/*.conf` | `~/.ssh/config` (just gets `Host *` + `Include` appended once) |
+| `~/.config/git/**/*.gitconfig` | `~/.gitconfig` (gets `[include]`/`[includeIf]` blocks appended, one per fragment, self-healing per block) |
+
 ### Bash configuration (`~/.bashrc.d/`)
 
 Universal files live at the top level of `~/.bashrc.d/` and are loaded by
 Fedora's default `~/.bashrc` (which sources top-level files but does not
-recurse). Profile-specific files live in subdirectories, sourced by
-`~/.bashrc.d/00-loader.sh` (which iterates any profile subdir present):
-
-| Location | Contents | Loaded when |
-|---|---|---|
-| top level | Universal: colors, aliases, functions, prompt, exports | Always |
-| `personal/` | Personal: git/chezmoi aliases, dev shortcuts, home paths | Profile = personal |
-| `work/` | Work-specific aliases and shortcuts | Profile = work |
-
-### Universal file inventory (top level of `~/.bashrc.d/`)
+recurse) — on distros without that convention (e.g. Ubuntu 24.04 LTS),
+`run_after_ensure-bashrc-sourcing.sh.tmpl` adds the equivalent sourcing block
+itself. Profile-specific files live in subdirectories, sourced by
+`~/.bashrc.d/00-loader.sh`:
 
 | File | Purpose |
 |---|---|
 | `00-colors.sh` | ANSI color codes (`FG_*`, `BG_*`) |
-| `50-aliases-nav.sh` | Directory navigation (`..`, `...`, `hh`, `ee`, `-`) |
-| `50-aliases-ls.sh` | ls variants (`ll`, `la`, `lt`, …) + colored grep |
-| `50-aliases-misc.sh` | File ownership, count, history search, networking |
-| `50-aliases-power.sh` | reboot, halt, shutdown, reload |
-| `80-functions-common.sh` | GitHub release helpers, systemd service check, editor wrapper |
+| `01-bash-history.sh` | `HISTSIZE`/`HISTFILESIZE`/`HISTCONTROL`/`HISTIGNORE` |
+| `05-env-generated.sh` | Generated from `.chezmoidata/env/` (see above) |
+| `50-aliases-generated.sh` | Generated from `.chezmoidata/aliases/` (see above) |
+| `50-aliases-power.sh` | reboot/halt/shutdown/reload (not yet migrated to the YAML model) |
+| `80-functions-common.sh` | `color` — ANSI escape helper. Also shared into zsh. |
 | `99-prompt.sh` | PS1 (root=red, user=green) |
-| `exports` | `EDITOR`, locale, history size, colored man pages |
 | `wsl2_ssh_agent_support` | WSL2 only: Windows SSH agent forwarding |
+| `personal/`, `work/` | Profile-specific aliases (git shortcuts, chezmoi shortcuts, home-dir shortcuts — currently only under `personal/`, `work/` is an empty placeholder) |
+
+### Zsh configuration (`~/.zshrc.d/`)
+
+zsh has no OS-provided auto-sourcing convention at all, so
+`run_after_ensure-zshrc-sourcing.sh.tmpl` always appends the sourcing block.
+zsh can't blindly share bash's files (`export -f` is broken in zsh, PS1
+syntax differs) — `00-shared.zsh` explicitly sources the subset that *is*
+byte-identical (colors, generated env/aliases, `80-functions-common.sh`):
+
+| File | Purpose |
+|---|---|
+| `00-loader.zsh` | Profile subdir loader (personal/work) |
+| `00-shared.zsh` | Sources the zsh-compatible subset of `~/.bashrc.d/*` |
+| `01-history.zsh` | zsh-native `SAVEHIST`/`HISTFILE`/`setopt HIST_IGNORE_*` |
+| `10-path.zsh` | `PATH` additions |
+| `10-bitwarden-ssh-agent.zsh` | macOS Bitwarden desktop SSH agent socket |
+| `99-prompt.zsh` | zsh-native prompt (same colors as bash's `99-prompt.sh`, different syntax — can't be shared) |
+| `99-starship-init.zsh` | `eval "$(starship init zsh)"` if installed |
+| `work/10-gcloud.zsh`, `work/10-vertex-ai.zsh` | Work-only: Google Cloud SDK + Claude Code Vertex AI env vars |
+
+### Fish configuration (`~/.config/fish/conf.d/`)
+
+Fish autoloads everything in `conf.d/*.fish`, so there's no loader file —
+just the generated `aliases.fish`/`env.fish` (see above, rendered as `abbr`
+by default so history stores the expanded command) plus
+`starship-init.fish` (`starship init fish | source`, if installed).
+
+### Terminal & prompt
+
+- **[Ghostty](https://ghostty.org/)** (`dot_config/private_ghostty/`) — only
+  deployed when `has_gui: true` and OS is macOS/Linux (no Windows build).
+  Composed via Ghostty's native `config-file = ?path` include (silent no-op
+  on a missing fragment): `common.conf` → `{profile}/common.conf` →
+  `{profile}/{os}.conf`, later overrides earlier.
+- **[starship](https://starship.rs/)** (`dot_config/starship.toml.tmpl`) —
+  no native include, composed at `chezmoi apply` time from
+  `.chezmoitemplates/starship-{common,personal,work}`. Deployed everywhere
+  (shell-level, works over SSH too), layers on top of the native prompt
+  above wherever it's actually installed — including PowerShell
+  (`Documents/PowerShell/dotfiles.d/99-starship-init.ps1`, install via
+  `winget install --id Starship.Starship`).
+- **PSReadLine fish-style autosuggestions** (PowerShell only,
+  `Documents/PowerShell/dotfiles.d/90-psreadline.ps1`) — bundled with
+  PowerShell 7, nothing extra to install. `-PredictionSource History
+  -PredictionViewStyle ListView`, guarded to skip when the console doesn't
+  support it (e.g. `$PROFILE` loaded with redirected output).
+- **Windows Terminal** (`AppData/Local/Microsoft/Windows Terminal/Fragments/dotfiles/`)
+  — only deployed when `has_gui: true` and OS is Windows. Uses Windows
+  Terminal's native ["fragment
+  extension"](https://learn.microsoft.com/windows/terminal/json-fragment-extensions)
+  mechanism to add a `Dotfiles` profile (font-size only, same minimal scope
+  as Ghostty above) without ever touching the user's real, MSIX-packaged,
+  JSONC `settings.json`. Purely additive (own fixed GUID, never an
+  `"updates"` reference) — no conflict with existing profiles possible.
+  Setting it as the default profile is out of scope (see CONCEPT_ROADMAP.md
+  §7) — pick it manually from the profile dropdown.
+
+### SSH config (`~/.ssh/conf.d/`)
+
+Fragments are matched by filename (`Include` needs a flat directory, unlike
+git), numbered so the most specific wins (SSH is first-match-wins, the
+opposite of git):
+
+| File | Scope | Purpose |
+|---|---|---|
+| `50-work-redhat.conf` | work | GSSAPI settings for `*.redhat.com` |
+| `50-work-labvms.conf` | work | UTM lab test VM shortcuts (`maclab`, `windev`) |
+| `90-common.conf` | universal | `SetEnv TERM=xterm-256color` — works around Ghostty's `TERM=xterm-ghostty` breaking remote hosts without a matching terminfo entry |
+
+On Windows, `Include` doesn't work at all in Win32-OpenSSH (verified live —
+it hangs `ssh.exe` indefinitely on absolute/tilde paths, silently no-ops on
+relative ones, on both the in-box client and the latest upstream release) —
+`run_after_ensure-sshconfig-sourcing.ps1.tmpl` embeds the fragment content
+directly into `$HOME\.ssh\config` instead, inside a managed
+`# BEGIN/END dotfiles conf.d` block regenerated on every apply.
+
+### Git config (`~/.config/git/`)
+
+| File | Scope | Purpose |
+|---|---|---|
+| `common.gitconfig` | universal | Empty — no OS/profile-independent setting identified yet |
+| `work/common.gitconfig` | work | `[user]` name/email (fallback identity) |
+| `work/hosts/github.gitconfig` | work | Per-host override for GitHub remotes (`includeIf hasconfig:remote.*.url:...`) — deliberately empty scaffold, no noreply email configured yet |
+
+Same fragments on Windows too (`run_after_ensure-gitconfig-includes.ps1.tmpl`)
+— git for Windows honors `$HOME` and tilde-expands `path =` values itself,
+so the include/includeIf mechanism works unchanged there, unlike SSH.
+
+To use a GitHub "keep my email private" address, edit
+`~/Devel/dotfiles/dot_config/private_git/work/hosts/github.gitconfig`
+directly (see comment inside for the exact syntax), commit, push.
 
 ### Utilities installed to `~/.local/bin/`
 
@@ -155,13 +308,31 @@ recurse). Profile-specific files live in subdirectories, sourced by
 
 ### System packages
 
-Installed via the package manager detected from `/etc/os-release`:
+Tool-first model in `.chezmoidata/packages.yaml` — one list per tool, with
+per-manager (`dnf`/`apt`/`brew`/`winget`) name overrides, a `roles` filter
+(workstation/server), an optional `requires_gui`/`vm_types` filter, and an
+optional `copr` (dnf) install step. `dnf`/`apt`/`brew` default to the tool's
+`name` when omitted; `winget` always needs an explicit ID (string or a map
+for extra flags like `installer_type`/`scope`); `skip` means that manager
+doesn't have it — see `CONCEPT_ROADMAP.md` §7 for the full field reference.
+Installed via `run_onchange_install-packages.sh.tmpl` (dnf/apt/brew, bash) or
+`run_onchange_install-packages.ps1.tmpl` (winget, PowerShell — bash has no
+default interpreter on Windows, see §7).
 
-- **Common**: `git`, `openssl`
-- **Personal profile**: `tio`, `keepassxc`, `doublecmd-gtk`
-- **Work profile**: (none yet — populate `packages.dnf.work` when first work host arrives)
+- **Common** (workstation only): `git`
+- **Workstation tools**: `starship` (brew/winget only — no default dnf/apt
+  repo), `bitwarden` (GUI password manager, `requires_gui`), `powershell7`
+  (Windows-only, `installer_type: wix`), `ghostty` (Linux/macOS only, dnf via
+  COPR `scottames/ghostty`), `windows-terminal` (Windows-only, install only —
+  `settings.json` config is a follow-up task), `totalcmd` (Windows-only,
+  `Ghisler.TotalCommander`)
 - **VirtualBox VM**: VirtualBox guest additions (auto-detected via `systemd-detect-virt`)
 - **VMware VM**: open-vm-tools (auto-detected)
+
+Deferred: a GitHub-release fallback for tools with no default repo package
+(e.g. `starship` on dnf/apt) — `.chezmoitemplates/get-github-latest-verson`
+exists but isn't wired in yet, so `helpers/install-starship.sh` (legacy
+manual installer) stays until then.
 
 ### User groups
 
@@ -182,7 +353,7 @@ Installed via the package manager detected from `/etc/os-release`:
 ## Day-to-day usage
 
 After installation, chezmoi is at `~/.local/bin/chezmoi` (added to `PATH`).
-The `ch` alias is also available.
+The `ch` alias is also available on the personal profile.
 
 ```bash
 # See what would change
@@ -194,22 +365,17 @@ chezmoi apply
 # Open the source directory
 chezmoi cd
 
-# Edit a managed file and apply in one step
-chezmoi edit ~/.bashrc.d/personal/git-aliases --apply
-
 # Pull latest changes from GitHub and apply
 chezmoi update
 ```
 
-Useful aliases defined by the dotfiles:
+Alias/env changes are **data-only** — edit the YAML in
+`.chezmoidata/{aliases,env}/`, then `chezmoi apply` (from the dev repo, or
+`chezmoi update` after pushing). There's no dedicated `edit-aliases` command
+yet (see `CONCEPT_ROADMAP.md` §3.5 — designed, not built).
 
-```bash
-ch   # chezmoi
-chd  # chezmoi cd
-```
-
-For the complete, theme-grouped list of every alias and function —
-universal and personal — see [`ALIASES.md`](./ALIASES.md).
+For the complete, theme-grouped list of every alias, environment variable,
+and function — universal and personal — see [`ALIASES.md`](./ALIASES.md).
 
 For comprehensive operator guidance — daily workflow scenarios, edge
 cases, recovery patterns, the two-repo (dev vs. managed source) mental
@@ -254,6 +420,13 @@ starting from a single prerequisite — the Age passphrase file:
 Everything after the first step is handled automatically by
 `run_once_before_init_age.sh.tmpl` during `chezmoi apply`.
 
+**Not yet wired up**: no template actually pulls a value out of the evault
+yet via `ejsonValue`/`output "ejson" "decrypt"` — the unlock chain above
+works end-to-end, but the env-variable secret-injection consumer
+(`CONCEPT_ROADMAP.md` §4.2) hasn't been built. `git.user`/`git.email` today
+come from a plain, unencrypted fragment (`~/.config/git/work/common.gitconfig`),
+not the evault.
+
 ### Encrypted files in the repo
 
 | File | Tool | Contents |
@@ -287,10 +460,10 @@ Use the `edit-evault` helper installed at `~/.local/bin/edit-evault`:
 
 ```bash
 # With --repo flag (one-off)
-edit-evault personal --repo ~/devel/homelab/dotfiles
+edit-evault personal --repo ~/Devel/dotfiles
 
 # Or set DOTFILES_REPO once per shell
-export DOTFILES_REPO=~/devel/homelab/dotfiles
+export DOTFILES_REPO=~/Devel/dotfiles
 edit-evault personal
 edit-evault work
 ```
@@ -345,38 +518,52 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 
 ```
 .
+├── CONCEPT_ROADMAP.md               # Authoritative design doc — read this for the "why"
 ├── bootstrap.sh                     # Self-contained installer (curl/wget entry point)
-├── .chezmoi.yaml.tmpl               # Chezmoi config template (per-profile crypto vars)
+├── .chezmoi.yaml.tmpl               # Chezmoi config template (profile/role/has_gui, crypto vars)
 ├── .chezmoiversion                  # Required chezmoi version
-├── .chezmoiignore.tmpl              # Per-profile masking rules
+├── .chezmoiignore.tmpl              # Per-profile/OS/GUI masking rules
 ├── .chezmoidata/
-│   └── packages.yaml                # Package lists per profile and package manager
+│   ├── packages.yaml                # Tool-first package list (roles/requires_gui/vm_types/per-manager overrides)
+│   ├── aliases/common/*.yaml        # Shared alias data (bash+zsh+fish renderers)
+│   └── env/common/*.yaml            # Shared env-variable data
 ├── .chezmoiscripts/
-│   ├── run_once_before_init_age.sh.tmpl         # Profile-aware Age + EJSON unlock
-│   ├── run_onchange_install-packages.sh.tmpl    # Re-runs when package list changes
-│   └── run_onchange_after_user-settings.sh.tmpl # Group membership + git remote switch
+│   ├── run_once_before_init_age.sh.tmpl          # Profile-aware Age + EJSON unlock (non-Windows only)
+│   ├── run_onchange_install-packages.sh.tmpl     # dnf/apt/brew install, re-runs on package list change (non-Windows only)
+│   ├── run_onchange_install-packages.ps1.tmpl    # winget install, same data (Windows only)
+│   ├── run_onchange_after_user-settings.sh.tmpl  # Group membership + git remote switch (non-Windows only)
+│   ├── run_after_ensure-bashrc-sourcing.sh.tmpl  # Idempotent ~/.bashrc.d sourcing (non-Windows only)
+│   ├── run_after_ensure-zshrc-sourcing.sh.tmpl   # Idempotent ~/.zshrc.d sourcing (non-Windows only)
+│   ├── run_after_ensure-sshconfig-sourcing.sh.tmpl    # Idempotent ~/.ssh/conf.d Include (non-Windows only)
+│   ├── run_after_ensure-gitconfig-includes.sh.tmpl    # Idempotent ~/.gitconfig includes (non-Windows only)
+│   ├── run_after_ensure-sshconfig-sourcing.ps1.tmpl   # Embeds conf.d content directly — Include is broken on Win32-OpenSSH (Windows only)
+│   ├── run_after_ensure-gitconfig-includes.ps1.tmpl   # Same include/includeIf blocks as bash (Windows only)
+│   └── run_after_ensure-powershell-profile-sourcing.ps1.tmpl  # Idempotent $PROFILE dotfiles.d sourcing (Windows only)
 ├── .chezmoitemplates/
-│   ├── scripts-library              # Shared bash utilities (logging, OS detection)
-│   ├── install-os-package           # Package install abstraction (dnf/apt)
-│   ├── is-os-command-available      # Command existence check template
-│   └── is-package-installed         # Package installation check template
+│   ├── scripts-library              # Shared bash utilities (logging, sudo wrapper, OS detection)
+│   ├── resolve-os-value             # Shared OS-value resolver (aliases/env)
+│   ├── resolve-package-entry        # dnf/apt/brew name resolution for packages.yaml
+│   ├── render-winget-install        # Full `winget install ...` command builder for packages.yaml
+│   ├── install-os-package           # Single-package install abstraction (dnf/apt/brew, used outside packages.yaml e.g. for `age`)
+│   ├── starship-{common,personal,work}   # Starship config composition
+│   └── get-github-{latest-verson,head-revision}
 ├── dot_bashrc.d/                    # Bash config → ~/.bashrc.d/
-│   ├── 00-loader.sh                 # Profile subdir loader
-│   ├── 00-colors.sh                 # Universal: colors, aliases, prompt, ...
-│   ├── 50-aliases-*.sh              #   (top-level files load on every profile)
-│   ├── 80-functions-common.sh
-│   ├── 99-prompt.sh
-│   ├── exports                      # EDITOR, LANG, HISTSIZE, ...
-│   ├── wsl2_ssh_agent_support       # WSL2 only
-│   ├── personal/                    # Personal profile only
-│   └── work/                        # Work profile only
+├── dot_zshrc.d/                     # Zsh config → ~/.zshrc.d/
+├── dot_config/
+│   ├── fish/conf.d/                 # Fish config → ~/.config/fish/conf.d/
+│   ├── private_ghostty/             # Ghostty config → ~/.config/ghostty/
+│   ├── private_git/                 # Git config fragments → ~/.config/git/
+│   └── starship.toml.tmpl           # → ~/.config/starship.toml
+├── private_dot_ssh/conf.d/          # SSH config fragments → ~/.ssh/conf.d/
 ├── private_dot_local/bin/           # Utility scripts → ~/.local/bin/
+├── Documents/PowerShell/dotfiles.d/ # PowerShell aliases/env/prompt (Windows only) → Documents\PowerShell\dotfiles.d\
+├── AppData/Local/Microsoft/Windows Terminal/Fragments/dotfiles/  # Windows Terminal fragment (Windows only, GUI only)
 ├── secrets/
 │   ├── personal/evault              # EJSON-encrypted personal data
 │   └── work/evault                  # EJSON-encrypted work data
-├── helpers/                         # Manual setup helpers (not applied by chezmoi)
-│   ├── install-starship.sh
-│   └── install-vscode.sh
+├── helpers/                         # Manual setup helpers (not applied by chezmoi;
+│   │                                 install-starship.sh/install-vscode.sh are legacy)
+│   └── setup-encryption.sh
 ├── ejson_key_personal.age           # Age-encrypted personal EJSON key
 ├── ejson_key_work.age               # Age-encrypted work EJSON key
 ├── age_key_personal.age             # Age-encrypted personal Age key (passphrase-protected)

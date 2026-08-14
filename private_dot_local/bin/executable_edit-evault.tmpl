@@ -21,17 +21,10 @@
 #   2. $DOTFILES_REPO env var
 #   3. Interactive prompt        last resort
 
-set -uo pipefail
+# {{ template "scripts-library" }}
 
-# ───── Colors ────────────────────────────────────────────────────────────────
-
-RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[1;33m'; NC='\033[0m'
-ok()   { printf "${GREEN}✓ %s${NC}\n" "$*"; }
-err()  { printf "${RED}✗ %s${NC}\n" "$*" >&2; }
-warn() { printf "${YELLOW}⚠ %s${NC}\n" "$*"; }
-info() { printf "${BLUE}ℹ %s${NC}\n" "$*"; }
-
-die() { err "$*"; exit 1; }
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
 
 usage() {
     cat <<EOF
@@ -59,26 +52,26 @@ EXPLICIT_REPO=""
 while [ $# -gt 0 ]; do
     case "$1" in
         personal|work)
-            [ -n "${PROFILE}" ] && die "Profile already set to '${PROFILE}' — only one allowed"
+            [ -n "${PROFILE}" ] && error "Profile already set to '${PROFILE}' — only one allowed"
             PROFILE="$1"
             ;;
         --repo)
             EXPLICIT_REPO="${2:-}"
-            [ -z "${EXPLICIT_REPO}" ] && die "--repo requires a path argument"
+            [ -z "${EXPLICIT_REPO}" ] && error "--repo requires a path argument"
             shift
             ;;
         -h|--help)
             usage; exit 0
             ;;
         *)
-            err "Unknown argument: $1"
+            log_error "Unknown argument: $1"
             usage; exit 1
             ;;
     esac
     shift
 done
 
-[ -z "${PROFILE}" ] && { usage; die "Missing positional argument: profile"; }
+[ -z "${PROFILE}" ] && { usage; error "Missing positional argument: profile"; }
 
 # ───── Resolve dev repo path ─────────────────────────────────────────────────
 
@@ -86,43 +79,47 @@ if [ -n "${EXPLICIT_REPO}" ]; then
     REPO="${EXPLICIT_REPO}"
 elif [ -n "${DOTFILES_REPO:-}" ]; then
     REPO="${DOTFILES_REPO}"
-    info "Using \$DOTFILES_REPO: ${REPO}"
+    log_info "Using \$DOTFILES_REPO: ${REPO}"
 else
-    warn "No --repo and \$DOTFILES_REPO not set."
-    warn "Note: do NOT use chezmoi's source-path (~/.local/share/chezmoi)."
-    warn "      That is chezmoi's working copy — your edits would get reset."
-    warn "      Use your DEVELOPMENT repo where you 'git commit'."
+    log_warn "No --repo and \$DOTFILES_REPO not set."
+    log_warn "Note: do NOT use chezmoi's source-path (~/.local/share/chezmoi)."
+    log_warn "      That is chezmoi's working copy — your edits would get reset."
+    log_warn "      Use your DEVELOPMENT repo where you 'git commit'."
     printf "Enter dotfiles development repo path: "
     read -r REPO
 fi
 
-[ -d "${REPO}" ] || die "Repo path does not exist: ${REPO}"
-[ -f "${REPO}/.chezmoi.yaml.tmpl" ] || die "Not a dotfiles repo (missing .chezmoi.yaml.tmpl): ${REPO}"
-[ -d "${REPO}/.git" ] || warn "Repo path has no .git/ — sure this is your dev repo? Continuing anyway."
+[ -d "${REPO}" ] || error "Repo path does not exist: ${REPO}"
+[ -f "${REPO}/.chezmoi.yaml.tmpl" ] || error "Not a dotfiles repo (missing .chezmoi.yaml.tmpl): ${REPO}"
+[ -d "${REPO}/.git" ] || log_warn "Repo path has no .git/ — sure this is your dev repo? Continuing anyway."
 
 # Safety check — refuse to write into chezmoi-managed state
 if command -v chezmoi >/dev/null 2>&1; then
     CHEZMOI_STATE=$(chezmoi source-path 2>/dev/null || true)
     if [ -n "${CHEZMOI_STATE}" ] && [ "$(realpath "${REPO}" 2>/dev/null)" = "$(realpath "${CHEZMOI_STATE}" 2>/dev/null)" ]; then
-        die "Refusing to edit: target '${REPO}' is chezmoi's managed source-path. Use your dev repo instead."
+        error "Refusing to edit: target '${REPO}' is chezmoi's managed source-path. Use your dev repo instead."
     fi
 fi
 
 EVAULT="${REPO}/secrets/${PROFILE}/evault"
-[ -f "${EVAULT}" ] || die "Evault not found at ${EVAULT}"
+[ -f "${EVAULT}" ] || error "Evault not found at ${EVAULT}"
 
 # ───── Locate EJSON private key ──────────────────────────────────────────────
 
 EJSON_PUB=$(grep '"_public_key"' "${EVAULT}" | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
-if [ -z "${EJSON_PUB}" ] || [ "${EJSON_PUB}" = "REPLACE_WITH_${PROFILE^^}_EJSON_PUBLIC_KEY" ]; then
-    die "Evault has no real _public_key — run ENCRYPTION_SETUP.md first"
+# `tr`, not `${PROFILE^^}` (bash 4+ case conversion) — macOS's system
+# /usr/bin/env-resolved bash is 3.2.57 and doesn't support it (found via
+# testing: "bad substitution").
+PROFILE_UPPER=$(echo "${PROFILE}" | tr '[:lower:]' '[:upper:]')
+if [ -z "${EJSON_PUB}" ] || [ "${EJSON_PUB}" = "REPLACE_WITH_${PROFILE_UPPER}_EJSON_PUBLIC_KEY" ]; then
+    error "Evault has no real _public_key — run ENCRYPTION_SETUP.md first"
 fi
 
 KEY_DIR="${HOME}/.config/chezmoi/keys"
 KEY_FILE="${KEY_DIR}/${EJSON_PUB}"
 if [ ! -r "${KEY_FILE}" ]; then
-    err "EJSON private key missing at ${KEY_FILE}"
-    err "Run 'chezmoi apply' first to unlock the key chain."
+    log_error "EJSON private key missing at ${KEY_FILE}"
+    log_error "Run 'chezmoi apply' first to unlock the key chain."
     exit 1
 fi
 
@@ -132,7 +129,7 @@ if [ -d /dev/shm ] && [ -w /dev/shm ]; then
     WORK_BASE=/dev/shm
 else
     WORK_BASE=/tmp
-    warn "/dev/shm unavailable, falling back to /tmp (plaintext may touch disk)"
+    log_warn "/dev/shm unavailable, falling back to /tmp (plaintext may touch disk)"
 fi
 
 WORK="${WORK_BASE}/edit-evault-${PROFILE}-$$"
@@ -152,43 +149,46 @@ trap cleanup EXIT INT TERM
 
 EDITOR_CMD="${EDITOR:-nano}"
 
-info "Decrypting ${PROFILE} evault into ${WORK_BASE} (tmpfs)..."
+log_info "Decrypting ${PROFILE} evault into ${WORK_BASE} (tmpfs)..."
 if ! ejson -keydir "${KEY_DIR}" decrypt "${EVAULT}" > "${TMP_FILE}"; then
-    die "ejson decrypt failed"
+    error "ejson decrypt failed"
 fi
 chmod 600 "${TMP_FILE}"
 
 # Snapshot the file's content hash before editing — if unchanged, skip re-encrypt
 HASH_BEFORE=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
 
-info "Opening ${EDITOR_CMD}..."
-"${EDITOR_CMD}" "${TMP_FILE}"
+log_info "Opening ${EDITOR_CMD}..."
+# `|| true` — under scripts-library's `set -e`, a non-zero editor exit (e.g.
+# an abnormal quit) must NOT skip straight to the cleanup trap, which would
+# shred the tmp file before the hash-check/re-encrypt below ever runs.
+"${EDITOR_CMD}" "${TMP_FILE}" || true
 
 HASH_AFTER=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
 if [ "${HASH_BEFORE}" = "${HASH_AFTER}" ]; then
-    ok "No changes — skipping re-encrypt."
+    log_ok "No changes — skipping re-encrypt."
     exit 0
 fi
 
 # Sanity check — must still be valid JSON before encrypting
 if ! python3 -c "import json,sys; json.load(open('${TMP_FILE}'))" 2>/dev/null; then
-    err "Edited file is not valid JSON — refusing to encrypt"
-    err "Plaintext is still at ${TMP_FILE}; copy your work somewhere before exit"
+    log_error "Edited file is not valid JSON — refusing to encrypt"
+    log_error "Plaintext is still at ${TMP_FILE}; copy your work somewhere before exit"
     # Disable cleanup so user can recover
     trap - EXIT
     exit 1
 fi
 
-info "Re-encrypting evault into ${REPO}..."
+log_info "Re-encrypting evault into ${REPO}..."
 # ejson encrypt modifies in place — give it a fresh copy at the repo location
 cp "${TMP_FILE}" "${EVAULT}"
 if ! ejson encrypt "${EVAULT}"; then
-    die "ejson encrypt failed — evault may be in a broken state"
+    error "ejson encrypt failed — evault may be in a broken state"
 fi
 
-ok "${PROFILE} evault updated and re-encrypted in dev repo."
-info "Next steps:"
-info "  cd ${REPO}"
-info "  git add secrets/${PROFILE}/evault && git commit -m 'evault: update ${PROFILE}'"
-info "  git push"
-info "  # On other machines: chezmoi update  (pulls + applies)"
+log_ok "${PROFILE} evault updated and re-encrypted in dev repo."
+log_info "Next steps:"
+log_info "  cd ${REPO}"
+log_info "  git add secrets/${PROFILE}/evault && git commit -m 'evault: update ${PROFILE}'"
+log_info "  git push"
+log_info "  # On other machines: chezmoi update  (pulls + applies)"

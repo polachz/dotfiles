@@ -1,0 +1,43 @@
+{{- if eq .chezmoi.os "windows" -}}
+# Per-profile/role package installation via winget. Re-runs whenever packages.yaml changes.
+#
+# Separate from run_onchange_install-packages.sh.tmpl (dnf/apt/brew, bash) — bash doesn't run
+# natively on Windows and .sh scripts have no default chezmoi interpreter there (verified live
+# 2026-08-07: a real `chezmoi apply` fails with "%1 is not a valid Win32 application" on any
+# non-empty .sh.tmpl script). This file renders as nothing at all on non-Windows OSes (see the
+# outer os guard wrapping the whole file) so chezmoi skips executing it there too — see
+# CONCEPT_ROADMAP.md §7.
+
+{{- $role := .deployment.role }}
+{{- $hasGui := .deployment.has_gui }}
+{{- $vmType := .deployment.vm_type }}
+{{- $profile := .deployment.profile }}
+{{- $allTools := concat .packages.common (index .packages $profile) .packages.workstation_tools .packages.vm_guest_tools }}
+
+$packages = @(
+{{- range $allTools }}
+  {{- $include := true }}
+  {{- if hasKey . "roles" }}{{ if not (has $role .roles) }}{{ $include = false }}{{ end }}{{ end }}
+  {{- if and $include (hasKey . "requires_gui") .requires_gui }}{{ if not $hasGui }}{{ $include = false }}{{ end }}{{ end }}
+  {{- if and $include (hasKey . "vm_types") }}{{ if not (has $vmType .vm_types) }}{{ $include = false }}{{ end }}{{ end }}
+  {{- if $include }}
+    {{- $installCmd := includeTemplate "render-winget-install" . | trim }}
+    {{- if ne $installCmd "skip" }}
+      {{- $id := "" }}
+      {{- if kindIs "map" .winget }}{{ $id = .winget.id }}{{ else }}{{ $id = .winget }}{{ end }}
+    @{ Id = '{{ $id }}'; InstallCmd = '{{ $installCmd }}' }
+    {{- end }}
+  {{- end }}
+{{- end }}
+)
+
+foreach ($pkg in $packages) {
+    $installed = winget list --id $pkg.Id -e --source winget --accept-source-agreements 2>$null | Select-String -SimpleMatch $pkg.Id
+    if ($installed) {
+        Write-Host "OK: $($pkg.Id) already installed" -ForegroundColor Green
+    } else {
+        Write-Host "-> Installing $($pkg.Id)" -ForegroundColor Blue
+        Invoke-Expression $pkg.InstallCmd
+    }
+}
+{{- end -}}

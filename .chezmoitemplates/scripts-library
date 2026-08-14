@@ -73,6 +73,14 @@ function log_info() {
   log_blue "ℹ️" "$@"
 }
 
+function log_ok() {
+  log_green "✓" "$@"
+}
+
+function log_warn() {
+  log_yellow "⚠" "$@"
+}
+
 function log_debug_force() {
     log_brown "🔎" "$@"
 }
@@ -118,13 +126,26 @@ function sudo() {
 function is_dnf_package_installed() {
   local package="$1"
 
-  dnf list installed $package > /dev/null 2>&1  
+  # `dnf list installed <pkg>` is NOT reliable here — verified live on Fedora 44/dnf5
+  # 2026-08-07: for a package that is NOT installed but exists in an enabled repo (e.g. a
+  # freshly-COPR-enabled one), dnf5 prints "Available packages" instead of erroring and still
+  # exits 0, so this used to silently report every not-yet-installed-but-available package as
+  # already installed. `rpm -q` queries the local package DB directly, no repo metadata involved.
+  rpm -q "${package}" > /dev/null 2>&1
 }
 
 function is_apt_package_installed() {
   local package="$1"
 
   apt list --quiet --quiet --installed "${package}" 2>/dev/null | grep --quiet .
+}
+
+function is_brew_package_installed() {
+  local package="$1"
+
+  # brew install auto-detects formula vs. cask (verified live), but the list/query
+  # side doesn't: `brew list --versions` only finds formulae, `--cask` only casks.
+  brew list --versions "${package}" > /dev/null 2>&1 || brew list --cask --versions "${package}" > /dev/null 2>&1
 }
 
 function not_during_test() {
@@ -145,14 +166,38 @@ function service_exists() {
   fi
 }
 
-function append_missing_packages_to_list_dnf() {
+function append_missing_packages_to_list() {
+  local manager="$1"
+  shift
   local wanted_packages=("$@")
+
+  # Empty-array-safe under `set -u` — "${arr[@]}" alone would be an unbound
+  # variable reference when wanted_packages has zero elements.
+  if [[ ${#wanted_packages[@]} -eq 0 ]]; then
+    return 0
+  fi
 
   for package in "${wanted_packages[@]}"; do
     # shellcheck disable=SC2310
-    if ! is_dnf_package_installed "${package}"; then
+    if ! "is_${manager}_package_installed" "${package}"; then
       missing_packages+=("${package}")
     fi
   done
 
+}
+
+# Finds the download URL of a specific asset (matched by grep pattern) in a
+# GitHub project's latest release. For the *version number* of the latest
+# release, use the .chezmoitemplates/get-github-latest-verson chezmoi
+# template instead (resolved at apply-time via a redirect, no curl needed) —
+# this function is only for locating a specific downloadable asset, e.g. for
+# a GitHub-release package-manager fallback (see CONCEPT_ROADMAP.md §7).
+function github_release_asset_url() {
+  local user_and_repo="$1"
+  local grep_search_pattern="$2"
+
+  curl -s "https://api.github.com/repos/${user_and_repo}/releases/latest" \
+    | grep "browser_download_url.*${grep_search_pattern}" \
+    | cut -d : -f 2,3 \
+    | tr -d '"'
 }

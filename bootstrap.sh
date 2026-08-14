@@ -132,6 +132,36 @@ esac
 
 log_info "Selected profile: ${CHZ_DEPLOYMENT_PROFILE}"
 
+# ───── macOS: ensure Xcode Command Line Tools (git needs them) ───────────────
+# A brand-new Mac has neither git nor Homebrew. Installing either normally pops
+# a GUI dialog for the CLT — this headlessly triggers the same install via the
+# softwareupdate catalog instead, so bootstrap works over SSH with no GUI.
+
+if [ "$(uname -s)" = "Darwin" ] && ! xcode-select -p >/dev/null 2>&1; then
+    log_task "Installing Xcode Command Line Tools (headless)..."
+    clt_placeholder="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
+    touch "${clt_placeholder}"
+    clt_label=$(softwareupdate -l 2>/dev/null | grep "^\* Label: Command Line Tools" | sed 's/^\* Label: //' | sort -V | tail -n1)
+    rm -f "${clt_placeholder}"
+    if [ -n "${clt_label}" ]; then
+        sudo softwareupdate -i "${clt_label}"
+        log_info "Xcode Command Line Tools installed."
+    else
+        log_yellow "Could not find Command Line Tools in softwareupdate catalog — install manually with 'xcode-select --install' and re-run."
+    fi
+fi
+
+# ───── macOS: ensure Homebrew ─────────────────────────────────────────────────
+# Prerequisite for chezmoi/EJSON below (and for `age` later, via
+# .chezmoitemplates/install-os-package) — prefer brew over raw GitHub-release
+# downloads for any package that has a working formula, macOS only.
+
+if [ "$(uname -s)" = "Darwin" ] && ! command -v brew >/dev/null 2>&1; then
+    log_task "Installing Homebrew..."
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    eval "$('/opt/homebrew/bin/brew' shellenv 2>/dev/null || '/usr/local/bin/brew' shellenv)"
+fi
+
 # ───── Install chezmoi ───────────────────────────────────────────────────────
 
 chezmoi_github_url=""
@@ -141,19 +171,25 @@ if command -v "chezmoi" > /dev/null 2>&1; then
     CHZ_BOOTSTRAP_DRY_RUN="1"
     chezmoi="chezmoi"
 else
-    log_task "Installing Chezmoi..."
-    chezmoi_bin_dir="${HOME}/.local/bin"
-    chezmoi="${chezmoi_bin_dir}/chezmoi"
     chezmoi_github_url="https://github.com/${GITHUB_USERNAME}/dotfiles.git"
-    if command -v "curl" >/dev/null 2>&1; then
-        chezmoi_install_script="$(curl -fsSL https://get.chezmoi.io)"
-    elif command -v "wget" >/dev/null 2>&1; then
-        chezmoi_install_script="$(wget -qO- https://get.chezmoi.io)"
+    if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+        log_task "Installing Chezmoi via Homebrew..."
+        brew install chezmoi
+        chezmoi="chezmoi"
     else
-        error "To install chezmoi, you must have curl or wget installed!"
+        log_task "Installing Chezmoi..."
+        chezmoi_bin_dir="${HOME}/.local/bin"
+        chezmoi="${chezmoi_bin_dir}/chezmoi"
+        if command -v "curl" >/dev/null 2>&1; then
+            chezmoi_install_script="$(curl -fsSL https://get.chezmoi.io)"
+        elif command -v "wget" >/dev/null 2>&1; then
+            chezmoi_install_script="$(wget -qO- https://get.chezmoi.io)"
+        else
+            error "To install chezmoi, you must have curl or wget installed!"
+        fi
+        sh -c "${chezmoi_install_script}" -- -b "$chezmoi_bin_dir"
+        unset chezmoi_install_script
     fi
-    sh -c "${chezmoi_install_script}" -- -b "$chezmoi_bin_dir"
-    unset chezmoi_install_script
     log_info "Chezmoi installed successfully."
 fi
 
@@ -161,22 +197,30 @@ fi
 
 if ! command -v "ejson" > /dev/null 2>&1; then
     log_task "Installing EJSON..."
-    # EJSON release binary — Shopify publishes Linux/macOS amd64 builds.
-    ejson_os=$(uname -s | tr '[:upper:]' '[:lower:]')
-    ejson_arch=$(uname -m)
-    case "${ejson_arch}" in
-        x86_64) ejson_arch="amd64";;
-        aarch64|arm64) ejson_arch="arm64";;
-    esac
-    ejson_url="https://github.com/Shopify/ejson/releases/latest/download/ejson_${ejson_os}_${ejson_arch}.tar.gz"
-    ejson_bin_dir="${HOME}/.local/bin"
-    mkdir -p "${ejson_bin_dir}"
-    if command -v "curl" >/dev/null 2>&1; then
-        curl -fsSL "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
-            || log_yellow "EJSON download/extract failed — install manually if needed."
-    elif command -v "wget" >/dev/null 2>&1; then
-        wget -qO- "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
-            || log_yellow "EJSON download/extract failed — install manually if needed."
+    if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+        # Official Shopify tap (not in homebrew-core) — verified 2026-08-07,
+        # `shopify/shopify/ejson` is a real, working formula.
+        brew tap shopify/shopify >/dev/null 2>&1
+        brew install shopify/shopify/ejson
+    else
+        # EJSON release binary — Shopify publishes Linux/macOS amd64 builds. Used
+        # when Homebrew isn't available (Linux, or a failed Homebrew bootstrap).
+        ejson_os=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ejson_arch=$(uname -m)
+        case "${ejson_arch}" in
+            x86_64) ejson_arch="amd64";;
+            aarch64|arm64) ejson_arch="arm64";;
+        esac
+        ejson_url="https://github.com/Shopify/ejson/releases/latest/download/ejson_${ejson_os}_${ejson_arch}.tar.gz"
+        ejson_bin_dir="${HOME}/.local/bin"
+        mkdir -p "${ejson_bin_dir}"
+        if command -v "curl" >/dev/null 2>&1; then
+            curl -fsSL "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
+                || log_yellow "EJSON download/extract failed — install manually if needed."
+        elif command -v "wget" >/dev/null 2>&1; then
+            wget -qO- "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
+                || log_yellow "EJSON download/extract failed — install manually if needed."
+        fi
     fi
 fi
 
@@ -209,6 +253,14 @@ fi
 export CHZ_DEPLOYMENT_PROFILE
 export CHZ_DOTFILES_DEBUG
 export CHZ_BOOTSTRAP_DRY_RUN
+
+# Bridge to the names .chezmoi.yaml.tmpl actually reads (added later than this
+# script, different naming convention — without this, --profile/the menu had
+# no effect on the real chezmoi init and it always fell through to its own
+# interactive prompt). DOTFILES_ROLE/DOTFILES_HAS_GUI need no bridging: they
+# aren't renamed by this script, so setting them in the calling shell already
+# passes straight through.
+export DOTFILES_PROFILE="${CHZ_DEPLOYMENT_PROFILE}"
 
 log_task "Running 'chezmoi $*' (profile=${CHZ_DEPLOYMENT_PROFILE})"
 

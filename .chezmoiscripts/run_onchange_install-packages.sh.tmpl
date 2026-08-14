@@ -1,39 +1,71 @@
+{{- if ne .chezmoi.os "windows" -}}
 #!/usr/bin/env bash
-# Per-profile package installation. Re-runs whenever packages.yaml changes.
+# Per-profile/role package installation (dnf/apt/brew). Re-runs whenever packages.yaml changes.
+#
+# Windows uses a separate run_onchange_install-packages.ps1.tmpl (winget) — bash doesn't run
+# natively there, and .sh scripts have no default chezmoi interpreter on Windows (verified live
+# 2026-08-07: a real `chezmoi apply` on winlab.local fails with "%1 is not a valid Win32
+# application" on any non-empty .sh.tmpl script). The whole file must therefore render as
+# nothing at all on Windows (not even a shebang) so chezmoi skips executing it — see the outer
+# {{ "{{- if ne .chezmoi.os \"windows\" -}}" }} guard wrapping this entire file (CONCEPT_ROADMAP.md §7).
 
-# {{ template "scripts-library" }}
+{{ template "scripts-library" }}
 
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
+{{- $manager := .package_manager }}
+{{- if or (eq $manager "dnf") (eq $manager "apt") (eq $manager "brew") }}
+
 missing_packages=()
 START_TIME=$SECONDS
 
-{{- if eq .package_manager "dnf" }}
-log_task "Processing common DNF packages"
-required_packages="{{- .packages.dnf.common  | quoteList | join " " -}}"
-append_missing_packages_to_list_dnf ${required_packages}
-
-log_task "Processing {{ .deployment.profile }} profile DNF packages"
-required_packages="{{- (index .packages.dnf .deployment.profile)  | quoteList | join " " -}}"
-append_missing_packages_to_list_dnf ${required_packages}
-
-{{- if eq .deployment.vm_type "virtualbox" }}
-log_task "Processing VirtualBox DNF packages"
-required_packages="{{- .packages.dnf.virtualbox  | quoteList | join " " -}}"
-append_missing_packages_to_list_dnf ${required_packages}
-{{- end }}
-{{- if eq .deployment.vm_type "vmware" }}
-log_task "Processing VMware DNF packages"
-required_packages="{{- .packages.dnf.vmware  | quoteList | join " " -}}"
-append_missing_packages_to_list_dnf ${required_packages}
-{{- end }}
-
-log_task "Installing missing DNF packages: ${missing_packages[@]}"
+{{- $role := .deployment.role }}
+{{- $hasGui := .deployment.has_gui }}
+{{- $vmType := .deployment.vm_type }}
+{{- $profile := .deployment.profile }}
+{{- $allTools := concat .packages.common (index .packages $profile) .packages.workstation_tools .packages.vm_guest_tools }}
+{{- $requiredPkgs := list }}
+{{- $coprRepos := list }}
+{{- range $allTools }}
+  {{- $include := true }}
+  {{- if hasKey . "roles" }}{{ if not (has $role .roles) }}{{ $include = false }}{{ end }}{{ end }}
+  {{- if and $include (hasKey . "requires_gui") .requires_gui }}{{ if not $hasGui }}{{ $include = false }}{{ end }}{{ end }}
+  {{- if and $include (hasKey . "vm_types") }}{{ if not (has $vmType .vm_types) }}{{ $include = false }}{{ end }}{{ end }}
+  {{- if $include }}
+    {{- $pkg := includeTemplate "resolve-package-entry" (dict "entry" . "manager" $manager) | trim }}
+    {{- if ne $pkg "skip" }}{{ $requiredPkgs = append $requiredPkgs $pkg }}{{ end }}
+    {{- if and (eq $manager "dnf") (hasKey . "copr") }}{{ $coprRepos = append $coprRepos .copr }}{{ end }}
+  {{- end }}
 {{- end }}
 
-echo "${missing_packages[@]}"
+copr_repos=({{ range $coprRepos }}{{ . | quote }} {{ end }})
+for repo in "${copr_repos[@]:-}"; do
+  if [[ -n "${repo}" ]]; then
+    log_task "Enabling COPR repo: ${repo}"
+    sudo dnf copr enable -y "${repo}"
+  fi
+done
+
+required_packages=({{ range $requiredPkgs }}{{ . | quote }} {{ end }})
+log_task "Processing {{ $manager }} packages: ${required_packages[*]:-}"
+append_missing_packages_to_list {{ $manager }} "${required_packages[@]}"
+
+if [[ ${#missing_packages[@]} -gt 0 ]]; then
+  log_task "Installing missing {{ $manager }} packages: ${missing_packages[*]}"
+{{- if eq $manager "dnf" }}
+  sudo dnf -y install "${missing_packages[@]}"
+{{- else if eq $manager "apt" }}
+  sudo apt-get -y install "${missing_packages[@]}"
+{{- else if eq $manager "brew" }}
+  brew install "${missing_packages[@]}"
+{{- end }}
+else
+  log_ok "No missing {{ $manager }} packages"
+fi
 
 END_TIME=$SECONDS
 DURATION=$((END_TIME - START_TIME))
 echo "The task took $DURATION seconds to complete."
+{{- end }}
+{{- end -}}

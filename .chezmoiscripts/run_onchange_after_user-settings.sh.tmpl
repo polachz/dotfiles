@@ -1,3 +1,4 @@
+{{- if ne .chezmoi.os "windows" -}}
 #!/usr/bin/env bash
 # Group memberships + git remote switch — runs after package install.
 
@@ -52,3 +53,4 @@ fi
 # Make chezmoi config readable only by the user.
 log_task "Changing chezmoi config file rights"
 chmod 0600 "{{ joinPath .chezmoi_config_dir "chezmoi.yaml" }}"
+{{- end -}}

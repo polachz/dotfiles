@@ -1,0 +1,39 @@
+{{- if ne .chezmoi.os "windows" -}}
+#!/usr/bin/env bash
+# Ensures ~/.bashrc sources ~/.bashrc.d/* — idempotent, runs on every apply
+# (plain `run_` prefix, not run_once_/run_onchange_) so it self-heals if
+# ~/.bashrc is ever reset by an OS reinstall/package update.
+#
+# Fedora/RHEL ship this in their default ~/.bashrc, but it's NOT a safe
+# cross-distro assumption — verified 2026-08-01: Ubuntu 24.04 LTS's default
+# ~/.bashrc has no such thing, and even Ubuntu 25.10's brief attempt at this
+# (bash 5.2.37-2ubuntu2) sourced a different, system-wide path
+# (/etc/bash.bashrc.d, not ~/.bashrc.d) and was reverted again in 26.04.
+# See CONCEPT_ROADMAP.md §2.1 for the full finding.
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+bashrc="${HOME}/.bashrc"
+touch "${bashrc}"
+
+if ! grep -q '\.bashrc\.d' "${bashrc}"; then
+    log_task "~/.bashrc doesn't source ~/.bashrc.d/ on this system — adding it"
+    cat >> "${bashrc}" <<'EOF'
+
+# Added by dotfiles bootstrap — not every distro's default ~/.bashrc sources
+# ~/.bashrc.d/* the way Fedora's does (Ubuntu 24.04 LTS, for example, does
+# not) — see CONCEPT_ROADMAP.md §2.1.
+if [ -d ~/.bashrc.d ]; then
+    for rc in ~/.bashrc.d/*; do
+        if [ -f "$rc" ]; then
+            . "$rc"
+        fi
+    done
+fi
+unset rc
+EOF
+fi
+{{- end -}}

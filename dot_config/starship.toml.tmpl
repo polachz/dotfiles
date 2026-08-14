@@ -1,0 +1,14 @@
+{{- /*
+  Rendered by chezmoi from .chezmoitemplates/starship-* fragments — do not
+  edit this file directly. starship.toml has no native include mechanism, so
+  composition happens here at apply-time instead of via physical file
+  presence (contrast with Ghostty, see CONCEPT_ROADMAP.md §2.5/§6).
+  Deployed universally (no has_gui/role gating) — starship is shell-level,
+  works the same over SSH/console as in a GUI terminal.
+*/ -}}
+{{ template "starship-common" . -}}
+{{ if eq .deployment.profile "personal" }}
+{{ template "starship-personal" . -}}
+{{ else if eq .deployment.profile "work" }}
+{{ template "starship-work" . -}}
+{{ end -}}

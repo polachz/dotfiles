@@ -1,0 +1,81 @@
+# Migrated from dot_bashrc.d/50-aliases-misc.sh (see CONCEPT_ROADMAP.md §3.6).
+# `windows:` values added for PowerShell 7 (CONCEPT_ROADMAP.md §3.3) — real
+# equivalents verified live on winlab.local, not guessed.
+#
+# Deliberately NOT migrated here (need per-shell native handling, not a plain
+# command string — see CONCEPT_ROADMAP.md §3.6):
+#   - `sudo='sudo '`      trailing-space trick, shell-specific idiom
+#   - `path` alias        bash parameter-expansion (${PATH//:/\n}), no fish equivalent string
+#   - power/reboot family runtime $UID branching, not an OS-time fact
+aliases:
+  common:
+    categories:
+      misc:
+        - name: gh
+          command:
+            default: "history | grep"
+            windows: "Get-History | Out-String -Stream | Select-String"
+          description: Search shell history for a pattern (session-scope only, on every shell)
+
+        - name: count
+          command:
+            default: "find . -type f | wc -l"
+            # NOT `(Get-ChildItem -Recurse -File).Count` — verified live that
+            # trailing `@args` (auto-appended by the renderer) after a bare
+            # property access is a hard PARSE ERROR that fails the whole
+            # generated script, not just this function. Ending in a real
+            # cmdlet call keeps `@args` splatting valid.
+            windows: "Get-ChildItem -Recurse -File | Measure-Object | Select-Object -ExpandProperty Count"
+          description: Count all files in the current directory tree
+
+        - name: makeme
+          command:
+            default: "sudo chown $USER:$USER"
+            # UX differs from sudo: pops a new elevated (UAC) window rather
+            # than prompting inline. Verified `takeown /F` syntax live.
+            windows: 'Start-Process pwsh -Verb RunAs -ArgumentList ''-NoProfile'',''-Command'',"takeown /F `"$args`""'
+          description: Set file owner to the current user
+
+        - name: makeroot
+          command:
+            default: "sudo chown 0:0"
+            windows: 'Start-Process pwsh -Verb RunAs -ArgumentList ''-NoProfile'',''-Command'',"takeown /F `"$args`" /A"'
+          description: Set file owner to root (Windows — Administrators group)
+
+        - name: sha
+          command:
+            default: "shasum -a 256"
+            windows: "Get-FileHash -Algorithm SHA256 -Path"
+          description: SHA-256 checksum shortcut
+
+        - name: ping
+          command:
+            default: "ping -c 5"
+            # Windows ping.exe uses -n, not -c — verified live: `-c` is
+            # silently IGNORED (not an error), and it pings the default 4x
+            # instead. Confirmed genuinely different flag, not just syntax.
+            #
+            # `ping.exe`, NOT bare `ping` — the renderer emits `function
+            # ping { ... }`, and PowerShell's command resolution prefers
+            # functions over external commands, so a bare `ping` here would
+            # call ITSELF, infinitely, instead of the real executable.
+            # Verified live: this genuinely hung/burned CPU on winlab.local
+            # until killed. Bash's `alias ping='ping -c 5'` doesn't have
+            # this problem — bash aliases have a one-level self-recursion
+            # guard built in; PowerShell functions don't.
+            windows: "ping.exe -n 5"
+          kind: alias
+          description: Ping with a bounded count of 5
+
+        - name: ports
+          command:
+            default: "netstat -tulanp"
+            darwin: "lsof -iTCP -sTCP:LISTEN -n -P"
+            windows: "Get-NetTCPConnection -State Listen"
+          description: Show all listening ports on this machine
+
+        - name: week
+          command:
+            default: "date +%V"
+            windows: "Get-Date -UFormat %V"
+          description: Print the current ISO week number

@@ -1,0 +1,64 @@
+{{- if ne .chezmoi.os "windows" -}}
+#!/usr/bin/env bash
+# Ensures ~/.gitconfig includes the dotfiles-managed git config fragments —
+# idempotent PER BLOCK (not just per-file, unlike the bashrc/zshrc/sshconfig
+# scripts), runs on every apply.
+#
+# ~/.gitconfig, like ~/.bashrc/~/.zshrc/~/.ssh/config, is NEVER fully
+# owned/templated by chezmoi — found real, load-bearing content in it during
+# testing (user identity), same lesson as those files (see CONCEPT_ROADMAP.md
+# §2.1/§3.3/§2.4). Only the needed [include]/[includeIf] blocks get appended
+# if missing; everything else lives under the safely-chezmoi-owned
+# ~/.config/git/ instead. See CONCEPT_ROADMAP.md §2.3.
+#
+# Per-block (not whole-file) idempotency, because unlike SSH's
+# `Include *.conf` or bash's `source *`, git has no directory-glob include —
+# each fragment needs its own explicit line, so adding a new host fragment
+# later (e.g. gitlab) only requires adding another ensure_include_block call
+# here; it self-heals on the next apply without touching already-appended
+# blocks.
+#
+# Order matters, and git's precedence is the OPPOSITE of SSH's: git lets the
+# LAST conflicting value win (SSH: first). So blocks are appended in
+# least-specific-first order — common, then profile (which carries the
+# fallback [user]), then host-specific includeIf last, so it can override
+# the fallback for matching remotes.
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+gitconfig="${HOME}/.gitconfig"
+touch "${gitconfig}"
+
+ensure_include_block() {
+    local marker="$1"
+    local block="$2"
+
+    if ! grep -qF "${marker}" "${gitconfig}"; then
+        log_task "~/.gitconfig missing include for ${marker} — adding it"
+        printf '\n%s\n' "${block}" >> "${gitconfig}"
+    fi
+}
+
+ensure_include_block '~/.config/git/common.gitconfig' '[include]
+    path = ~/.config/git/common.gitconfig'
+
+ensure_include_block '~/.config/git/{{ .deployment.profile }}/common.gitconfig' '[include]
+    path = ~/.config/git/{{ .deployment.profile }}/common.gitconfig'
+
+# Two patterns for the same fragment — SCP-style (git@github.com:org/repo)
+# and https-style (https://github.com/org/repo) remotes need different glob
+# shapes. Confirmed via testing: a bare `**` right after `:` does NOT match
+# across the `/` in "org/repo" (the man page's "**  matches multiple
+# components" only kicks in with a `/` immediately before it) — the SCP
+# pattern below needed `*/**`, not `**`, verified against this dotfiles
+# repo's own real remote (`git@github.com:polachz/dotfiles.git`). See
+# CONCEPT_ROADMAP.md §2.3.
+ensure_include_block 'hasconfig:remote.*.url:git@github.com:*/**' '[includeIf "hasconfig:remote.*.url:git@github.com:*/**"]
+    path = ~/.config/git/{{ .deployment.profile }}/hosts/github.gitconfig'
+
+ensure_include_block 'hasconfig:remote.*.url:https://github.com/**' '[includeIf "hasconfig:remote.*.url:https://github.com/**"]
+    path = ~/.config/git/{{ .deployment.profile }}/hosts/github.gitconfig'
+{{- end -}}

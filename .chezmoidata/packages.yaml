@@ -1,24 +1,70 @@
 packages:
-  dnf:
-    # Common — installed on all profiles
-    common:
-      - git
-      - openssl
-    # Personal profile — private machine packages
-    personal:
-      - tio          # serial terminal for RPI/microcontroller dev
-      - keepassxc
-      - doublecmd-gtk
-    # Work profile — work machine packages (populate when first work host arrives)
-    work: []
-    # VM guest tools — auto-detected via systemd-detect-virt
-    virtualbox:
-      - virtualbox-guest-additions
-    vmware:
-      - open-vm-tools
-  apt:
-    common:
-      - git
-      - openssl
-    personal: []
-    work: []
+  # Tool-first model (see CONCEPT_ROADMAP.md §7): one list per tool, with per-manager name
+  # overrides. `dnf`/`apt`/`brew` default to `name` when omitted; `winget` always needs an
+  # explicit value (string ID or map — see render-winget-install), missing = not available.
+  # `skip` = this manager doesn't have the tool, omit without error.
+  common:
+    - name: git
+      roles: [workstation]
+      winget: Git.Git
+  personal: []
+  work: []
+  # Tools independent of profile, gated by role/GUI/platform instead.
+  workstation_tools:
+    - name: starship
+      roles: [workstation]
+      dnf: skip # not in default Fedora repos (verified live 2026-08-07)
+      apt: skip
+      winget: Starship.Starship
+    - name: bitwarden
+      roles: [workstation]
+      requires_gui: true
+      dnf: skip # not in default Fedora repos (verified live 2026-08-07)
+      apt: skip
+      brew: bitwarden # cask, brew auto-detects (verified live)
+      winget: Bitwarden.Bitwarden
+    - name: powershell7
+      roles: [workstation, server]
+      dnf: skip
+      apt: skip
+      brew: skip # intentionally Windows-only, even though pwsh is cross-platform
+      winget:
+        id: Microsoft.PowerShell
+        installer_type: wix # default msix doesn't register as DefaultShell/defaultProfile
+        scope: machine
+    - name: ghostty
+      roles: [workstation]
+      requires_gui: true
+      dnf: ghostty
+      copr: scottames/ghostty # not in default Fedora repos (verified live 2026-08-07)
+      apt: skip
+      winget: skip # replaced by Windows Terminal on Windows
+    - name: windows-terminal
+      roles: [workstation]
+      requires_gui: true
+      dnf: skip
+      apt: skip
+      brew: skip
+      winget: Microsoft.WindowsTerminal # install only; settings.json config is a follow-up task
+    - name: totalcmd
+      roles: [workstation]
+      requires_gui: true
+      dnf: skip
+      apt: skip
+      brew: skip
+      winget: Ghisler.TotalCommander
+  # Generalizes the previous top-level virtualbox/vmware keys under the same roles-like
+  # principle: vm_types filters on .deployment.vm_type instead of a dedicated category per type.
+  vm_guest_tools:
+    - name: virtualbox-guest-additions
+      roles: [workstation, server]
+      vm_types: [virtualbox]
+      apt: skip
+      brew: skip
+      winget: skip
+    - name: open-vm-tools
+      roles: [workstation, server]
+      vm_types: [vmware]
+      apt: skip
+      brew: skip
+      winget: skip

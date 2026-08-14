@@ -1,4 +1,5 @@
-#!/bin/sh
+{{- if ne .chezmoi.os "windows" -}}
+#!/usr/bin/env bash
 # Profile-aware Age + EJSON key bootstrap (interactive).
 #
 # Each profile uses its own key set — a personal machine cannot decrypt
@@ -62,3 +63,4 @@ EOF
     rm -f "${ch_tmp_cfg}"
     chmod 600 "${ekey_file}"
 fi
+{{- end -}}

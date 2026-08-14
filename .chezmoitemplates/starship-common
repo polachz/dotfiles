@@ -1,0 +1,8 @@
+{{- /* Common starship config shared by every profile/OS. See CONCEPT_ROADMAP.md §6. */ -}}
+# root=red, user=green — shown always (not just over SSH), matches the
+# classic PS1 color trick this replaces/layers on top of.
+[username]
+style_user = "bold green"
+style_root = "bold red"
+format = "[$user]($style)@"
+show_always = true

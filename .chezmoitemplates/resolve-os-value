@@ -1,0 +1,17 @@
+{{- /* Shared OS-value resolution for aliases/env/packages data models (see CONCEPT_ROADMAP.md §3.2). */ -}}
+{{- /* Expects a dict as input with keys "value" (string or OS-map) and "os" (e.g. .chezmoi.os). */ -}}
+{{- /* Returns the resolved string, or the literal "skip" if nothing applies to this OS. */ -}}
+{{- $value := .value -}}
+{{- $os := .os -}}
+{{- if not (kindIs "map" $value) -}}
+{{- $value -}}
+{{- else -}}
+{{- $override := index $value $os -}}
+{{- if $override -}}
+{{- $override -}}
+{{- else if hasKey $value "default" -}}
+{{- $value.default -}}
+{{- else -}}
+skip
+{{- end -}}
+{{- end -}}

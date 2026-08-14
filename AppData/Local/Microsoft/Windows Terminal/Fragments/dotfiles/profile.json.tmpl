@@ -1,0 +1,28 @@
+{{- /*
+  Windows Terminal "fragment extension" — a native, documented mechanism
+  (https://learn.microsoft.com/windows/terminal/json-fragment-extensions) for third parties to
+  contribute profiles/color schemes WITHOUT touching the user's real settings.json. Works
+  regardless of whether Windows Terminal is packaged (winget/Store) or not, since this path is
+  the generic third-party drop location, not Windows Terminal's own config file.
+
+  Deliberately does NOT set defaultProfile or any other global setting (fragments can't — only
+  settings.json can, and that file's location is fragile for MSIX/winget installs plus is real
+  JSONC the user may have hand-edited, see CONCEPT_ROADMAP.md §7 for why that's out of scope).
+  Own, fixed GUID below (never reused/regenerated) so this is always additive, never an
+  `"updates"` reference to an existing profile — no possible collision with the user's real data.
+
+  Scope matches today's Ghostty config exactly (font-size only, no font-family/color scheme) —
+  see dot_config/private_ghostty/{common,work/common}.conf.
+*/ -}}
+{
+    "profiles": [
+        {
+            "guid": "{1ae1727f-65b8-4645-b6d2-ee9d98d5c1d1}",
+            "name": "Dotfiles",
+            "commandline": "pwsh.exe -NoLogo",
+            "font": {
+                "size": {{ if eq .deployment.profile "work" }}14{{ else }}13{{ end }}
+            }
+        }
+    ]
+}

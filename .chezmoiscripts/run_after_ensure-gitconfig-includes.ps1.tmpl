@@ -1,0 +1,45 @@
+{{- if eq .chezmoi.os "windows" -}}
+# Ensures $HOME\.gitconfig includes the dotfiles-managed git config fragments — idempotent PER
+# BLOCK (same as run_after_ensure-gitconfig-includes.sh.tmpl), runs on every apply.
+#
+# Windows counterpart of the bash script — same fragments, same include/includeIf blocks, same
+# order (common -> profile -> host includeIf last, since git's precedence is opposite SSH's:
+# last conflicting value wins). Git for Windows honors $HOME (PowerShell 7 sets it automatically
+# to $env:USERPROFILE) ahead of %USERPROFILE% when locating the global .gitconfig, and tilde-
+# expands `path =` values itself, independent of shell — so the exact same fragment paths work
+# unchanged. See CONCEPT_ROADMAP.md §2.3/§7.
+
+$gitconfig = Join-Path $HOME ".gitconfig"
+if (-not (Test-Path $gitconfig)) {
+    New-Item -ItemType File -Path $gitconfig -Force | Out-Null
+}
+
+function Ensure-IncludeBlock {
+    param([string]$Marker, [string]$Block)
+    $content = Get-Content -Path $gitconfig -Raw -ErrorAction SilentlyContinue
+    if (-not $content -or -not $content.Contains($Marker)) {
+        Write-Host "`$HOME\.gitconfig missing include for $Marker - adding it" -ForegroundColor Blue
+        Add-Content -Path $gitconfig -Value "`n$Block"
+    }
+}
+
+Ensure-IncludeBlock -Marker '~/.config/git/common.gitconfig' -Block @'
+[include]
+    path = ~/.config/git/common.gitconfig
+'@
+
+Ensure-IncludeBlock -Marker '~/.config/git/{{ .deployment.profile }}/common.gitconfig' -Block @'
+[include]
+    path = ~/.config/git/{{ .deployment.profile }}/common.gitconfig
+'@
+
+Ensure-IncludeBlock -Marker 'hasconfig:remote.*.url:git@github.com:*/**' -Block @'
+[includeIf "hasconfig:remote.*.url:git@github.com:*/**"]
+    path = ~/.config/git/{{ .deployment.profile }}/hosts/github.gitconfig
+'@
+
+Ensure-IncludeBlock -Marker 'hasconfig:remote.*.url:https://github.com/**' -Block @'
+[includeIf "hasconfig:remote.*.url:https://github.com/**"]
+    path = ~/.config/git/{{ .deployment.profile }}/hosts/github.gitconfig
+'@
+{{- end -}}

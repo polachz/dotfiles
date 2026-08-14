@@ -23,10 +23,10 @@ For most cases, use the helper script that does Steps 1-7 automatically:
 ./helpers/setup-encryption.sh personal
 
 # Generate + auto-deploy to the dotfiles dev repo (recommended)
-./helpers/setup-encryption.sh personal --deploy --repo ~/devel/homelab/dotfiles
+./helpers/setup-encryption.sh personal --deploy --repo ~/Devel/dotfiles
 
 # Or set DOTFILES_REPO once per shell and omit --repo
-export DOTFILES_REPO=~/devel/homelab/dotfiles
+export DOTFILES_REPO=~/Devel/dotfiles
 ./helpers/setup-encryption.sh work --deploy
 ```
 
@@ -320,7 +320,7 @@ Script body:
 set -uo pipefail
 
 PROFILE="${1:?Usage: $0 personal|work}"
-DOTFILES="${DOTFILES:-$HOME/devel/homelab/dotfiles}"
+DOTFILES="${DOTFILES:-$HOME/Devel/dotfiles}"
 WORK="/tmp/verify-encryption-${PROFILE}"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -463,10 +463,10 @@ Use the `edit-evault` helper to add or change fields:
 
 ```bash
 # Decrypts into tmpfs, opens $EDITOR, re-encrypts on save
-edit-evault personal --repo ~/devel/homelab/dotfiles
+edit-evault personal --repo ~/Devel/dotfiles
 
 # Or with the env var (set once per shell)
-export DOTFILES_REPO=~/devel/homelab/dotfiles
+export DOTFILES_REPO=~/Devel/dotfiles
 edit-evault personal
 ```
 
@@ -476,7 +476,7 @@ edit-evault personal
 the script refuses. After editing, propagate the change:
 
 ```bash
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 git diff secrets/personal/evault       # encrypted blob diff
 git add secrets/personal/evault
 git commit -m 'evault: add ssh.signing_key for personal'
@@ -552,14 +552,14 @@ missing or won't round-trip:
 
 ```bash
 # Remove the broken blobs from the dev repo
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 rm age_key_<profile>.age ejson_key_<profile>.age secrets/<profile>/evault
 git add -A
 
 # Re-run setup from scratch (use a fresh CWD)
 mkdir /tmp/setup-redo && cd /tmp/setup-redo
-~/devel/homelab/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
-    --repo ~/devel/homelab/dotfiles
+~/Devel/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
+    --repo ~/Devel/dotfiles
 
 # Clean up CWD output
 shred -u /tmp/setup-redo/* && rmdir /tmp/setup-redo
@@ -626,18 +626,18 @@ on it).
 # 1. Pick a new passphrase, save to password manager FIRST
 # 2. Re-wrap the existing Age key with the new passphrase
 chezmoi age encrypt --passphrase \
-    --output ~/devel/homelab/dotfiles/age_key_<profile>.age \
+    --output ~/Devel/dotfiles/age_key_<profile>.age \
     ~/.config/chezmoi/age_<profile>.key
 # → enter NEW passphrase twice (encrypt prompt + confirm)
 
 # 3. Round-trip verify (avoid silent failure)
 chezmoi age decrypt --passphrase --output /tmp/rt.key \
-    ~/devel/homelab/dotfiles/age_key_<profile>.age
+    ~/Devel/dotfiles/age_key_<profile>.age
 diff /tmp/rt.key ~/.config/chezmoi/age_<profile>.key && echo OK
 shred -u /tmp/rt.key
 
 # 4. Commit and push
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 git add age_key_<profile>.age
 git commit -m 'rotate: <profile> Age passphrase'
 git push
@@ -671,7 +671,7 @@ cd "${WORK}"
 trap 'find "${WORK}" -type f -exec shred -u {} \; ; rmdir "${WORK}"' EXIT INT TERM
 
 EJSON_PUB=$(grep '"_public_key"' \
-    ~/devel/homelab/dotfiles/secrets/<profile>/evault \
+    ~/Devel/dotfiles/secrets/<profile>/evault \
     | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
 
 # 1. Generate new Age key pair
@@ -700,16 +700,16 @@ chmod 600 ~/.config/chezmoi/age_<profile>.key
 
 # 7. Copy new blobs to dev repo
 cp age_key_<profile>.age ejson_key_<profile>.age \
-   ~/devel/homelab/dotfiles/
+   ~/Devel/dotfiles/
 
 # 8. Update .chezmoi.yaml.tmpl with new Age recipient
 sed -i 's|"<OLD_AGE_PUB>"|"'"${NEW_AGE_PUB}"'"|' \
-    ~/devel/homelab/dotfiles/.chezmoi.yaml.tmpl
+    ~/Devel/dotfiles/.chezmoi.yaml.tmpl
 # Verify the sed worked:
-grep "age_recipient_<profile>" ~/devel/homelab/dotfiles/.chezmoi.yaml.tmpl
+grep "age_recipient_<profile>" ~/Devel/dotfiles/.chezmoi.yaml.tmpl
 
 # 9. Commit and push
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 git add age_key_<profile>.age ejson_key_<profile>.age .chezmoi.yaml.tmpl
 git commit -m 'rotate: <profile> Age key pair'
 git push
@@ -740,7 +740,7 @@ mkdir -p "${WORK}" && chmod 700 "${WORK}"
 cd "${WORK}"
 trap 'find "${WORK}" -type f -exec shred -u {} \; ; rmdir "${WORK}"' EXIT INT TERM
 
-REPO=~/devel/homelab/dotfiles
+REPO=~/Devel/dotfiles
 OLD_EJSON_PUB=$(grep '"_public_key"' "${REPO}/secrets/<profile>/evault" \
     | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
 
@@ -837,7 +837,7 @@ mkdir -p "${WORK}" && chmod 700 "${WORK}"
 trap 'find "${WORK}" -type f -exec shred -u {} \; ; rmdir "${WORK}"' EXIT INT TERM
 
 ejson -keydir ~/.config/chezmoi/keys decrypt \
-    ~/devel/homelab/dotfiles/secrets/<profile>/evault \
+    ~/Devel/dotfiles/secrets/<profile>/evault \
     > "${WORK}/evault_plain.json"
 
 # 2. Hand-edit .chezmoi.yaml.tmpl: restore both placeholders
@@ -845,13 +845,13 @@ ejson -keydir ~/.config/chezmoi/keys decrypt \
 #    REPLACE_WITH_<PROFILE>_EJSON_PUBLIC_KEY
 
 # 3. Remove old blobs from repo
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 rm age_key_<profile>.age ejson_key_<profile>.age secrets/<profile>/evault
 
 # 4. Run setup-encryption with new passphrase (saved to password manager FIRST)
 cd "${WORK}"
-~/devel/homelab/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
-    --repo ~/devel/homelab/dotfiles
+~/Devel/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
+    --repo ~/Devel/dotfiles
 # → produces a SKELETON evault (just git.user/git.email) — we'll overwrite next
 
 # 5. On this machine: chezmoi apply will install the new EJSON private key
@@ -860,17 +860,17 @@ chezmoi apply
 
 # 6. Restore the captured evault content with the new EJSON key
 NEW_EJSON_PUB=$(grep '"_public_key"' \
-    ~/devel/homelab/dotfiles/secrets/<profile>/evault \
+    ~/Devel/dotfiles/secrets/<profile>/evault \
     | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
 
 # Rewrite the captured plaintext with the new _public_key, then encrypt
 jq --arg pub "${NEW_EJSON_PUB}" \
    '. + {_public_key: $pub}' "${WORK}/evault_plain.json" \
-   > ~/devel/homelab/dotfiles/secrets/<profile>/evault
-ejson encrypt ~/devel/homelab/dotfiles/secrets/<profile>/evault
+   > ~/Devel/dotfiles/secrets/<profile>/evault
+ejson encrypt ~/Devel/dotfiles/secrets/<profile>/evault
 
 # 7. Commit the restored evault
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 git add secrets/<profile>/evault
 git commit -m 'rotate: <profile> evault re-sealed under new EJSON key'
 git push

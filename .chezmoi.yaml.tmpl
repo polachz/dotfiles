@@ -8,10 +8,41 @@
 {{- $enc_ejson_key_id_personal  := "42f3b8a03a245634684166fa5216585f2f3d51b99d20d43172c8c04a34e4fd67" -}}
 {{- $enc_ejson_key_id_work      := "ee6199e72ef1df36fac21e84403b6c7463450b5a5f733a2b70502b60144aac5d" -}}
 
-{{/* Prompt for profile on first init (personal | work). */}}
-{{- $profile := promptStringOnce . "deployment.profile" "Profile (personal/work)" "personal" -}}
+{{/*
+  Init-time facts (profile, role, has_gui) resolve in this order:
+  1. matching DOTFILES_* env var, if set and non-empty (scripted/automated init — CI, lab VMs)
+  2. interactive promptStringOnce/promptBoolOnce fallback (human-driven machines), cached in the
+     local, never-committed chezmoi config after the first answer.
+*/}}
+
+{{/* Profile (personal | work). */}}
+{{- $profile := env "DOTFILES_PROFILE" -}}
+{{- if eq $profile "" -}}
+  {{- $profile = promptStringOnce . "deployment.profile" "Profile (personal/work)" "personal" -}}
+{{- end -}}
 {{- if and (ne $profile "personal") (ne $profile "work") -}}
   {{- fail (printf "Invalid profile %q — must be 'personal' or 'work'" $profile) -}}
+{{- end -}}
+
+{{/* Role is orthogonal to profile — same identity/keys, different package/config selection. */}}
+{{- $role := env "DOTFILES_ROLE" -}}
+{{- if eq $role "" -}}
+  {{- $role = promptStringOnce . "deployment.role" "Role (workstation/server)" "workstation" -}}
+{{- end -}}
+{{- if and (ne $role "workstation") (ne $role "server") -}}
+  {{- fail (printf "Invalid role %q — must be 'workstation' or 'server'" $role) -}}
+{{- end -}}
+
+{{/* GUI presence is orthogonal to role — a workstation can be headless. Gates GUI-only tools (Ghostty). */}}
+{{- $hasGuiEnv := env "DOTFILES_HAS_GUI" -}}
+{{- $has_gui := false -}}
+{{- if ne $hasGuiEnv "" -}}
+  {{- if and (ne $hasGuiEnv "true") (ne $hasGuiEnv "false") -}}
+    {{- fail (printf "Invalid DOTFILES_HAS_GUI %q — must be 'true' or 'false'" $hasGuiEnv) -}}
+  {{- end -}}
+  {{- $has_gui = eq $hasGuiEnv "true" -}}
+{{- else -}}
+  {{- $has_gui = promptBoolOnce . "deployment.has_gui" "Does this machine have a GUI" true -}}
 {{- end -}}
 
 {{/* Resolve per-profile crypto identifiers. */}}
@@ -26,8 +57,11 @@
 {{- $enc_keys_dir       := joinPath $ch_cfg_dir "keys" -}}
 {{- $enc_age_key_file   := joinPath $ch_cfg_dir (printf "age_%s.key" $profile) -}}
 
-{{/* Auto-detect virtualisation host so guest tools can install themselves. */}}
-{{- $virt_type := (output "systemd-detect-virt" | trim) -}}
+{{/* Auto-detect virtualisation host so guest tools can install themselves. Linux-only tool. */}}
+{{- $virt_type := "none" -}}
+{{- if lookPath "systemd-detect-virt" -}}
+  {{- $virt_type = (output "systemd-detect-virt" | trim) -}}
+{{- end -}}
 
 {{- $osid := .chezmoi.os -}}
 {{- if hasKey .chezmoi.osRelease "id" -}}
@@ -45,6 +79,8 @@ data:
       key_id: {{ $enc_ejson_key_id | quote }}
   deployment:
     profile: {{ $profile | quote }}
+    role: {{ $role | quote }}
+    has_gui: {{ $has_gui }}
     osid: {{ $osid | quote }}
 {{- if eq $virt_type "oracle" }}
     vm: true
@@ -59,12 +95,17 @@ data:
     vm: false
     vm_type: none
 {{- end }}
-{{- if eq .chezmoi.osRelease.id "fedora" }}
+{{- $osReleaseId := index .chezmoi.osRelease "id" }}
+{{- if eq $osReleaseId "fedora" }}
   package_manager: dnf
-{{- else if eq .chezmoi.osRelease.id "ubuntu" }}
+{{- else if eq $osReleaseId "ubuntu" }}
   package_manager: apt
-{{- else if eq .chezmoi.osRelease.id "debian" }}
+{{- else if eq $osReleaseId "debian" }}
   package_manager: apt
+{{- else if eq .chezmoi.os "darwin" }}
+  package_manager: brew
+{{- else if eq .chezmoi.os "windows" }}
+  package_manager: winget
 {{- end }}
   ejson_vault: {{ joinPath .chezmoi.sourceDir "secrets" $profile "evault" | quote }}
 encryption: 'age'

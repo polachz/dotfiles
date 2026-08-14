@@ -15,7 +15,7 @@ them is the source of most workflow bugs:
 
 | Path | Role | Edit here? |
 |------|------|-----------|
-| `~/devel/homelab/dotfiles/` | **Dev repo** — where you edit, commit, push | ✅ YES |
+| `~/Devel/dotfiles/` | **Dev repo** — where you edit, commit, push | ✅ YES |
 | `~/.local/share/chezmoi/` | **Managed source** — chezmoi's working copy, pulled from GitHub | ❌ NO |
 | `~/` (HOME) | **Deploy target** — rendered files (`~/.gitconfig`, `~/.bashrc.d/...`) | ❌ NO |
 
@@ -27,11 +27,11 @@ short-circuits the flow and leads to silent drift.
 
 ## Daily workflow scenarios
 
-### S1. Change a managed file (e.g. `dot_bashrc.d/50-aliases-misc.sh`)
+### S1. Change a managed file (e.g. add an alias in `.chezmoidata/aliases/common/misc.yaml`)
 
 ```bash
-cd ~/devel/homelab/dotfiles
-$EDITOR dot_bashrc.d/50-aliases-misc.sh
+cd ~/Devel/dotfiles
+$EDITOR .chezmoidata/aliases/common/misc.yaml
 git add -p && git commit -m "aliases: add 'gst' shortcut"
 git push
 
@@ -40,9 +40,10 @@ chezmoi update -v
 ```
 
 **Common mistakes:**
-- Editing `~/.bashrc.d/50-aliases-misc.sh` directly in HOME →
-  next `chezmoi apply` detects the drift and (interactively) prompts;
-  in non-interactive runs it silently overwrites.
+- Editing `~/.bashrc.d/50-aliases-generated.sh` (or the fish/zsh equivalent)
+  directly in HOME → it's a *generated* file, re-rendered from the YAML on
+  every apply; a direct edit is drift that the next `chezmoi apply`
+  overwrites (interactively prompts, or silently in non-interactive runs).
 - Editing in `~/.local/share/chezmoi/` → next `chezmoi update` either
   loses the change (autostash drop) or fails with merge conflict.
 
@@ -52,28 +53,35 @@ chezmoi diff                # must be empty after update
 chezmoi verify && echo OK
 ```
 
-### S2. Change a value in evault (mail, git user, etc.)
+### S2. Change a value in evault
 
-The values in `secrets/<profile>/evault` are read by chezmoi templates
-at apply time (via `ejsonValue`). Change the value → push → other
-machines pick it up automatically on `chezmoi update`.
+**Current state (2026-08-01): no template actually reads the evault yet.**
+`secrets/<profile>/evault` still has its original skeleton content
+(`git.user`/`git.email`), but nothing consumes it via `ejsonValue`/
+`output "ejson" "decrypt" ...` — the real git identity comes from a plain,
+unencrypted fragment (`dot_config/private_git/work/common.gitconfig`)
+instead. The scenario below describes the *intended* workflow once a
+template actually pulls a secret value out of the evault (see
+`CONCEPT_ROADMAP.md` §4.2 — designed, not built) — keep it in mind as the
+target shape, not today's reality.
 
 ```bash
 # Decrypt → edit → re-encrypt (with the helper)
-edit-evault personal --repo ~/devel/homelab/dotfiles
+edit-evault personal --repo ~/Devel/dotfiles
 
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 git diff secrets/personal/evault    # encrypted blob diff (nonces change)
 git add secrets/personal/evault
-git commit -m "evault: update personal git email"
+git commit -m "evault: update personal <field>"
 git push
 
 # Other machines:
 chezmoi update -v
 ```
 
-**Templates do not need to change** — they call `ejsonValue` dynamically.
-Only the data layer (evault) changes.
+**Once a template consumes it**, no template change is needed for a
+value-only edit — it calls `ejsonValue`/similar dynamically. Only the data
+layer (evault) changes.
 
 **Common mistakes:**
 - Manual `ejson decrypt > /tmp/evault.json`, edit, forget to shred
@@ -94,19 +102,28 @@ chezmoi diff                # shows the rendered template diff
 
 ```bash
 # Existing file in HOME — let chezmoi import it
-chezmoi add ~/.gitconfig                # plain file
-chezmoi add --template ~/.gitconfig     # as template
+chezmoi add ~/.nanorc                   # plain file
+chezmoi add --template ~/.nanorc        # as template
 chezmoi add --encrypt ~/.ssh/id_ed25519 # encrypted (Age)
 ```
+
+**Do NOT `chezmoi add` a full rc-like file that already has real content**
+(`~/.bashrc`, `~/.zshrc`, `~/.ssh/config`, `~/.gitconfig`) — this repo
+deliberately never lets chezmoi own those outright (see `CONCEPT_ROADMAP.md`
+§2.1/§2.3/§2.4/§3.3 — a full-file `add`/template would silently overwrite
+whatever else lives in them). Their content lives in a dedicated,
+chezmoi-owned location instead (`~/.bashrc.d/`, `~/.zshrc.d/`,
+`~/.ssh/conf.d/`, `~/.config/git/`), with a small idempotent
+`run_after_ensure-*` script appending just a sourcing/include line.
 
 `chezmoi add` writes to `~/.local/share/chezmoi/` (the managed source).
 You must then **propagate to the dev repo** so it gets committed:
 
 ```bash
-cp ~/.local/share/chezmoi/dot_gitconfig.tmpl ~/devel/homelab/dotfiles/
-cd ~/devel/homelab/dotfiles
-git add dot_gitconfig.tmpl
-git commit -m "gitconfig: add template"
+cp ~/.local/share/chezmoi/dot_nanorc ~/Devel/dotfiles/
+cd ~/Devel/dotfiles
+git add dot_nanorc
+git commit -m "nanorc: add config"
 git push
 ```
 
@@ -148,10 +165,10 @@ Recommended for "stop managing, also wipe from HOME":
 
 ```bash
 chezmoi forget ~/.foo                       # remove from source
-echo '.foo' >> ~/devel/homelab/dotfiles/.chezmoiremove
+echo '.foo' >> ~/Devel/dotfiles/.chezmoiremove
 # .chezmoiremove patterns get rm'd from HOME on next apply
 
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 git add -A
 git commit -m "stop managing .foo"
 git push
@@ -288,18 +305,186 @@ errors surface, but side effects of scripts don't.
 
 ```bash
 # Render one template, no writes
-chezmoi execute-template < dot_gitconfig.tmpl
+chezmoi execute-template < dot_bashrc.d/05-env-generated.sh.tmpl
 
 # Diff against the dev repo instead of managed source
-chezmoi -S ~/devel/homelab/dotfiles diff
+chezmoi -S ~/Devel/dotfiles diff
 
 # Apply from dev repo (use sparingly — see warning below)
-chezmoi -S ~/devel/homelab/dotfiles apply
+chezmoi -S ~/Devel/dotfiles apply
 ```
 
 **Warning on `-S <dev-repo>` apply:** after applying from dev repo, a
 regular `chezmoi update` reverts you to whatever is in the public repo.
 Fine for quick iteration, dangerous for permanent state.
+
+### S10. Add a new alias
+
+Edit (or create) a YAML file under `.chezmoidata/aliases/<scope>/*.yaml`
+(only `common/` exists today — see S13 for what `personal`/`work` scope
+would mean). File location is purely for human organization — the scope
+is the YAML key, not the path.
+
+```yaml
+aliases:
+  common:
+    categories:
+      <category-name>:            # must be globally unique across the whole repo — see S13
+        - name: <alias-name>
+          command: <string-or-OS-map>
+          kind: abbr               # optional, default. "abbr" = fish expands visibly on
+                                    # space; use "alias" only for flag-only additions with
+                                    # nothing to reveal (e.g. grep --color=auto)
+          description: <required — shows in ALIASES.md and as a trailing comment>
+```
+
+`command` is a plain string, or an OS-map to vary/omit per OS:
+
+```yaml
+command:
+  default: "ls -l --color"
+  darwin: "ls -l -G"
+  windows: skip                    # entry doesn't exist at all on this OS
+```
+
+No template changes needed — `dot_bashrc.d/50-aliases-generated.sh.tmpl` and
+`dot_config/fish/conf.d/aliases.fish.tmpl` iterate `.chezmoidata/aliases.**`
+automatically.
+
+```bash
+cd ~/Devel/dotfiles
+$EDITOR .chezmoidata/aliases/common/misc.yaml
+chezmoi execute-template < dot_bashrc.d/50-aliases-generated.sh.tmpl | grep <alias-name>   # verify before committing
+git add -p && git commit -m "aliases: add <name>" && git push
+# Other machines: chezmoi update
+```
+
+Then update [`ALIASES.md`](./ALIASES.md) by hand — not yet auto-generated
+(`CONCEPT_ROADMAP.md` §3.4).
+
+### S11. Add a new environment variable
+
+Same pattern as S10, under `.chezmoidata/env/<scope>/*.yaml`:
+
+```yaml
+env:
+  common:
+    categories:
+      <category-name>:
+        - name: MY_VAR
+          value: <string-or-OS-map>   # same default/darwin/windows/skip rules as `command`
+          description: <required>
+```
+
+Renderers: `dot_bashrc.d/05-env-generated.sh.tmpl` (bash+zsh,
+`export X=$'val'` — ANSI-C quoting, so escape sequences work) and
+`dot_config/fish/conf.d/env.fish.tmpl` (`set -gx X (printf 'val')`). If the
+value needs an escape sequence, use lowercase `\e`, not `\E` — confirmed
+only bash/zsh's `$'...'` recognizes `\E`, `printf` (which the fish renderer
+uses) does not.
+
+Secret values pulled from the evault (`secret: true` / `evault_key` fields)
+are designed but **not implemented yet** — see
+[`README.md` → Encryption](./README.md#encryption) and `CONCEPT_ROADMAP.md`
+§4.2.
+
+### S12. Add a new managed config file
+
+**A. Brand-new file, nothing exists at that path yet** — plain `chezmoi add`,
+see S3.
+
+**B. A config that should compose common/profile/OS fragments** (the
+pattern already used for git/SSH/Ghostty/starship) — don't hand-roll a new
+mechanism, pick whichever fits the target format:
+
+- **Format has a native include** (git `[include]`, SSH `Include`, Ghostty
+  `config-file = ?path`) → drop a fragment at the right scope
+  directory/filename (see S13); the composing file or
+  `run_after_ensure-*` script wires it in.
+- **Format has no native include** (starship.toml-style) → add a
+  `.chezmoitemplates/<name>-<scope>` partial, call it via
+  `{{ template "<name>-<scope>" . }}` from the composing `.tmpl` — mirror
+  `dot_config/starship.toml.tmpl` + `.chezmoitemplates/starship-{common,personal,work}`.
+
+**If the target is a shell rc file, or anything else under `$HOME` that
+other tools might also write to** (`.bashrc`, `.zshrc`, `.gitconfig`,
+`.ssh/config`, and by extension anything similar you add later): **never**
+let chezmoi own the whole file — use the `run_after_ensure-*-sourcing.sh.tmpl`
+idempotent-append pattern (S13) instead of a static/templated full-file
+replacement. This is not a style preference — see `CONCEPT_ROADMAP.md`
+§2.1/§3.3 for the real incident (a full-file `~/.zshrc` template would have
+silently destroyed genuinely load-bearing content already on the machine).
+
+### S13. The common/personal/work split, and include composition — reference
+
+Two independent mechanisms, easy to conflate:
+
+**1. Scope split** (how a fragment lands on disk only for the right profile):
+
+| Mechanism | Used by | How scope is encoded |
+|---|---|---|
+| Directory-based | `dot_bashrc.d/`, `dot_zshrc.d/`, `dot_config/private_git/` | Subdirectory (`personal/`, `work/`), masked in `.chezmoiignore.tmpl` by path |
+| Filename-based | `private_dot_ssh/conf.d/` | Scope IN the filename (`50-work-redhat.conf`) — SSH's `Include *.conf` needs one flat directory, masked in `.chezmoiignore.tmpl` by filename glob |
+| `.chezmoidata/` YAML merge | `.chezmoidata/aliases/`, `.chezmoidata/env/` | Scope is a YAML **key** (`aliases.common...`), not the file path — file location is purely human organization. Category names must be globally unique repo-wide: files merge as dicts, but a colliding category name (a list) gets silently **overwritten**, not merged, by whichever file sorts alphabetically last |
+
+**2. Include/composition precedence** (once multiple fragments exist, which
+directive wins):
+
+| Format | Winner | Ordering mechanism |
+|---|---|---|
+| git | **Last** included wins a conflicting key | File order: common → profile → profile+OS → `includeIf` host (most specific last) |
+| SSH | **First** matching wins (except cumulative directives like `IdentityFile`) | Numeric filename prefix, lowest number read first — most specific gets the lowest number |
+| Ghostty | Last `config-file` wins (same direction as git) | Static `config` file lists includes common → profile → profile+OS |
+| starship | No native include | Template composition order in `dot_config/starship.toml.tmpl` decides directly |
+
+**3. Never-own-rc-file pattern** (see S12's warning): for `~/.bashrc`,
+`~/.zshrc`, `~/.ssh/config`, `~/.gitconfig`, chezmoi never manages the whole
+file. A `run_after_ensure-*` script — idempotent, checks with `grep`,
+appends only if missing — adds ONE small block (a `source`/`Include`/
+`[include]` line) to the real file. Everything else lives in a dedicated,
+fully chezmoi-owned subdirectory (`~/.bashrc.d/`, `~/.zshrc.d/`,
+`~/.ssh/conf.d/`, `~/.config/git/`). See `CONCEPT_ROADMAP.md`
+§2.1/§2.3/§2.4/§3.3 for the specific incidents that established this rule,
+and for the git/SSH-specific `includeIf`/`Include`-inside-a-non-matching-block
+gotchas that made even the append scripts themselves non-trivial.
+
+**4. Beyond profile — role and has_gui, and what's actually wired up today.**
+Three independent facts are resolved at `chezmoi init` time and available in
+every template as `.deployment.profile` / `.deployment.role` /
+`.deployment.has_gui` (see `README.md` → Profiles, role, and GUI). **All
+three now gate something on disk** (as of the `CONCEPT_ROADMAP.md` §7
+packages-model rework, 2026-08-07):
+
+| Fact | Consumed where today | Granularity |
+|---|---|---|
+| `profile` (personal/work) | Everywhere — see the scope-split table above | Full: shell config, secrets, git, SSH, Ghostty |
+| `has_gui` (true/false) | The Ghostty block in `.chezmoiignore.tmpl`, and the `requires_gui` filter in `.chezmoidata/packages.yaml` (via `run_onchange_install-packages.sh.tmpl`/`.ps1.tmpl`) | GUI-only tools (Ghostty, Bitwarden, Windows Terminal, Total Commander) skip on headless machines |
+| `role` (workstation/server) | The `roles` filter in `.chezmoidata/packages.yaml` — every tool entry declares which role(s) it installs on (default: both) | First real consumer — see `CONCEPT_ROADMAP.md` §7 |
+
+**Recipe for adding role-based (or any other new-fact-based) granularity**,
+following the exact pattern already used for `has_gui`/Ghostty — add a
+condition to `.chezmoiignore.tmpl`:
+
+```gotmpl
+{{ if eq .deployment.role "server" }}
+.config/ghostty        {{/* example: no GUI terminal on a server, regardless of has_gui */}}
+{{ end }}
+```
+
+or gate a whole `run_onchange_*`/`run_after_*` script's *content* (not just
+file presence) the same way `run_onchange_install-packages.sh.tmpl` already
+branches on `.deployment.vm_type`:
+
+```gotmpl
+{{ if eq .deployment.role "workstation" }}
+log_task "Installing workstation-only packages"
+{{ end }}
+```
+
+Don't invent a parallel mechanism — every axis (profile, has_gui, and any
+future one) is just more `{{ if }}` branches over the same `.deployment.*`
+data, using whichever of the three scope-split mechanisms from table 1 fits
+the target format.
 
 ---
 
@@ -332,7 +517,7 @@ Fine for quick iteration, dangerous for permanent state.
   git status                          # what's there
   # If commited: git push, then git pull in dev repo
   # If uncommitted: cp to dev repo, commit there, reset managed:
-  cp <file> ~/devel/homelab/dotfiles/<file>
+  cp <file> ~/Devel/dotfiles/<file>
   cd ~/.local/share/chezmoi
   git reset --hard origin/main
   ```
@@ -391,7 +576,7 @@ Fine for quick iteration, dangerous for permanent state.
 - **Root cause:** template calls `(include .ejson_vault | fromJson).fieldX`
   but `fieldX` doesn't exist.
 - **Fix:**
-  - Add the field: `edit-evault <profile> --repo ~/devel/homelab/dotfiles`
+  - Add the field: `edit-evault <profile> --repo ~/Devel/dotfiles`
   - Or make template defensive: `{{ with .field }}{{ . }}{{ else }}default{{ end }}`
 - **Prevention:** `chezmoi execute-template` in a pre-commit hook.
 
@@ -576,7 +761,7 @@ If a script ran but state was not updated (rare): manually
 ### R3. Dev repo has commits not yet on GitHub
 
 ```bash
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 git status                # "ahead of origin/main by N"
 git log origin/main..HEAD # what's local
 git push
@@ -586,7 +771,7 @@ git push
 **Opposite (public ahead, dev behind):**
 
 ```bash
-cd ~/devel/homelab/dotfiles
+cd ~/Devel/dotfiles
 git stash                 # if you have local changes
 git pull --rebase
 git stash pop
@@ -647,7 +832,7 @@ Run weekly (or wire into a systemd timer):
 chezmoi doctor                                 # toolchain (age, git, ejson)
 chezmoi verify; echo "verify=$?"               # HOME drift
 chezmoi git -- status --porcelain              # managed clone clean?
-git -C ~/devel/homelab/dotfiles status --porcelain   # dev clone clean?
+git -C ~/Devel/dotfiles status --porcelain   # dev clone clean?
 chezmoi data | jq .deployment.profile          # right profile?
 chezmoi managed | wc -l                        # sanity baseline (should be stable)
 ```
@@ -677,9 +862,9 @@ chezmoi apply -v                   # apply pending source changes
 chezmoi verify                     # any HOME drift?
 
 # Editing
-edit-evault <profile> --repo ~/devel/homelab/dotfiles
-$EDITOR ~/devel/homelab/dotfiles/<source-file>
-git -C ~/devel/homelab/dotfiles {add,commit,push}
+edit-evault <profile> --repo ~/Devel/dotfiles
+$EDITOR ~/Devel/dotfiles/<source-file>
+git -C ~/Devel/dotfiles {add,commit,push}
 
 # Debugging
 chezmoi doctor                     # toolchain health
