@@ -230,8 +230,15 @@ log_info "Has GUI: ${CHZ_HAS_GUI}"
 # install the Command Line Tools (CLT) before installing Homebrew..."),
 # confirmed live — despite bottles being precompiled and needing no source
 # build themselves, Homebrew's installer still requires CLT to exist.
+#
+# `xcode-select -p` is NOT a reliable presence check here — confirmed live on
+# a fresh Mac VM, it prints a path and exits 0 even though no real tools are
+# installed yet (the path is pre-registered, tools install on first real
+# invocation). `pkgutil --pkg-info` checks the actual installed-package
+# receipt instead, which is what Apple's own provisioning scripts use to
+# detect a genuinely completed CLT install.
 
-if [ "$(uname -s)" = "Darwin" ] && ! xcode-select -p >/dev/null 2>&1; then
+if [ "$(uname -s)" = "Darwin" ] && ! pkgutil --pkg-info=com.apple.pkg.CLTools_Executables >/dev/null 2>&1; then
     log_task "Installing Xcode Command Line Tools (headless)..."
     clt_placeholder="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
     touch "${clt_placeholder}"
@@ -309,21 +316,32 @@ if ! command -v "ejson" > /dev/null 2>&1; then
     else
         # EJSON release binary — Shopify publishes Linux/macOS amd64 builds. Used
         # when Homebrew isn't available (Linux, or a failed Homebrew bootstrap).
+        # The release filename embeds the version (e.g.
+        # ejson_1.5.5_darwin_arm64.tar.gz) — unlike Homebrew.pkg/chezmoi's own
+        # assets, GitHub's version-less "latest/download/<name>" redirect
+        # doesn't work here, so the tag has to be resolved via the API first.
         ejson_os=$(uname -s | tr '[:upper:]' '[:lower:]')
         ejson_arch=$(uname -m)
         case "${ejson_arch}" in
             x86_64) ejson_arch="amd64";;
             aarch64|arm64) ejson_arch="arm64";;
         esac
-        ejson_url="https://github.com/Shopify/ejson/releases/latest/download/ejson_${ejson_os}_${ejson_arch}.tar.gz"
         ejson_bin_dir="${HOME}/.local/bin"
         mkdir -p "${ejson_bin_dir}"
-        if command -v "curl" >/dev/null 2>&1; then
-            curl -fsSL "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
-                || log_yellow "EJSON download/extract failed — install manually if needed."
-        elif command -v "wget" >/dev/null 2>&1; then
-            wget -qO- "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
-                || log_yellow "EJSON download/extract failed — install manually if needed."
+        ejson_tag=$(curl -fsSL https://api.github.com/repos/Shopify/ejson/releases/latest 2>/dev/null \
+            | grep '"tag_name"' | head -n1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+        if [ -z "${ejson_tag}" ]; then
+            log_yellow "Could not resolve latest EJSON release — install manually if needed."
+        else
+            ejson_version="${ejson_tag#v}"
+            ejson_url="https://github.com/Shopify/ejson/releases/download/${ejson_tag}/ejson_${ejson_version}_${ejson_os}_${ejson_arch}.tar.gz"
+            if command -v "curl" >/dev/null 2>&1; then
+                curl -fsSL "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
+                    || log_yellow "EJSON download/extract failed — install manually if needed."
+            elif command -v "wget" >/dev/null 2>&1; then
+                wget -qO- "${ejson_url}" | tar -xz -C "${ejson_bin_dir}" ejson 2>/dev/null \
+                    || log_yellow "EJSON download/extract failed — install manually if needed."
+            fi
         fi
     fi
 fi
