@@ -308,18 +308,25 @@ fi
 
 if ! command -v "ejson" > /dev/null 2>&1; then
     log_task "Installing EJSON..."
-    if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+    if [ "$(uname -s)" = "Darwin" ]; then
+        # No non-brew fallback on macOS — if brew is missing here, the
+        # Homebrew bootstrap step above already failed, which means something
+        # more fundamental is broken (CLT, network, ...). Falling through to
+        # the fragile GitHub-tarball path would just mask that.
+        if ! command -v brew >/dev/null 2>&1; then
+            error "Homebrew is not available — cannot install EJSON on macOS without it. Check the Homebrew install step above and re-run."
+        fi
         # Official Shopify tap (not in homebrew-core) — verified 2026-08-07,
         # `shopify/shopify/ejson` is a real, working formula.
         HOMEBREW_NO_ASK=1 brew tap shopify/shopify >/dev/null 2>&1
         HOMEBREW_NO_ASK=1 brew install shopify/shopify/ejson
     else
-        # EJSON release binary — Shopify publishes Linux/macOS amd64 builds. Used
-        # when Homebrew isn't available (Linux, or a failed Homebrew bootstrap).
-        # The release filename embeds the version (e.g.
-        # ejson_1.5.5_darwin_arm64.tar.gz) — unlike Homebrew.pkg/chezmoi's own
-        # assets, GitHub's version-less "latest/download/<name>" redirect
-        # doesn't work here, so the tag has to be resolved via the API first.
+        # EJSON release binary — Shopify publishes Linux builds; this path is
+        # Linux-only now (see the Darwin branch above). The release filename
+        # embeds the version (e.g. ejson_1.5.5_linux_amd64.tar.gz) — unlike
+        # Homebrew.pkg/chezmoi's own assets, GitHub's version-less
+        # "latest/download/<name>" redirect doesn't work here, so the tag has
+        # to be resolved via the API first.
         ejson_os=$(uname -s | tr '[:upper:]' '[:lower:]')
         ejson_arch=$(uname -m)
         case "${ejson_arch}" in
