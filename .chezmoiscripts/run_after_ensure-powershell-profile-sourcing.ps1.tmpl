@@ -1,3 +1,4 @@
+{{- if eq .chezmoi.os "windows" -}}
 # Ensures $PROFILE (CurrentUserCurrentHost) dot-sources
 # Documents\PowerShell\dotfiles.d\*.ps1 — idempotent, runs on every apply
 # (plain `run_` prefix). Targets PowerShell 7 (`pwsh`) — chezmoi's built-in
@@ -36,3 +37,4 @@ if (Test-Path $dotfilesD) {
 
     Add-Content -Path $profilePath -Value $block
 }
+{{- end -}}
