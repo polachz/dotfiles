@@ -6,7 +6,10 @@ sudo apt-get -y install {{ .package }}
 {{- else if eq .package_manager "brew" }}
 if ! command -v brew >/dev/null 2>&1; then
   log_task "Homebrew not found — installing it first (prerequisite for '{{ .package }}')"
-  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  homebrew_pkg="${TMPDIR:-/tmp}/Homebrew.pkg"
+  curl -fsSL -o "${homebrew_pkg}" "https://github.com/Homebrew/brew/releases/latest/download/Homebrew.pkg"
+  sudo installer -pkg "${homebrew_pkg}" -target /
+  rm -f "${homebrew_pkg}"
   eval "$('/opt/homebrew/bin/brew' shellenv 2>/dev/null || '/usr/local/bin/brew' shellenv)"
 fi
 HOMEBREW_NO_ASK=1 brew install {{ .package }}

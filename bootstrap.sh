@@ -220,34 +220,32 @@ esac
 
 log_info "Has GUI: ${CHZ_HAS_GUI}"
 
-# ───── macOS: ensure Xcode Command Line Tools (git needs them) ───────────────
-# A brand-new Mac has neither git nor Homebrew. Installing either normally pops
-# a GUI dialog for the CLT — this headlessly triggers the same install via the
-# softwareupdate catalog instead, so bootstrap works over SSH with no GUI.
-
-if [ "$(uname -s)" = "Darwin" ] && ! xcode-select -p >/dev/null 2>&1; then
-    log_task "Installing Xcode Command Line Tools (headless)..."
-    clt_placeholder="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
-    touch "${clt_placeholder}"
-    clt_label=$(softwareupdate -l 2>/dev/null | grep "^\* Label: Command Line Tools" | sed 's/^\* Label: //' | sort -V | tail -n1)
-    rm -f "${clt_placeholder}"
-    if [ -n "${clt_label}" ]; then
-        sudo softwareupdate -i "${clt_label}"
-        log_info "Xcode Command Line Tools installed."
-    else
-        log_yellow "Could not find Command Line Tools in softwareupdate catalog — install manually with 'xcode-select --install' and re-run."
-    fi
-fi
-
 # ───── macOS: ensure Homebrew ─────────────────────────────────────────────────
-# Prerequisite for chezmoi/EJSON below (and for `age` later, via
-# .chezmoitemplates/install-os-package) — prefer brew over raw GitHub-release
-# downloads for any package that has a working formula, macOS only.
+# A brand-new Mac has neither git nor Homebrew. Uses the official .pkg
+# installer (brew.sh explicitly recommends it for "interactive or unattended
+# MDM installs" — exactly this headless-bootstrap case) rather than piping
+# install.sh into bash. The release asset is always named plain "Homebrew.pkg"
+# (no version in the filename), so the GitHub "latest" redirect resolves it
+# without an API call, same trick already used for the EJSON tarball below.
+# No Xcode Command Line Tools needed for this — the .pkg is self-contained.
 
 if [ "$(uname -s)" = "Darwin" ] && ! command -v brew >/dev/null 2>&1; then
-    log_task "Installing Homebrew..."
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    log_task "Installing Homebrew (.pkg installer)..."
+    homebrew_pkg="${TMPDIR:-/tmp}/Homebrew.pkg"
+    curl -fsSL -o "${homebrew_pkg}" "https://github.com/Homebrew/brew/releases/latest/download/Homebrew.pkg"
+    sudo installer -pkg "${homebrew_pkg}" -target /
+    rm -f "${homebrew_pkg}"
     eval "$('/opt/homebrew/bin/brew' shellenv 2>/dev/null || '/usr/local/bin/brew' shellenv)"
+fi
+
+# ───── macOS: ensure git via Homebrew ─────────────────────────────────────────
+# chezmoi needs git to clone the dotfiles repo below. Installed as a Homebrew
+# bottle (precompiled binary), which — unlike building from source — needs no
+# Xcode Command Line Tools either, so CLT is never required by this script.
+
+if [ "$(uname -s)" = "Darwin" ] && ! command -v git >/dev/null 2>&1; then
+    log_task "Installing git via Homebrew..."
+    HOMEBREW_NO_ASK=1 brew install git
 fi
 
 # ───── Install chezmoi ───────────────────────────────────────────────────────
