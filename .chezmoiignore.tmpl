@@ -52,9 +52,15 @@ age_key_work.age
 {{ end }}
 {{ end }}
 
-{{/* PowerShell 7 config — Windows-only (see CONCEPT_ROADMAP.md §3.3). */}}
+{{/*
+  PowerShell 7 config — Windows-only (see CONCEPT_ROADMAP.md §3.3). Ignoring
+  the whole Documents dir (not just Documents/PowerShell) matters on macOS:
+  ~/Documents is TCC-protected, and chezmoi would still try to mkdir/chmod the
+  now-empty parent dir even with only the child ignored, tripping "operation
+  not permitted" without ever needing real access to it.
+*/}}
 {{ if ne .chezmoi.os "windows" }}
-Documents/PowerShell
+Documents
 {{ end }}
 
 {{/*

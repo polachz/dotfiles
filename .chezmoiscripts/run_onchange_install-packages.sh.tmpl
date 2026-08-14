@@ -58,7 +58,7 @@ if [[ ${#missing_packages[@]} -gt 0 ]]; then
 {{- else if eq $manager "apt" }}
   sudo apt-get -y install "${missing_packages[@]}"
 {{- else if eq $manager "brew" }}
-  brew install "${missing_packages[@]}"
+  NONINTERACTIVE=1 brew install "${missing_packages[@]}"
 {{- end }}
 else
   log_ok "No missing {{ $manager }} packages"

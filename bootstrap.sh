@@ -33,7 +33,7 @@ log_debug() {
     fi
 }
 
-# ───── Profile menu ──────────────────────────────────────────────────────────
+# ───── Selection menus ───────────────────────────────────────────────────────
 
 display_menu() {
     echo "Select dotfiles profile:"
@@ -44,27 +44,52 @@ display_menu() {
     echo
 }
 
+display_role_menu() {
+    echo "Select machine role:"
+    echo
+    echo "  1) Workstation — desktop/laptop dev machine"
+    echo "  2) Server      — headless/server machine"
+    echo "  e) Exit"
+    echo
+}
+
+display_gui_menu() {
+    echo "Does this machine have a GUI?"
+    echo
+    echo "  1) Yes"
+    echo "  2) No"
+    echo "  e) Exit"
+    echo
+}
+
 # ───── CLI parsing ───────────────────────────────────────────────────────────
 
 HELP=$(cat <<EOF
 Usage: bootstrap.sh [options]
 
 Options:
-  -p, --profile <personal|work>  Pre-select dotfiles profile (skip menu)
-  -b, --branch <name>            Clone/checkout this git branch instead of the
-                                  default branch (e.g. a work-in-progress
-                                  branch not yet merged to main)
-  -d, --dry-run                  Run chezmoi in dry-run mode
-  -a, --apply                    Force apply (overrides default on re-runs)
-  -v, --verbose                  Verbose output
-  -r, --reinit                   Clear chezmoi state and re-apply from scratch
-  --debug                        Enable debug logging in dotfile scripts
-  --chezmoi-debug                Pass --debug to chezmoi itself
-  --debug-all                    Both --debug and --chezmoi-debug
-  -h, --help                     Show this message
+  -p, --profile <personal|work>       Pre-select dotfiles profile (skip menu)
+  --role <workstation|server>         Pre-select machine role (skip menu)
+  --gui <yes|no>                      Pre-select GUI presence (skip menu)
+  -b, --branch <name>                 Clone/checkout this git branch instead
+                                        of the default branch (e.g. a
+                                        work-in-progress branch not yet
+                                        merged to main)
+  -d, --dry-run                       Run chezmoi in dry-run mode
+  -a, --apply                         Force apply (overrides default on
+                                        re-runs)
+  -v, --verbose                       Verbose output
+  -r, --reinit                        Clear chezmoi state and re-apply from
+                                        scratch
+  --debug                             Enable debug logging in dotfile scripts
+  --chezmoi-debug                     Pass --debug to chezmoi itself
+  --debug-all                         Both --debug and --chezmoi-debug
+  -h, --help                          Show this message
 
 Env vars:
   CHZ_DEPLOYMENT_PROFILE         Same as --profile
+  CHZ_DEPLOYMENT_ROLE            Same as --role
+  CHZ_HAS_GUI                    Same as --gui (yes/no)
   CHZ_BOOTSTRAP_BRANCH           Same as --branch
   CHZ_BOOTSTRAP_DRY_RUN          Set to 1 to dry-run
   CHZ_BOOTSTRAP_VERBOSE          Set to 1 for verbose output
@@ -76,6 +101,14 @@ while [ $# -gt 0 ]; do
     case "$1" in
         -p|--profile)
             CHZ_DEPLOYMENT_PROFILE="$2"
+            shift
+            ;;
+        --role)
+            CHZ_DEPLOYMENT_ROLE="$2"
+            shift
+            ;;
+        --gui)
+            CHZ_HAS_GUI="$2"
             shift
             ;;
         -b|--branch)
@@ -141,6 +174,52 @@ esac
 
 log_info "Selected profile: ${CHZ_DEPLOYMENT_PROFILE}"
 
+# ───── Resolve role ──────────────────────────────────────────────────────────
+
+if [ -z "${CHZ_DEPLOYMENT_ROLE-}" ]; then
+    while true; do
+        display_role_menu
+        printf "Enter your choice: "
+        read -r choice
+        case "$choice" in
+            1) CHZ_DEPLOYMENT_ROLE="workstation"; break;;
+            2) CHZ_DEPLOYMENT_ROLE="server";      break;;
+            e|exit) echo "Aborted."; exit 0;;
+            *) echo "Invalid selection. Please try again.";;
+        esac
+    done
+fi
+
+case "${CHZ_DEPLOYMENT_ROLE}" in
+    workstation|server) ;;
+    *) error "Invalid --role: '${CHZ_DEPLOYMENT_ROLE}' (must be 'workstation' or 'server')";;
+esac
+
+log_info "Selected role: ${CHZ_DEPLOYMENT_ROLE}"
+
+# ───── Resolve GUI presence ──────────────────────────────────────────────────
+
+if [ -z "${CHZ_HAS_GUI-}" ]; then
+    while true; do
+        display_gui_menu
+        printf "Enter your choice: "
+        read -r choice
+        case "$choice" in
+            1) CHZ_HAS_GUI="yes"; break;;
+            2) CHZ_HAS_GUI="no";  break;;
+            e|exit) echo "Aborted."; exit 0;;
+            *) echo "Invalid selection. Please try again.";;
+        esac
+    done
+fi
+
+case "${CHZ_HAS_GUI}" in
+    yes|no) ;;
+    *) error "Invalid --gui: '${CHZ_HAS_GUI}' (must be 'yes' or 'no')";;
+esac
+
+log_info "Has GUI: ${CHZ_HAS_GUI}"
+
 # ───── macOS: ensure Xcode Command Line Tools (git needs them) ───────────────
 # A brand-new Mac has neither git nor Homebrew. Installing either normally pops
 # a GUI dialog for the CLT — this headlessly triggers the same install via the
@@ -183,7 +262,7 @@ else
     chezmoi_github_url="https://github.com/${GITHUB_USERNAME}/dotfiles.git"
     if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
         log_task "Installing Chezmoi via Homebrew..."
-        brew install chezmoi
+        NONINTERACTIVE=1 brew install chezmoi
         chezmoi="chezmoi"
     else
         log_task "Installing Chezmoi..."
@@ -209,8 +288,8 @@ if ! command -v "ejson" > /dev/null 2>&1; then
     if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
         # Official Shopify tap (not in homebrew-core) — verified 2026-08-07,
         # `shopify/shopify/ejson` is a real, working formula.
-        brew tap shopify/shopify >/dev/null 2>&1
-        brew install shopify/shopify/ejson
+        NONINTERACTIVE=1 brew tap shopify/shopify >/dev/null 2>&1
+        NONINTERACTIVE=1 brew install shopify/shopify/ejson
     else
         # EJSON release binary — Shopify publishes Linux/macOS amd64 builds. Used
         # when Homebrew isn't available (Linux, or a failed Homebrew bootstrap).
@@ -268,13 +347,19 @@ export CHZ_DOTFILES_DEBUG
 export CHZ_BOOTSTRAP_DRY_RUN
 
 # Bridge to the names .chezmoi.yaml.tmpl actually reads (added later than this
-# script, different naming convention — without this, --profile/the menu had
-# no effect on the real chezmoi init and it always fell through to its own
-# interactive prompt). DOTFILES_ROLE/DOTFILES_HAS_GUI need no bridging: they
-# aren't renamed by this script, so setting them in the calling shell already
-# passes straight through.
+# script, different naming convention — without this, the menus above would
+# have no effect on the real chezmoi init and it would always fall through to
+# chezmoi's own interactive promptStringOnce/promptBoolOnce prompts. CHZ_HAS_GUI
+# also needs a yes/no -> true/false value bridge to match what the template
+# expects.
 export DOTFILES_PROFILE="${CHZ_DEPLOYMENT_PROFILE}"
+export DOTFILES_ROLE="${CHZ_DEPLOYMENT_ROLE}"
+if [ "${CHZ_HAS_GUI}" = "yes" ]; then
+    export DOTFILES_HAS_GUI="true"
+else
+    export DOTFILES_HAS_GUI="false"
+fi
 
-log_task "Running 'chezmoi $*' (profile=${CHZ_DEPLOYMENT_PROFILE})"
+log_task "Running 'chezmoi $*' (profile=${CHZ_DEPLOYMENT_PROFILE}, role=${CHZ_DEPLOYMENT_ROLE}, gui=${CHZ_HAS_GUI})"
 
 exec "${chezmoi}" "$@"

@@ -128,6 +128,8 @@ repo clone, but they can't be decrypted without the matching Age key.
 | Flag | Description |
 |---|---|
 | `-p`, `--profile <personal\|work>` | Pre-select profile (skip menu) |
+| `--role <workstation\|server>` | Pre-select machine role (skip menu) |
+| `--gui <yes\|no>` | Pre-select GUI presence (skip menu) |
 | `-b`, `--branch <name>` | Clone/checkout this git branch instead of the default branch (e.g. to bootstrap from a work-in-progress branch not yet merged to main) |
 | `-d`, `--dry-run` | Show what would change without applying |
 | `-a`, `--apply` | Force apply (overrides dry-run default on re-runs) |
@@ -142,12 +144,13 @@ repo clone, but they can't be decrypted without the matching Age key.
 | Variable | Description |
 |---|---|
 | `CHZ_DEPLOYMENT_PROFILE` | Profile selector (`personal` or `work`) — same as `--profile`. Bridged internally to `DOTFILES_PROFILE` before invoking chezmoi. |
+| `CHZ_DEPLOYMENT_ROLE` | Role selector (`workstation` or `server`) — same as `--role`. Bridged internally to `DOTFILES_ROLE`. |
+| `CHZ_HAS_GUI` | GUI presence (`yes` or `no`) — same as `--gui`. Bridged internally to `DOTFILES_HAS_GUI` (`true`/`false`). |
 | `CHZ_BOOTSTRAP_BRANCH` | Same as `--branch` |
 | `CHZ_BOOTSTRAP_DRY_RUN` | Set to `1` to run in dry-run mode |
 | `CHZ_BOOTSTRAP_VERBOSE` | Set to `1` for verbose output |
 | `CHZ_DOTFILES_DEBUG` | Set to `1` to enable `set -x` debug mode in dotfile scripts |
-| `DOTFILES_ROLE` | `workstation` or `server` — read directly by chezmoi, no bootstrap.sh flag yet |
-| `DOTFILES_HAS_GUI` | `true` or `false` — read directly by chezmoi, no bootstrap.sh flag yet |
+| `DOTFILES_PROFILE` / `DOTFILES_ROLE` / `DOTFILES_HAS_GUI` | Read directly by chezmoi's `.chezmoi.yaml.tmpl` — set these yourself to bypass bootstrap.sh's menus entirely (e.g. CI, lab VM automation) |
 
 ---
 
