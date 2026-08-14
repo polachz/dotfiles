@@ -4,5 +4,5 @@
 # Was zpfn_edit "$@" (a thin ${EDITOR} wrapper) — that function was removed
 # 2026-08-01 (unused, per CONCEPT_ROADMAP.md §3.8.1), inlined directly here.
 
-alias ali='${EDITOR} ~/.bashrc.d/personal/git-aliases'
+alias ali='${EDITOR} ~/.bashrc.d/git-aliases'
 alias e='${EDITOR}'

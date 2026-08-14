@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Git shortcuts.
+#
+# Moved here from dot_bashrc.d/personal/ 2026-08-15 — plain git wrapper
+# aliases apply equally to work machines, nothing personal-specific about
+# them (see CONCEPT_ROADMAP.md §3.6).
 
 alias g="git"
 alias gcm='git commit -m'

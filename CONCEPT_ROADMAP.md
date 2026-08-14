@@ -565,8 +565,9 @@ zůstává ručně udržovaný mimo značky.
 ### 3.5 Workflow pro přidání/úpravu aliasu
 
 **Existující bug k opravě:** dnešní `dot_bashrc.d/personal/dev-shortcuts`/`ali` alias otvírá
-**deployed** cestu (`~/.bashrc.d/personal/git-aliases`), ne dev repo — editace se přepíše při
-dalším `chezmoi apply` (stejná past jako "two-repo mental model" u evaultu).
+**deployed** cestu (`~/.bashrc.d/git-aliases` — `git-aliases`/`chezmoi-aliases` přesunuty
+2026-08-15 z `personal/` do sdíleného top-level scope, viz §3.6), ne dev repo — editace se
+přepíše při dalším `chezmoi apply` (stejná past jako "two-repo mental model" u evaultu).
 
 Nový mechanismus:
 - **`edit-aliases-core <scope>`** — sdílený externí skript, stejný bezpečnostní vzor jako
@@ -594,8 +595,11 @@ Nový mechanismus:
   skripty v `PATH` místo shell-built-in funkcí, aby je bash i fish volaly stejně jako externí
   příkaz — obchází problém syntaktické portability. `zpfn_systemd_service_exists` je Linux-only
   (systemd) — OS-gated, ne univerzální.
-- Většina dnešního `dot_bashrc.d/personal/*` obsahu (git-aliases, home-paths kromě konkrétních
-  cest, dev-shortcuts) není fakticky personal-specifická — kandidát na přesun do `common/`.
+- Většina dnešního `dot_bashrc.d/personal/*` obsahu není fakticky personal-specifická. `git-aliases`
+  a `chezmoi-aliases` přesunuty do sdíleného top-level `dot_bashrc.d/` **2026-08-15** (včetně
+  zsh — doplněny do explicitního seznamu v `00-shared.zsh`, a odstranění hardcoded
+  `CHZ_DEPLOYMENT_PROFILE="personal"` exportu z `chezmoi-aliases`, viz `ALIASES.md`). `home-paths`
+  (kromě konkrétních cest) a `dev-shortcuts` zůstávají kandidáty, zatím nepřesunuty.
 - Drobné nálezy k opravě: mrtvý řádek `LESS_TERMCAP_md="${yellow}"` v `dot_bashrc.d/exports`
   (nedefinovaná proměnná, přepsaná o dva řádky níž); duplicitní/překrývající se logika hledání
   nejnovějšího GitHub release existuje na dvou místech (`zpfn_get_github_project_latest_release_download_link`

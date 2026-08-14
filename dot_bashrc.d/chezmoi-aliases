@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Chezmoi shortcuts.
+#
+# Moved here from dot_bashrc.d/personal/ 2026-08-15 — plain chezmoi
+# invocation shortcuts apply equally to work machines, nothing
+# personal-specific about them (see CONCEPT_ROADMAP.md §3.6). Dropped the
+# `export CHZ_DEPLOYMENT_PROFILE="personal"` this file used to also carry —
+# it was hardcoded to "personal" (would have been actively wrong on a work
+# machine) and was already documented as a redundant leftover from before
+# `.deployment.profile` existed as real chezmoi template data.
+
+# Invoke chezmoi (flush history first to avoid losing it during chezmoi-triggered shell restart)
+alias ch='history -a && chezmoi'
+# Switch to chezmoi source directory
+alias chd='history -a && chezmoi cd'

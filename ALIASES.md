@@ -167,16 +167,11 @@ for a normal user (bash: `PS1` with `\[...\]`; zsh: `PROMPT` with `%{...%}`
 installed (`99-starship-init.zsh` / `dot_config/fish/conf.d/starship-init.fish`),
 without replacing this baseline.
 
----
+### Git shortcuts (`git-aliases`)
 
-## Personal scope (`~/.bashrc.d/personal/`, bash only — not yet ported to zsh/fish)
-
-Loaded only when the active profile is `personal`. Not yet reviewed for
-whether this content should move to `common/` (per `CONCEPT_ROADMAP.md`
-§3.6, most of it isn't actually personal-specific) — no personal machine
-exists yet to validate against, so left as-is.
-
-### Git (`git-aliases`)
+Moved here from `~/.bashrc.d/personal/` 2026-08-15 — plain git wrapper
+aliases apply equally to work machines, nothing personal-specific about
+them (`CONCEPT_ROADMAP.md` §3.6).
 
 | Command | Expands to | Description |
 |---------|-----------|-------------|
@@ -186,23 +181,34 @@ exists yet to validate against, so left as-is.
 | `gam` | `git add -u` | Stage modified + deleted |
 | `ga` | `git add` | Stage files |
 
-### Chezmoi (`chezmoi-aliases`)
+### Chezmoi shortcuts (`chezmoi-aliases`)
 
-Also exports `CHZ_DEPLOYMENT_PROFILE="personal"` (a bash-only, hardcoded
-leftover from before `.deployment.profile` existed as chezmoi template
-data — redundant but harmless).
+Also moved here 2026-08-15, same reasoning. Used to also export
+`CHZ_DEPLOYMENT_PROFILE="personal"` — dropped during the move (hardcoded to
+`"personal"`, would've been actively wrong on a work machine, and was
+already documented as a redundant leftover from before `.deployment.profile`
+existed as real chezmoi template data).
 
 | Command | Expands to | Description |
 |---------|-----------|-------------|
 | `ch` | `history -a && chezmoi` | chezmoi (history flushed first, since chezmoi may restart the shell) |
 | `chd` | `history -a && chezmoi cd` | chezmoi source directory |
 
+---
+
+## Personal scope (`~/.bashrc.d/personal/`, bash only — not yet ported to zsh/fish)
+
+Loaded only when the active profile is `personal`. Git/chezmoi shortcuts
+moved out to the shared scope above 2026-08-15 (see `CONCEPT_ROADMAP.md`
+§3.6) — what's left here hasn't been reviewed the same way yet, no personal
+machine exists to validate against.
+
 ### Developer shortcuts (`dev-shortcuts`)
 
 | Command | Expands to | Description |
 |---------|-----------|-------------|
 | `e` | `${EDITOR}` | Open `$EDITOR` |
-| `ali` | `${EDITOR} ~/.bashrc.d/personal/git-aliases` | Edit the git aliases file |
+| `ali` | `${EDITOR} ~/.bashrc.d/git-aliases` | Edit the git aliases file |
 
 ### Home paths (`home-paths`)
 
