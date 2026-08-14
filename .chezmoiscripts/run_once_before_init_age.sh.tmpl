@@ -43,10 +43,27 @@ mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
 
 if [ ! -f "${age_key_file}" ]; then
     log_task "Decrypting Age key for profile '${profile}'"
+    # `chezmoi age decrypt --passphrase` needs a real controlling terminal to prompt
+    # securely — in a context with none (non-interactive automation, an SSH exec
+    # channel with no pty allocated, CI) it fails instantly with "could not open a
+    # new TTY". Without this upfront check, the retry loop below would spin forever
+    # at effectively zero cost per iteration — confirmed live (burned real CPU on a
+    # lab VM in seconds until manually killed, same class of bug as the earlier
+    # PowerShell `ping` self-recursion finding). Fail fast with a clear message
+    # instead of silently maxing out a CPU core.
+    if [ ! -t 0 ]; then
+        error "No controlling terminal available to prompt for the ${profile} Age passphrase (stdin is not a tty). Run this interactively, e.g. via a real SSH session, not a non-interactive exec/automation context."
+    fi
     log_info "Paste the ${profile} Age passphrase from your password manager when prompted."
+    attempt=0
+    max_attempts=10
     while [ ! -f "${age_key_file}" ]; do
+        attempt=$((attempt + 1))
+        if [ "${attempt}" -gt "${max_attempts}" ]; then
+            error "Failed to decrypt ${age_blob} after ${max_attempts} attempts — giving up."
+        fi
         {{ .chezmoi.executable }} age decrypt --passphrase --output "${age_key_file}" "${age_blob}" \
-            || log_error "Decrypting ${age_blob} failed. Try again..."
+            || log_error "Decrypting ${age_blob} failed (attempt ${attempt}/${max_attempts}). Try again..."
     done
     chmod 600 "${age_key_file}"
 fi
