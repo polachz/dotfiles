@@ -1,9 +1,13 @@
 # Aliases, environment variables & functions reference
 
-**Not yet auto-generated** (`CONCEPT_ROADMAP.md` §3.4 plans to generate this
-file from `.chezmoidata/{aliases,env}/**/*.yaml` directly — not built yet).
-This is a hand-maintained snapshot; if it drifts from the YAML, the YAML is
-the source of truth.
+**Partially auto-generated** (`CONCEPT_ROADMAP.md` §3.4). The blocks between
+`<!-- GENERATED:... -->` markers are generated straight from
+`.chezmoidata/aliases/` and `.chezmoidata/env/` — regenerate with
+`edit-aliases-core` (no args = regen-only mode; give it a YAML file path to
+edit + validate + regenerate in one step). Never edit inside those markers by
+hand, it's overwritten verbatim on every regeneration. Everything outside the
+markers (prose, non-YAML-sourced sections like Power management or the
+personal/zsh-only scopes) is still hand-maintained.
 
 **Looking to add a new entry, not just look one up?** See
 [`DAILY_WORKFLOW.md` → S10 (alias)](./DAILY_WORKFLOW.md#s10-add-a-new-alias),
@@ -19,58 +23,51 @@ regardless of `kind`.
 
 ---
 
+<!-- GENERATED:aliases-doc-aliases:start (see .chezmoitemplates/generate-aliases-doc-aliases; regenerate with `edit-aliases-core`, no args = regen-only mode — do not edit this block by hand) -->
 ## Common scope — aliases (`.chezmoidata/aliases/common/`)
 
-Present on every profile/OS (an entry's `command` can still vary by OS — see
-the `darwin`/`windows` columns below where relevant).
+### `ls`
 
-### Navigation (`nav.yaml`)
+| Command | Linux | macOS | Windows | Kind | Description |
+|---|---|---|---|---|---|
+| `ll` | `ls -l --color` | `ls -l -G` | `Get-ChildItem` | abbr | List all files and folders in long format |
+| `la` | `ls -A --color` | `ls -A -G` | `Get-ChildItem -Force` | abbr | List all entries including hidden ones |
+| `lla` | `ls -Al --color` | `ls -Al -G` | `Get-ChildItem -Force` | abbr | List all entries including hidden ones, in long format |
+| `ld` | `ls -d --color */` | `ls -d -G */` | `Get-ChildItem -Directory` | abbr | List only directories |
+| `lld` | `ls -ld --color */` | `ls -ld -G */` | `Get-ChildItem -Directory` | abbr | List only directories, in long format |
+| `lh` | `ls -ld --color .[^.]* ..?*` | `ls -ld -G .[^.]* ..?*` | `Get-ChildItem -Hidden` | abbr | List only hidden files and directories |
+| `llh` | `ls -ld --color .[^.]* ..?*` | `ls -ld -G .[^.]* ..?*` | `Get-ChildItem -Hidden` | abbr | List only hidden files and directories, in long format |
+| `lt` | `ls --human-readable --size -1 -S --classify` | `ls --human-readable --size -1 -S --classify` | `Get-ChildItem \| Sort-Object Length -Descending` | abbr | List folder contents sorted by size, with item type marker |
+| `lm` | `ls -t -1 --color` | `ls -t -1 -G` | `Get-ChildItem \| Sort-Object LastWriteTime -Descending` | abbr | List files sorted by modification date, newest first |
+| `grep` | `grep --color=auto` | `grep --color=auto` | `Select-String` | alias | Colorized grep (pipes stdin) |
+| `fgrep` | `fgrep --color=auto` | `fgrep --color=auto` | `Select-String -SimpleMatch` | alias | Colorized fgrep (pipes stdin) |
+| `egrep` | `egrep --color=auto` | `egrep --color=auto` | `Select-String` | alias | Colorized egrep (pipes stdin) |
 
-| Command | Expands to | Description |
-|---------|-----------|-------------|
-| `..` | `cd ..` | Up one directory |
-| `...` | `cd ../..` | Up two |
-| `....` | `cd ../../..` | Up three |
-| `.....` | `cd ../../../..` | Up four |
-| `hh` | `cd ~` | Home directory |
-| `ee` | `cd /etc` | `/etc` |
-| `-` | `cd -` | Previous directory |
+### `misc`
 
-### ls variants (`ls.yaml`)
+| Command | Linux | macOS | Windows | Kind | Description |
+|---|---|---|---|---|---|
+| `gh` | `history \| grep` | `history \| grep` | `Get-History \| Out-String -Stream \| Select-String` | abbr | Search shell history for a pattern (session-scope only, on every shell) |
+| `count` | `find . -type f \| wc -l` | `find . -type f \| wc -l` | `Get-ChildItem -Recurse -File \| Measure-Object \| Select-Object -ExpandProperty Count` | abbr | Count all files in the current directory tree |
+| `makeme` | `sudo chown $USER:$USER` | `sudo chown $USER:$USER` | `Start-Process pwsh -Verb RunAs -ArgumentList '-NoProfile','-Command',"takeown /F `"$args`""` | abbr | Set file owner to the current user |
+| `makeroot` | `sudo chown 0:0` | `sudo chown 0:0` | `Start-Process pwsh -Verb RunAs -ArgumentList '-NoProfile','-Command',"takeown /F `"$args`" /A"` | abbr | Set file owner to root (Windows — Administrators group) |
+| `sha` | `shasum -a 256` | `shasum -a 256` | `Get-FileHash -Algorithm SHA256 -Path` | abbr | SHA-256 checksum shortcut |
+| `ping` | `ping -c 5` | `ping -c 5` | `ping.exe -n 5` | alias | Ping with a bounded count of 5 |
+| `ports` | `netstat -tulanp` | `lsof -iTCP -sTCP:LISTEN -n -P` | `Get-NetTCPConnection -State Listen` | abbr | Show all listening ports on this machine |
+| `week` | `date +%V` | `date +%V` | `Get-Date -UFormat %V` | abbr | Print the current ISO week number |
 
-| Command | Linux | macOS | Windows | Description |
-|---------|-------|-------|---------|-------------|
-| `ll` | `ls -l --color` | `ls -l -G` | skipped | Long format |
-| `la` | `ls -A --color` | `ls -A -G` | skipped | Include hidden |
-| `lla` | `ls -Al --color` | `ls -Al -G` | skipped | Long + hidden |
-| `ld` | `ls -d --color */` | `ls -d -G */` | skipped | Directories only |
-| `lld` | `ls -ld --color */` | `ls -ld -G */` | skipped | Directories only, long |
-| `lh` | `ls -ld --color .[^.]* ..?*` | `ls -ld -G .[^.]* ..?*` | skipped | Hidden entries only |
-| `llh` | same as `lh`, long | same, long | skipped | Hidden entries only, long |
-| `lt` | `ls --human-readable --size -1 -S --classify` (all OSes) | | | Sorted by size, classified |
-| `lm` | `ls -t -1 --color` | `ls -t -1 -G` | skipped | Sorted by modification time |
+### `nav`
 
-Colored grep — **`kind: alias`** (not `abbr`), since there's nothing to
-reveal, just added flags:
-
-| Command | Expands to |
-|---------|-----------|
-| `grep` | `grep --color=auto` |
-| `fgrep` | `fgrep --color=auto` |
-| `egrep` | `egrep --color=auto` |
-
-### Miscellaneous (`misc.yaml`)
-
-| Command | Linux | macOS | Description |
-|---------|-------|-------|-------------|
-| `gh` | `history \| grep` | same | Search shell history |
-| `count` | `find . -type f \| wc -l` | same | Count files in tree |
-| `makeme` | `sudo chown $USER:$USER` | same | Take ownership of a file |
-| `makeroot` | `sudo chown 0:0` | same | Give a file to root |
-| `sha` | `shasum -a 256` | same | SHA-256 a file |
-| `ping` (`kind: alias`) | `ping -c 5` | same | Ping 5× then stop (Windows-like) |
-| `ports` | `netstat -tulanp` | `lsof -iTCP -sTCP:LISTEN -n -P` (Windows: skipped) | All listening ports |
-| `week` | `date +%V` | same | ISO week number |
+| Command | Linux | macOS | Windows | Kind | Description |
+|---|---|---|---|---|---|
+| `..` | `cd ..` | `cd ..` | `Set-Location ..` | abbr | Go up one directory |
+| `...` | `cd ../..` | `cd ../..` | `Set-Location ../..` | abbr | Go up two directories |
+| `....` | `cd ../../..` | `cd ../../..` | `Set-Location ../../..` | abbr | Go up three directories |
+| `.....` | `cd ../../../..` | `cd ../../../..` | `Set-Location ../../../..` | abbr | Go up four directories |
+| `hh` | `cd ~` | `cd ~` | `Set-Location ~` | abbr | Go to home directory |
+| `ee` | `cd /etc` | `cd /etc` | `Set-Location C:\Windows\System32\drivers\etc` | abbr | Go to /etc (Windows equivalent — hosts file, protocol/service definitions) |
+| `-` | `cd -` | `cd -` | — | abbr | Go to previous directory |
+<!-- GENERATED:aliases-doc-aliases:end -->
 
 **Not yet migrated to the YAML model** (need per-shell native syntax, not a
 plain command string — see `.chezmoidata/aliases/common/misc.yaml`'s own
@@ -95,15 +92,46 @@ root they run directly.
 
 ---
 
+<!-- GENERATED:aliases-doc-env:start (see .chezmoitemplates/generate-aliases-doc-env; regenerate with `edit-aliases-core`, no args = regen-only mode — do not edit this block by hand) -->
 ## Common scope — environment variables (`.chezmoidata/env/common/`)
 
-| Variable | Value | Purpose |
-|----------|-------|---------|
-| `EDITOR` | `nano` | Default editor |
-| `LANG` / `LC_ALL` | `en_US.UTF-8` | US English, UTF-8 |
-| `PYTHONIOENCODING` | `UTF-8` | Force UTF-8 Python I/O |
-| `MANPAGER` | `less -X` | Don't clear screen after a man page |
-| `LESS_TERMCAP_*` | (ANSI colors) | Colorized man pages |
+### `editor`
+
+| Variable | Linux | macOS | Windows | Description |
+|---|---|---|---|---|
+| `EDITOR` | `nano` | `nano` | `nano` | Default editor |
+
+### `less_colors`
+
+| Variable | Linux | macOS | Windows | Description |
+|---|---|---|---|---|
+| `LESS_TERMCAP_mb` | `\e[01;31m` | `\e[01;31m` | — | Begin blinking |
+| `LESS_TERMCAP_md` | `\e[01;38;5;74m` | `\e[01;38;5;74m` | — | Begin bold |
+| `LESS_TERMCAP_me` | `\e[0m` | `\e[0m` | — | End mode |
+| `LESS_TERMCAP_se` | `\e[0m` | `\e[0m` | — | End standout-mode |
+| `LESS_TERMCAP_so` | `\e[38;5;246m` | `\e[38;5;246m` | — | Begin standout-mode - info box |
+| `LESS_TERMCAP_ue` | `\e[0m` | `\e[0m` | — | End underline |
+| `LESS_TERMCAP_us` | `\e[04;38;5;146m` | `\e[04;38;5;146m` | — | Begin underline |
+
+### `locale`
+
+| Variable | Linux | macOS | Windows | Description |
+|---|---|---|---|---|
+| `LANG` | `en_US.UTF-8` | `en_US.UTF-8` | `en_US.UTF-8` | Prefer US English and use UTF-8 |
+| `LC_ALL` | `en_US.UTF-8` | `en_US.UTF-8` | `en_US.UTF-8` | Prefer US English and use UTF-8 |
+
+### `pager`
+
+| Variable | Linux | macOS | Windows | Description |
+|---|---|---|---|---|
+| `MANPAGER` | `less -X` | `less -X` | — | Don't clear the screen after quitting a manual page |
+
+### `python`
+
+| Variable | Linux | macOS | Windows | Description |
+|---|---|---|---|---|
+| `PYTHONIOENCODING` | `UTF-8` | `UTF-8` | `UTF-8` | Make Python use UTF-8 encoding for stdin/stdout/stderr |
+<!-- GENERATED:aliases-doc-env:end -->
 
 **Not yet migrated to the YAML model** (still bash/zsh-only, in
 `dot_bashrc.d/01-bash-history.sh`, no fish equivalent since fish has its own
