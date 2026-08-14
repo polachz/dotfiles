@@ -26,11 +26,11 @@ set -uo pipefail
 
 # ───── Colors ────────────────────────────────────────────────────────────────
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[1;33m'; NC='\033[0m'
-ok()   { printf "${GREEN}✓ %s${NC}\n" "$*"; }
+RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; ORANGE='\033[38;5;208m'; NC='\033[0m'
+ok()   { printf "${GREEN}✅ %s${NC}\n" "$*"; }  # not ✓ — ambiguous-width glyph, same class as ℹ/⚠
 err()  { printf "${RED}✗ %s${NC}\n" "$*" >&2; }
-warn() { printf "${YELLOW}⚠ %s${NC}\n" "$*"; }
-info() { printf "${BLUE}ℹ %s${NC}\n" "$*"; }
+warn() { printf "${ORANGE}🔶 %s${NC}\n" "$*"; }  # not ⚠ — ambiguous-width glyph renders inconsistently across terminal fonts; orange to match the diamond
+info() { printf "${BLUE}🔵 %s${NC}\n" "$*"; }  # not ℹ — same reason
 step() { printf "\n${BLUE}━━━ %s ━━━${NC}\n" "$*"; }
 
 die() { err "$*"; exit 1; }

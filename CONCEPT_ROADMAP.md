@@ -785,6 +785,41 @@ byte `033` všude), plný sandboxový `chezmoi apply --exclude=scripts` (skripty
 interaktivnímu Age passphrase promptu v `run_once_before_init_age.sh.tmpl`, který v neinteraktivním
 sandboxu zůstal viset — reálný blocker pro §8, ne bug v tomhle kroku).
 
+**Secret injekce z evaultu — IMPLEMENTOVÁNO a živě ověřeno (2026-08-14).** První reálný
+konzument: git identity (`dot_config/private_git/{personal,work}/{common,hosts/github}
+.gitconfig.tmpl`, viz uživatelský požadavek "chci mít firemní i GitHub noreply email v evaultu" —
+mimo původní env-proměnné use-case z §4.1/4.2 výše, ale stejný mechanismus). Nový sdílený
+`.chezmoitemplates/evault-field` (dict `{profile, path, sourceDir, keysDir}` → dešifrovaná
+hodnota): `output "ejson" "-keydir" <keysDir> "decrypt" <evault>` (POZOR na pořadí — `-keydir` je
+GLOBAL flag u `ejson`, musí být PŘED subpříkazem `decrypt`, ne za ním) + `fromJson` + procházení
+tečkami odděleného `path`. `sourceDir`/`keysDir` se předávají explicitně v dictu, ne přes `$` —
+`includeTemplate` přenastaví `$` na dict argument, takže `$.chezmoi.sourceDir` uvnitř partialu
+selže s "map has no entry for key chezmoi" (na rozdíl od nativní `{{ template }}` akce, kde `$`
+zůstává svázané s kořenovými daty celého volání).
+
+Fail-fast ověřeno na obou úrovních: (1) chybějící EJSON klíč → `ejson decrypt` selže, chyba se
+propaguje přes `output`; (2) chybějící/překlepnuté pole v `path` → **bez extra kódu by Go
+template `index` na chybějící klíč mapy tiše vrátil nil** (`<no value>`, exit 0) — živě ověřeno,
+opraveno explicitní `hasKey` kontrolou v každém kroku průchodu s `fail` a čitelnou chybovou
+hláškou (`walked: git.foo`, ne jen "chyba někde").
+
+Evault schéma (`git.user`/`git.email`/`git.github_email`) živě odladěno s uživatelem přes
+`edit-evault` — cestou se objevily dvě samostatné drobnosti, obě opravené:
+- `edit-evault` při neplatném JSONu dřív tvrdě skončilo a nechalo plaintext v `/tmp` bez cesty
+  zpět — teď nabídne opětovné otevření editoru ve smyčce, dokud JSON není platný nebo uživatel
+  výslovně neodmítne.
+- Piktogramy v `scripts-library`/`bootstrap.sh`/`helpers/setup-encryption.sh` (`ℹ️`/`⚠️`/`⚠`/`✓`)
+  používají buď variation selector (U+FE0F), nebo jsou samy o sobě Unicode
+  East Asian Width=Ambiguous — terminály/fonty je vykreslují nekonzistentně (glyf široký, kurzor
+  postoupí jen o 1 buňku → slití s dalším textem, přesně tohle uživatel viděl na screenshotu).
+  Nahrazeno nativně širokými emoji bez ambiguity: `log_info`→🔵, `log_ok`→✅, `log_warn`→🔶
+  (barva změněna ze žluté na oranžovou, sladěno s ikonou), `log_manual_action`→🔴 (kruh, pár k
+  🔵, odlišný od kosočtverce `log_warn`).
+
+`personal` profil má stejnou strukturu (`git.user`/`git.email`/`git.github_email`), ale jeho
+EJSON klíč není na vývojovém stroji odemčený (žádný personal stroj zatím neexistuje, §1) —
+šablony jsou hotové a syntakticky ověřené, ale ne živě protestované na reálných personal datech.
+
 ---
 
 ## 5. Editor config (nano/vim)

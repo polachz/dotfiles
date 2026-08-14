@@ -43,12 +43,21 @@ function log_brown() {
   log_color "0;33" "$@"
 }
 
+function log_orange() {
+  log_color "38;5;208" "$@"
+}
+
 function log_task() {
   log_blue "🔃" "$@"
 }
 
 function log_manual_action() {
-  log_red "⚠️" "$@"
+  # 🔴, not ⚠️ — ⚠️ is a narrow base glyph (U+26A0) forced wide via a variation
+  # selector (U+FE0F), which some terminal fonts render inconsistently (glyph
+  # draws wide but the cursor only advances one cell, colliding with the next
+  # character). 🔴 is natively wide, no ambiguity, and pairs visually with
+  # log_info's 🔵 (both circles) while staying distinct from log_warn's 🔶.
+  log_red "🔴" "$@"
 }
 
 function log_c() {
@@ -70,15 +79,22 @@ function log_error() {
 }
 
 function log_info() {
-  log_blue "ℹ️" "$@"
+  # 🔵, not ℹ️ — ℹ️ is a narrow base glyph (U+2139) forced wide via a variation
+  # selector (U+FE0F), which some terminal fonts render inconsistently.
+  log_blue "🔵" "$@"
 }
 
 function log_ok() {
-  log_green "✓" "$@"
+  # ✅, not ✓ — ✓ (U+2713) is Unicode East Asian Width=Ambiguous, same
+  # inconsistent-rendering class as ℹ️/⚠️ above. ✅ is natively wide.
+  log_green "✅" "$@"
 }
 
 function log_warn() {
-  log_yellow "⚠" "$@"
+  # 🔶, not ⚠ — ⚠ alone (no variation selector) defaults to narrow presentation
+  # in most fonts anyway, but is still Unicode East Asian Width=Ambiguous, same
+  # class of inconsistency. Orange (not yellow) to match the diamond's color.
+  log_orange "🔶" "$@"
 }
 
 function log_debug_force() {

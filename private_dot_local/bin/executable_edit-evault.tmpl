@@ -158,26 +158,39 @@ chmod 600 "${TMP_FILE}"
 # Snapshot the file's content hash before editing — if unchanged, skip re-encrypt
 HASH_BEFORE=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
 
-log_info "Opening ${EDITOR_CMD}..."
-# `|| true` — under scripts-library's `set -e`, a non-zero editor exit (e.g.
-# an abnormal quit) must NOT skip straight to the cleanup trap, which would
-# shred the tmp file before the hash-check/re-encrypt below ever runs.
-"${EDITOR_CMD}" "${TMP_FILE}" || true
+# Loops on invalid JSON so a typo doesn't force a manual /tmp recovery dance —
+# re-opens the same tmp file (edits so far are preserved) until it's either
+# valid JSON or the user explicitly gives up.
+while true; do
+    log_info "Opening ${EDITOR_CMD}..."
+    # `|| true` — under scripts-library's `set -e`, a non-zero editor exit (e.g.
+    # an abnormal quit) must NOT skip straight to the cleanup trap, which would
+    # shred the tmp file before the hash-check/re-encrypt below ever runs.
+    "${EDITOR_CMD}" "${TMP_FILE}" || true
 
-HASH_AFTER=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
-if [ "${HASH_BEFORE}" = "${HASH_AFTER}" ]; then
-    log_ok "No changes — skipping re-encrypt."
-    exit 0
-fi
+    HASH_AFTER=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
+    if [ "${HASH_BEFORE}" = "${HASH_AFTER}" ]; then
+        log_ok "No changes — skipping re-encrypt."
+        exit 0
+    fi
 
-# Sanity check — must still be valid JSON before encrypting
-if ! python3 -c "import json,sys; json.load(open('${TMP_FILE}'))" 2>/dev/null; then
-    log_error "Edited file is not valid JSON — refusing to encrypt"
-    log_error "Plaintext is still at ${TMP_FILE}; copy your work somewhere before exit"
-    # Disable cleanup so user can recover
-    trap - EXIT
-    exit 1
-fi
+    # Sanity check — must still be valid JSON before encrypting
+    if python3 -c "import json,sys; json.load(open('${TMP_FILE}'))" 2>/dev/null; then
+        break
+    fi
+
+    log_error "Edited file is not valid JSON."
+    printf "Re-open %s to fix it? [Y/n] " "${EDITOR_CMD}"
+    read -r retry_choice
+    case "${retry_choice}" in
+        [Nn]*)
+            log_error "Plaintext is still at ${TMP_FILE}; copy your work somewhere before exit"
+            # Disable cleanup so user can recover
+            trap - EXIT
+            exit 1
+            ;;
+    esac
+done
 
 log_info "Re-encrypting evault into ${REPO}..."
 # ejson encrypt modifies in place — give it a fresh copy at the repo location

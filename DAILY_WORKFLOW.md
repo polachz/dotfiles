@@ -55,15 +55,13 @@ chezmoi verify && echo OK
 
 ### S2. Change a value in evault
 
-**Current state (2026-08-01): no template actually reads the evault yet.**
-`secrets/<profile>/evault` still has its original skeleton content
-(`git.user`/`git.email`), but nothing consumes it via `ejsonValue`/
-`output "ejson" "decrypt" ...` — the real git identity comes from a plain,
-unencrypted fragment (`dot_config/private_git/work/common.gitconfig`)
-instead. The scenario below describes the *intended* workflow once a
-template actually pulls a secret value out of the evault (see
-`CONCEPT_ROADMAP.md` §4.2 — designed, not built) — keep it in mind as the
-target shape, not today's reality.
+**Implemented and live-verified (2026-08-14)** — `dot_config/private_git/{personal,work}/
+common.gitconfig.tmpl` and `hosts/github.gitconfig.tmpl` are the first real consumers, via
+`.chezmoitemplates/evault-field` (shells out to `ejson -keydir <dir> decrypt <evault>` +
+`fromJson`, not `include`/`ejsonValue` — see the corrected verify command below). Requires the
+profile's EJSON key already unlocked at `~/.config/chezmoi/keys/` (`run_once_before_init_age.sh.tmpl`
+sets this up, runs before file application in the same apply) — missing key fails the whole
+`chezmoi apply` loudly on these files, not a silent empty value.
 
 ```bash
 # Decrypt → edit → re-encrypt (with the helper)
@@ -79,22 +77,32 @@ git push
 chezmoi update -v
 ```
 
-**Once a template consumes it**, no template change is needed for a
-value-only edit — it calls `ejsonValue`/similar dynamically. Only the data
-layer (evault) changes.
+**No template change needed for a value-only edit** — `evault-field` reads dynamically at
+apply-time. Only the data layer (evault) changes. Adding a genuinely *new* field (not just
+changing an existing one) does need one new `includeTemplate "evault-field" (dict ...)` call in
+whichever `.tmpl` file wants it — see `dot_config/private_git/work/hosts/github.gitconfig.tmpl`
+for the pattern.
 
 **Common mistakes:**
 - Manual `ejson decrypt > /tmp/evault.json`, edit, forget to shred
-  `/tmp/evault.json` → plaintext on disk.
+  `/tmp/evault.json` → plaintext on disk. (`edit-evault` avoids this — tmpfs-first, shreds on
+  exit — but now also lets you re-open the editor on invalid JSON instead of leaving plaintext
+  stranded in `/tmp`, since 2026-08-14.)
 - Re-encrypt with wrong `_public_key` → unreachable blob (recoverable
   only if you still have the old EJSON key in `~/.config/chezmoi/keys/`).
 - Reference a field in a template that doesn't exist in evault →
   template render error (see [E7](#e7-template-render-error-missing-evault-field)).
+- Mixing up which key means what — `git.email` is the fallback/common identity, `git.github_email`
+  is the GitHub-only override. Swapping them silently commits under the wrong address (git itself
+  won't complain, since both are valid email strings).
 
 **Verify:**
 ```bash
-chezmoi execute-template '{{ (include .ejson_vault | fromJson).git.email }}'
-# → prints the new email
+chezmoi execute-template --source ~/Devel/dotfiles \
+  '{{ includeTemplate "evault-field" (dict "profile" "personal" "path" "git.email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}'
+# → prints the new email, actually decrypted (NOT `{{ (include .ejson_vault | fromJson).git.email }}`
+#   — that would only parse the evault's JSON *structure* and return the still-encrypted
+#   "EJ[...]" ciphertext string, since `include` just reads the raw file, it doesn't decrypt)
 chezmoi diff                # shows the rendered template diff
 ```
 

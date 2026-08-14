@@ -1,0 +1,24 @@
+{{- /* Decrypts one field out of a profile's EJSON evault at apply-time (first real use case */ -}}
+{{- /* for the evault-secret-injection mechanism sketched in CONCEPT_ROADMAP.md §4.2). */ -}}
+{{- /* Expects a dict as input with keys "profile" (e.g. "work") and "path" — a dot-separated */ -}}
+{{- /* key path into the decrypted JSON, e.g. "git.github_email". Returns the string value. */ -}}
+{{- /* Requires the EJSON private key for that profile to already be unlocked at */ -}}
+{{- /* .crypt.keys_dir (see run_once_before_init_age.sh.tmpl, a run_once_before_ script that */ -}}
+{{- /* runs ahead of file application in the same apply) — fails loudly if missing rather than */ -}}
+{{- /* silently rendering an empty value. */ -}}
+{{- /* NOTE: takes .chezmoi.sourceDir and .crypt.keys_dir explicitly (not via $) because */ -}}
+{{- /* includeTemplate re-roots $ to this dict, not the caller's top-level data. */ -}}
+{{- $profile := .profile -}}
+{{- $path := .path -}}
+{{- $evaultFile := joinPath .sourceDir "secrets" $profile "evault" -}}
+{{- $decrypted := output "ejson" "-keydir" .keysDir "decrypt" $evaultFile | fromJson -}}
+{{- $value := $decrypted -}}
+{{- $walked := list -}}
+{{- range splitList "." $path -}}
+{{- $walked = append $walked . -}}
+{{- if not (and (kindIs "map" $value) (hasKey $value .)) -}}
+{{- fail (printf "evault-field: %q has no key %q (walked: %s, profile: %s)" $path . (join "." $walked) $profile) -}}
+{{- end -}}
+{{- $value = index $value . -}}
+{{- end -}}
+{{- $value -}}

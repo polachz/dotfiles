@@ -128,6 +128,7 @@ repo clone, but they can't be decrypted without the matching Age key.
 | Flag | Description |
 |---|---|
 | `-p`, `--profile <personal\|work>` | Pre-select profile (skip menu) |
+| `-b`, `--branch <name>` | Clone/checkout this git branch instead of the default branch (e.g. to bootstrap from a work-in-progress branch not yet merged to main) |
 | `-d`, `--dry-run` | Show what would change without applying |
 | `-a`, `--apply` | Force apply (overrides dry-run default on re-runs) |
 | `-v`, `--verbose` | Verbose output |
@@ -141,6 +142,7 @@ repo clone, but they can't be decrypted without the matching Age key.
 | Variable | Description |
 |---|---|
 | `CHZ_DEPLOYMENT_PROFILE` | Profile selector (`personal` or `work`) — same as `--profile`. Bridged internally to `DOTFILES_PROFILE` before invoking chezmoi. |
+| `CHZ_BOOTSTRAP_BRANCH` | Same as `--branch` |
 | `CHZ_BOOTSTRAP_DRY_RUN` | Set to `1` to run in dry-run mode |
 | `CHZ_BOOTSTRAP_VERBOSE` | Set to `1` for verbose output |
 | `CHZ_DOTFILES_DEBUG` | Set to `1` to enable `set -x` debug mode in dotfile scripts |
@@ -283,16 +285,25 @@ directly into `$HOME\.ssh\config` instead, inside a managed
 | File | Scope | Purpose |
 |---|---|---|
 | `common.gitconfig` | universal | Empty — no OS/profile-independent setting identified yet |
-| `work/common.gitconfig` | work | `[user]` name/email (fallback identity) |
-| `work/hosts/github.gitconfig` | work | Per-host override for GitHub remotes (`includeIf hasconfig:remote.*.url:...`) — deliberately empty scaffold, no noreply email configured yet |
+| `{personal,work}/common.gitconfig.tmpl` | per-profile | `[user]` name/email (fallback identity) — **sourced from the profile's EJSON evault** (`git.user`/`git.email`), not plaintext |
+| `{personal,work}/hosts/github.gitconfig.tmpl` | per-profile | Per-host override for GitHub remotes (`includeIf hasconfig:remote.*.url:...`) — `[user] email` from the evault's `git.github_email` (GitHub "keep my email private" noreply address) |
+
+**First real use of the evault-secret-injection mechanism** (CONCEPT_ROADMAP.md §4.2) — these
+four files are `.tmpl` and call `.chezmoitemplates/evault-field`, which shells out to `ejson
+decrypt` at apply-time. This means **git identity now requires an already-unlocked EJSON key**
+for that profile (`run_once_before_init_age.sh.tmpl` sets this up, runs before file application
+in the same apply) — a real behavior change from before, when git config was plain, secret-free
+text that worked with zero prerequisites. Missing key → the whole `chezmoi apply` fails loudly on
+these files, not a silent empty value.
 
 Same fragments on Windows too (`run_after_ensure-gitconfig-includes.ps1.tmpl`)
 — git for Windows honors `$HOME` and tilde-expands `path =` values itself,
 so the include/includeIf mechanism works unchanged there, unlike SSH.
 
-To use a GitHub "keep my email private" address, edit
-`~/Devel/dotfiles/dot_config/private_git/work/hosts/github.gitconfig`
-directly (see comment inside for the exact syntax), commit, push.
+To change identity values, `edit-evault {personal,work}` and edit the `git.user`/`git.email`/
+`git.github_email` fields — never edit the rendered `~/.config/git/...` files directly (chezmoi
+would overwrite them, and the source `.tmpl` files no longer contain any plaintext identity to
+edit anyway).
 
 ### Utilities installed to `~/.local/bin/`
 

@@ -1,7 +1,0 @@
-# Per-host override for repos with a github.com remote (see
-# CONCEPT_ROADMAP.md §2.3) — deliberately left empty (2026-08-01, user
-# decision: prepare the includeIf mechanism, not the value). To use a
-# GitHub "keep my email private" noreply address, add:
-#
-# [user]
-#     email = id+username@users.noreply.github.com

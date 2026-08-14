@@ -1,0 +1,9 @@
+{{- /*
+  Per-host override for repos with a github.com remote (see CONCEPT_ROADMAP.md
+  §2.3/§4.2) — overrides just the email from common.gitconfig.tmpl with the
+  GitHub "keep my email private" noreply address, sourced from the work EJSON
+  evault (git.github_email, edit via 'edit-evault work'). name is unchanged
+  (same across hosts, only email differs for GitHub).
+*/ -}}
+[user]
+    email = {{ includeTemplate "evault-field" (dict "profile" "work" "path" "git.github_email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}

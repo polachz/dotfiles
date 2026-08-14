@@ -23,7 +23,7 @@ log_yellow() { log_color "1;33" "$@"; }
 log_brown()  { log_color "0;33" "$@"; }
 log_task()   { log_blue "🔃" "$@"; }
 log_error()  { log_red "❌" "$@"; }
-log_info()   { log_blue "ℹ️" "$@"; }
+log_info()   { log_blue "🔵" "$@"; }  # not ℹ️ — narrow glyph forced wide via variation selector renders inconsistently across terminal fonts
 error()      { log_error "$@"; exit 1; }
 
 log_debug_force() { log_brown "🔎" "$@"; }
@@ -51,6 +51,9 @@ Usage: bootstrap.sh [options]
 
 Options:
   -p, --profile <personal|work>  Pre-select dotfiles profile (skip menu)
+  -b, --branch <name>            Clone/checkout this git branch instead of the
+                                  default branch (e.g. a work-in-progress
+                                  branch not yet merged to main)
   -d, --dry-run                  Run chezmoi in dry-run mode
   -a, --apply                    Force apply (overrides default on re-runs)
   -v, --verbose                  Verbose output
@@ -62,6 +65,7 @@ Options:
 
 Env vars:
   CHZ_DEPLOYMENT_PROFILE         Same as --profile
+  CHZ_BOOTSTRAP_BRANCH           Same as --branch
   CHZ_BOOTSTRAP_DRY_RUN          Set to 1 to dry-run
   CHZ_BOOTSTRAP_VERBOSE          Set to 1 for verbose output
   CHZ_DOTFILES_DEBUG             Set to 1 to trace dotfile scripts
@@ -72,6 +76,11 @@ while [ $# -gt 0 ]; do
     case "$1" in
         -p|--profile)
             CHZ_DEPLOYMENT_PROFILE="$2"
+            shift
+            ;;
+        -b|--branch)
+            CHZ_BOOTSTRAP_BRANCH="${2:-}"
+            [ -z "${CHZ_BOOTSTRAP_BRANCH}" ] && error "--branch requires a branch name argument"
             shift
             ;;
         -d|--dry-run)
@@ -241,6 +250,10 @@ if [ -n "${bootstrap_force_apply-}" ]; then
 elif [ -n "${CHZ_BOOTSTRAP_DRY_RUN-}" ]; then
     set -- "$@" --dry-run
 else
+    if [ -n "${CHZ_BOOTSTRAP_BRANCH-}" ]; then
+        log_info "Using branch: ${CHZ_BOOTSTRAP_BRANCH}"
+        set -- "$@" --branch "${CHZ_BOOTSTRAP_BRANCH}"
+    fi
     set -- "$@" --apply "${chezmoi_github_url}"
 fi
 

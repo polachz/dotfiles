@@ -1,0 +1,8 @@
+{{- /*
+  Same pattern as work/common.gitconfig.tmpl — name/email sourced from the personal
+  EJSON evault (secrets/personal/evault, edit via 'edit-evault personal'), not
+  plaintext. See .chezmoitemplates/evault-field and CONCEPT_ROADMAP.md §4.2.
+*/ -}}
+[user]
+    name = {{ includeTemplate "evault-field" (dict "profile" "personal" "path" "git.user" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
+    email = {{ includeTemplate "evault-field" (dict "profile" "personal" "path" "git.email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
