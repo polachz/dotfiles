@@ -39,6 +39,13 @@ packages:
       copr: scottames/ghostty # not in default Fedora repos (verified live 2026-08-07)
       apt: skip
       winget: skip # replaced by Windows Terminal on Windows
+    - name: jetbrains-mono-nerd-font
+      roles: [workstation]
+      requires_gui: true
+      dnf: skip # not verified yet — needs per-distro nerd-fonts packaging check
+      apt: skip # not verified yet — needs per-distro nerd-fonts packaging check
+      brew: font-jetbrains-mono-nerd-font # cask, brew auto-detects (verified live 2026-08-14)
+      winget: skip # not verified yet
     - name: windows-terminal
       roles: [workstation]
       requires_gui: true
