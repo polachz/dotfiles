@@ -243,13 +243,21 @@ if [ "$(uname -s)" = "Darwin" ] && ! pkgutil --pkg-info=com.apple.pkg.CLTools_Ex
     clt_placeholder="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
     touch "${clt_placeholder}"
     clt_label=$(softwareupdate -l 2>/dev/null | grep "^\* Label: Command Line Tools" | sed 's/^\* Label: //' | sort -V | tail -n1)
-    rm -f "${clt_placeholder}"
-    if [ -n "${clt_label}" ]; then
-        sudo softwareupdate -i "${clt_label}"
-        log_info "Xcode Command Line Tools installed."
-    else
-        log_yellow "Could not find Command Line Tools in softwareupdate catalog — install manually with 'xcode-select --install' and re-run."
+    if [ -z "${clt_label}" ]; then
+        rm -f "${clt_placeholder}"
+        error "Could not find Command Line Tools in the softwareupdate catalog — install manually with 'xcode-select --install' and re-run."
     fi
+    # The placeholder must stay in place until the real -i install finishes —
+    # removing it right after -l (as a previous version of this script did)
+    # makes softwareupdate report "No such update" on -i even though the
+    # label was just listed, confirmed live.
+    sudo softwareupdate -i "${clt_label}"
+    clt_install_status=$?
+    rm -f "${clt_placeholder}"
+    if [ "${clt_install_status}" -ne 0 ]; then
+        error "softwareupdate failed to install Command Line Tools (label: ${clt_label}) — install manually with 'xcode-select --install' and re-run."
+    fi
+    log_info "Xcode Command Line Tools installed."
 fi
 
 # ───── macOS: ensure Homebrew ─────────────────────────────────────────────────
