@@ -11,6 +11,9 @@ packages:
   work: []
   # Tools independent of profile, gated by role/GUI/platform instead.
   workstation_tools:
+    - name: fish
+      roles: [workstation]
+      winget: skip # not a target shell on Windows in this project — PowerShell 7 covers that (see CONCEPT_ROADMAP.md §1)
     - name: starship
       roles: [workstation]
       dnf: skip # not in default Fedora repos (verified live 2026-08-07)
