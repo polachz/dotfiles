@@ -9,7 +9,22 @@ font-size = 13
 # login shell (that's left as zsh, macOS's system default, since chsh has
 # wider effects than just this terminal — e.g. SSH sessions on this same
 # machine). Setting it here instead makes Ghostty launch fish without
-# touching the account-wide login shell. Not an absolute path — resolves via
-# PATH, which on macOS includes Homebrew's bin dir via /etc/paths.d/homebrew
-# (added by the Homebrew .pkg installer) even for GUI-launched apps.
+# touching the account-wide login shell.
+#
+# macOS needs an absolute path — confirmed live on Maclab that a plain
+# "command = fish" fails ("exec: fish: not found"): Ghostty spawns via
+# `login -flp <user> /bin/bash --noprofile --norc -c "exec -l fish"`, which
+# skips /etc/profile entirely, so path_helper never runs and
+# /etc/paths.d/homebrew's PATH addition never applies, unlike a normal login
+# shell. The Homebrew prefix itself differs by CPU architecture (brew's own
+# well-known Apple-Silicon-vs-Intel split, same one bootstrap.sh's
+# `eval "$(brew shellenv)"` fallback chain handles at the shell-script level).
+{{- if eq .chezmoi.os "darwin" }}
+{{- if eq .chezmoi.arch "arm64" }}
+command = /opt/homebrew/bin/fish
+{{- else }}
+command = /usr/local/bin/fish
+{{- end }}
+{{- else }}
 command = fish
+{{- end }}
