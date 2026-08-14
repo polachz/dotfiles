@@ -48,10 +48,10 @@ installed.
 - **EJSON binary** — installed automatically by bootstrap.sh during the first
   run (downloaded from
   [github.com/Shopify/ejson/releases](https://github.com/Shopify/ejson/releases/latest)).
-- **macOS only**: bootstrap self-installs [Homebrew](https://brew.sh/) via its
-  official `.pkg` installer (no Xcode Command Line Tools needed for that), then
-  installs `git` as a Homebrew bottle if missing — no source builds, so CLT is
-  never required by this script at all.
+- **macOS only**: bootstrap headlessly installs Xcode Command Line Tools
+  (needed for `git`, and — confirmed live — also hard-required by Homebrew's
+  own `.pkg` installer preinstall check) if missing, then self-installs
+  [Homebrew](https://brew.sh/) via its official `.pkg` installer.
 - SSH key configured in GitHub — required only if you want to push changes
   back after installation.
 
