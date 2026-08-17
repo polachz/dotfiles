@@ -163,8 +163,8 @@ not an interactive function anymore).
 Native prompt, colorizes `user@host dir$` — red username for root, green
 for a normal user (bash: `PS1` with `\[...\]`; zsh: `PROMPT` with `%{...%}`
 — can't share syntax, but reuse the same `$FG_*` variables from
-`00-colors.sh`). [starship](https://starship.rs/) layers on top if
-installed (`99-starship-init.zsh` / `dot_config/fish/conf.d/starship-init.fish`),
+`00-colors.sh`). [Oh My Posh](https://ohmyposh.dev/) layers on top if
+installed (`99-theme-init.zsh` / `dot_config/fish/conf.d/ohmyposh-init.fish`),
 without replacing this baseline.
 
 ### Git shortcuts (`git-aliases`)

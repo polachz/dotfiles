@@ -402,17 +402,19 @@ are designed but **not implemented yet** — see
 see S3.
 
 **B. A config that should compose common/profile/OS fragments** (the
-pattern already used for git/SSH/Ghostty/starship) — don't hand-roll a new
+pattern already used for git/SSH/Ghostty) — don't hand-roll a new
 mechanism, pick whichever fits the target format:
 
 - **Format has a native include** (git `[include]`, SSH `Include`, Ghostty
   `config-file = ?path`) → drop a fragment at the right scope
   directory/filename (see S13); the composing file or
   `run_after_ensure-*` script wires it in.
-- **Format has no native include** (starship.toml-style) → add a
-  `.chezmoitemplates/<name>-<scope>` partial, call it via
-  `{{ template "<name>-<scope>" . }}` from the composing `.tmpl` — mirror
-  `dot_config/starship.toml.tmpl` + `.chezmoitemplates/starship-{common,personal,work}`.
+- **Format has no native include** → add a `.chezmoitemplates/<name>-<scope>`
+  partial, call it via `{{ template "<name>-<scope>" . }}` from the composing
+  `.tmpl` (this repo doesn't currently have a live example of this specific
+  sub-case — the old `dot_config/starship.toml.tmpl` was the reference
+  implementation before Oh My Posh replaced starship with a single vendored
+  theme file, no composition needed at all).
 
 **If the target is a shell rc file, or anything else under `$HOME` that
 other tools might also write to** (`.bashrc`, `.zshrc`, `.gitconfig`,
@@ -443,7 +445,6 @@ directive wins):
 | git | **Last** included wins a conflicting key | File order: common → profile → profile+OS → `includeIf` host (most specific last) |
 | SSH | **First** matching wins (except cumulative directives like `IdentityFile`) | Numeric filename prefix, lowest number read first — most specific gets the lowest number |
 | Ghostty | Last `config-file` wins (same direction as git) | Static `config` file lists includes common → profile → profile+OS |
-| starship | No native include | Template composition order in `dot_config/starship.toml.tmpl` decides directly |
 
 **3. Never-own-rc-file pattern** (see S12's warning): for `~/.bashrc`,
 `~/.zshrc`, `~/.ssh/config`, `~/.gitconfig`, chezmoi never manages the whole

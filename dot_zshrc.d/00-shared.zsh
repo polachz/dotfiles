@@ -5,7 +5,7 @@
 # have no zsh equivalent). 80-functions-common.sh was excluded until
 # 2026-08-01 for using `export -f` (confirmed no-op/broken in zsh) — fixed,
 # now shared (see CONCEPT_ROADMAP.md §3.8.1).
-for _zpfn_f in "$HOME/.bashrc.d/00-colors.sh" "$HOME/.bashrc.d/05-env-generated.sh" "$HOME/.bashrc.d/50-aliases-generated.sh" "$HOME/.bashrc.d/50-aliases-power.sh" "$HOME/.bashrc.d/80-functions-common.sh" "$HOME/.bashrc.d/git-aliases" "$HOME/.bashrc.d/chezmoi-aliases" "$HOME/.bashrc.d/starship-theme"; do
+for _zpfn_f in "$HOME/.bashrc.d/00-colors.sh" "$HOME/.bashrc.d/05-env-generated.sh" "$HOME/.bashrc.d/50-aliases-generated.sh" "$HOME/.bashrc.d/50-aliases-power.sh" "$HOME/.bashrc.d/80-functions-common.sh" "$HOME/.bashrc.d/git-aliases" "$HOME/.bashrc.d/chezmoi-aliases"; do
     [ -f "${_zpfn_f}" ] && [ -r "${_zpfn_f}" ] && source "${_zpfn_f}"
 done
 

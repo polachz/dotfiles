@@ -4,7 +4,7 @@ Personal dotfiles managed by [chezmoi](https://www.chezmoi.io/). Two profiles
 (`personal` and `work`) with **cryptographic separation** — a personal machine
 physically cannot decrypt work secrets, and vice versa. One data model drives
 **three shells** (bash, zsh, fish) plus terminal (Ghostty) and prompt
-(starship) configuration.
+(Oh My Posh) configuration.
 
 `bootstrap.sh` is a self-contained installer — needs only `curl` or `wget`,
 downloads chezmoi automatically, and walks you through profile selection.
@@ -27,8 +27,8 @@ This README covers day-one usage.
 
 Shells: **bash**, **zsh**, **fish** — one shared alias/env-variable data
 model renders into all three. Native prompt (root=red/user=green) is
-universal; [starship](https://starship.rs/) layers on top wherever it's
-installed.
+universal; [Oh My Posh](https://ohmyposh.dev/) layers on top wherever it's
+installed (zsh/fish/PowerShell — not bash).
 
 ---
 
@@ -104,7 +104,7 @@ override, equivalent to `bootstrap.sh --profile`.
 |---|---|---|
 | **Profile** | `personal` / `work` | Identity — separate Age/EJSON keys, separate secrets, separate git/SSH identity. Cryptographically isolated. |
 | **Role** | `workstation` / `server` | Orthogonal to profile — same identity/keys, different package selection. Every tool in `.chezmoidata/packages.yaml` declares which role(s) it installs on (default: both) — see `CONCEPT_ROADMAP.md` §7. |
-| **has_gui** | `true` / `false` | Orthogonal to role — a workstation can be headless. Gates GUI-only config/packages — Ghostty in `.chezmoiignore.tmpl`, plus any package with `requires_gui: true` (Bitwarden, Windows Terminal, Total Commander). Shell-level config (aliases, env, prompt, starship) deploys regardless. |
+| **has_gui** | `true` / `false` | Orthogonal to role — a workstation can be headless. Gates GUI-only config/packages — Ghostty in `.chezmoiignore.tmpl`, plus any package with `requires_gui: true` (Bitwarden, Windows Terminal, Total Commander). Shell-level config (aliases, env, prompt, Oh My Posh) deploys regardless. |
 
 Each profile has:
 - Its own shell config subdirectory (`~/.bashrc.d/{personal,work}/`,
@@ -224,7 +224,7 @@ byte-identical (colors, generated env/aliases, `80-functions-common.sh`):
 | `10-path.zsh` | `PATH` additions |
 | `10-bitwarden-ssh-agent.zsh` | macOS Bitwarden desktop SSH agent socket |
 | `99-prompt.zsh` | zsh-native prompt (same colors as bash's `99-prompt.sh`, different syntax — can't be shared) |
-| `99-starship-init.zsh` | `eval "$(starship init zsh)"` if installed |
+| `99-theme-init.zsh` | `eval "$(oh-my-posh init zsh --config ...)"` if installed (named "theme-init", not "ohmyposh-init" — has to sort after `99-prompt.zsh` alphabetically so its `PROMPT` assignment wins) |
 | `work/10-gcloud.zsh`, `work/10-vertex-ai.zsh` | Work-only: Google Cloud SDK + Claude Code Vertex AI env vars |
 
 ### Fish configuration (`~/.config/fish/conf.d/`)
@@ -232,7 +232,7 @@ byte-identical (colors, generated env/aliases, `80-functions-common.sh`):
 Fish autoloads everything in `conf.d/*.fish`, so there's no loader file —
 just the generated `aliases.fish`/`env.fish` (see above, rendered as `abbr`
 by default so history stores the expanded command) plus
-`starship-init.fish` (`starship init fish | source`, if installed).
+`ohmyposh-init.fish` (`oh-my-posh init fish --config ... | source`, if installed).
 
 ### Terminal & prompt
 
@@ -241,13 +241,14 @@ by default so history stores the expanded command) plus
   Composed via Ghostty's native `config-file = ?path` include (silent no-op
   on a missing fragment): `common.conf` → `{profile}/common.conf` →
   `{profile}/{os}.conf`, later overrides earlier.
-- **[starship](https://starship.rs/)** (`dot_config/starship.toml.tmpl`) —
-  no native include, composed at `chezmoi apply` time from
-  `.chezmoitemplates/starship-{common,personal,work}`. Deployed everywhere
-  (shell-level, works over SSH too), layers on top of the native prompt
-  above wherever it's actually installed — including PowerShell
-  (`Documents/PowerShell/dotfiles.d/99-starship-init.ps1`, install via
-  `winget install --id Starship.Starship`).
+- **[Oh My Posh](https://ohmyposh.dev/)** (`dot_config/oh-my-posh/atomic.omp.json`)
+  — a single theme file vendored directly in the repo (not a package-manager
+  bundled theme path, which differs across brew/dnf/winget installs), used
+  identically by every shell's init. Deployed everywhere (shell-level, works
+  over SSH too), layers on top of the native prompt above wherever it's
+  actually installed — zsh/fish/PowerShell (not bash), including PowerShell
+  (`Documents/PowerShell/dotfiles.d/99-ohmyposh-init.ps1`, install via
+  `winget install --id JanDeDobbeleer.OhMyPosh`).
 - **PSReadLine fish-style autosuggestions** (PowerShell only,
   `Documents/PowerShell/dotfiles.d/90-psreadline.ps1`) — bundled with
   PowerShell 7, nothing extra to install. `-PredictionSource History
@@ -334,8 +335,8 @@ Installed via `run_onchange_install-packages.sh.tmpl` (dnf/apt/brew, bash) or
 default interpreter on Windows, see §7).
 
 - **Common** (workstation only): `git`
-- **Workstation tools**: `starship` (brew/winget only — no default dnf/apt
-  repo), `bitwarden` (GUI password manager, `requires_gui`), `powershell7`
+- **Workstation tools**: `oh-my-posh` (dnf/brew/winget — no default apt repo
+  yet), `bitwarden` (GUI password manager, `requires_gui`), `powershell7`
   (Windows-only, `installer_type: wix`), `ghostty` (Linux/macOS only, dnf via
   COPR `scottames/ghostty`), `windows-terminal` (Windows-only, install only —
   `settings.json` config is a follow-up task), `totalcmd` (Windows-only,
@@ -343,10 +344,9 @@ default interpreter on Windows, see §7).
 - **VirtualBox VM**: VirtualBox guest additions (auto-detected via `systemd-detect-virt`)
 - **VMware VM**: open-vm-tools (auto-detected)
 
-Deferred: a GitHub-release fallback for tools with no default repo package
-(e.g. `starship` on dnf/apt) — `.chezmoitemplates/get-github-latest-verson`
-exists but isn't wired in yet, so `helpers/install-starship.sh` (legacy
-manual installer) stays until then.
+Deferred: a proper apt repo/GitHub-release fallback for `oh-my-posh` on
+Debian/Ubuntu (no default apt package) — `.chezmoitemplates/get-github-latest-verson`
+exists but isn't wired in yet.
 
 ### User groups
 
@@ -559,7 +559,6 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 │   ├── resolve-package-entry        # dnf/apt/brew name resolution for packages.yaml
 │   ├── render-winget-install        # Full `winget install ...` command builder for packages.yaml
 │   ├── install-os-package           # Single-package install abstraction (dnf/apt/brew, used outside packages.yaml e.g. for `age`)
-│   ├── starship-{common,personal,work}   # Starship config composition
 │   └── get-github-{latest-verson,head-revision}
 ├── dot_bashrc.d/                    # Bash config → ~/.bashrc.d/
 ├── dot_zshrc.d/                     # Zsh config → ~/.zshrc.d/
@@ -567,7 +566,7 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 │   ├── fish/conf.d/                 # Fish config → ~/.config/fish/conf.d/
 │   ├── private_ghostty/             # Ghostty config → ~/.config/ghostty/
 │   ├── private_git/                 # Git config fragments → ~/.config/git/
-│   └── starship.toml.tmpl           # → ~/.config/starship.toml
+│   └── oh-my-posh/atomic.omp.json   # → ~/.config/oh-my-posh/atomic.omp.json
 ├── private_dot_ssh/conf.d/          # SSH config fragments → ~/.ssh/conf.d/
 ├── private_dot_local/bin/           # Utility scripts → ~/.local/bin/
 ├── Documents/PowerShell/dotfiles.d/ # PowerShell aliases/env/prompt (Windows only) → Documents\PowerShell\dotfiles.d\
@@ -576,7 +575,7 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 │   ├── personal/evault              # EJSON-encrypted personal data
 │   └── work/evault                  # EJSON-encrypted work data
 ├── helpers/                         # Manual setup helpers (not applied by chezmoi;
-│   │                                 install-starship.sh/install-vscode.sh are legacy)
+│   │                                 install-vscode.sh is legacy)
 │   └── setup-encryption.sh
 ├── ejson_key_personal.age           # Age-encrypted personal EJSON key
 ├── ejson_key_work.age               # Age-encrypted work EJSON key

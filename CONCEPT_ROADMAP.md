@@ -116,7 +116,7 @@ co to nemá (simulovaný "Ubuntu" test), a výsledek se reálně nasourcuje ve s
 reálně potřebuje:
 - **Adresářový strom** u cílů, které jsou přirozeně stromem (např. `dot_bashrc.d/{personal,work}/`).
 - **Jméno souboru** u cílů, které musí být jeden plochý adresář (SSH `conf.d/` — viz 2.3).
-- **Template-kompozice** u formátů bez include (npmrc, starship.toml — viz 2.5, 6).
+- **Template-kompozice** u formátů bez include (npmrc — viz 2.5, 6).
 
 ### 2.2 Kompozice konfiguračních souborů — podle podpory nativního include
 
@@ -329,11 +329,13 @@ tom, jestli vzdálený stroj má aktuální terminfo databázi. Cena: ztráta p�
 Ghostty-specifických schopností (barevné podtržení) — zanedbatelné proti garantované
 kompatibilitě všude.
 
-### 2.5 Formáty bez nativního include (npmrc, starship.toml, ...)
+### 2.5 Formáty bez nativního include (npmrc, ...)
 
 Skládají se přes `.chezmoitemplates/` partiály za běhu `chezmoi apply` — jeden zdrojový
 `.tmpl` soubor volá `{{ template "fragment-name" . }}` pro common/profil/profil+OS kousky a
-výsledek je jeden kompletní finální soubor. Viz konkrétní příklad starship v sekci 6.
+výsledek je jeden kompletní finální soubor. (Starship v sekci 6 byl dřív živý příklad tohohle
+vzoru — od přechodu na Oh My Posh, kde je prompt config jeden vendorovaný statický soubor bez
+kompozice, tenhle vzor nemá aktuálně živý příklad v repu.)
 
 ---
 
@@ -434,7 +436,7 @@ Jedna render šablona na cílový shell, všechny čtou **stejná** `.chezmoidat
   HIST_IGNORE_*` — bash `HISTCONTROL`/`HISTFILESIZE` nemá zsh obdobu, proto extra `01-bash-history.sh`
   vyňato ze sdíleného `exports` na bash straně), `99-prompt.zsh` (classic prompt, root=červená/
   user=zelená — **nejde sdílet** ani mezi bash a zsh, PS1 `\u`/`\h`/`\[...\]` vs. zsh
-  `%n`/`%m`/`%{...%}`, ale `$FG_*` proměnné z `00-colors.sh` JSOU sdílené), `99-starship-init.zsh`
+  `%n`/`%m`/`%{...%}`, ale `$FG_*` proměnné z `00-colors.sh` JSOU sdílené), `99-theme-init.zsh` (tehdy „99-starship-init.zsh“)
   (řadí se abecedně za `99-prompt.zsh`, takže starship legitimně přebíjí classic prompt).
   **Reálně odchycená chyba č. 3 (menší, na živém zsh):** prázdný `dot_bashrc.d/work/` adresář
   způsobil v zsh (na rozdíl od bash) fatální `no matches found` a potichu přerušil zbytek
@@ -849,20 +851,40 @@ funkce, telemetrie, firemní politika) — neřešit teď, řešit až při reá
 
 ---
 
-## 6. Ghostty a starship
+## 6. Ghostty a Oh My Posh
 
-- **Starship** řeší prompt napříč shelly sám (podporuje bash/fish/PowerShell nativně), ale
-  **nenahrazuje** klasický nativní prompt/color mechanismus (viz korekce v sekci 1) — ten zůstává
-  univerzálně nasazený všude jako baseline, starship se navíc přidá tam, kde je nainstalovaný a
-  přirozeně ho vrstevnatě přebije (jednořádkový init `starship init fish | source` na konci rc
-  souboru, po klasickém `PS1`/`fish_prompt` nastavení).
-  **PowerShell — IMPLEMENTOVÁNO a ověřeno živě (2026-08-07, winlab.local, `winget install
-  --id Starship.Starship`):** `Documents/PowerShell/dotfiles.d/99-starship-init.ps1` (statický,
-  ne `.tmpl` — obsah se neliší podle profilu/OS), stejný "if nainstalovaný" guard jako
-  zsh/fish (`Get-Command starship -ErrorAction SilentlyContinue`). Syntax je jiná než
-  bash/zsh/fish — `starship init powershell` vrací multi-line funkci, potřebuje `| Out-String |
-  Invoke-Expression`, ne prosté `eval`/`source`. Ověřeno reálným barevným promptem
-  (`Administrator in winlab in ~`).
+**Historie (2026-08-17): Starship → Oh My Posh.** Prompt engine byl původně Starship (viz git
+historie této sekce pro detaily té implementace — TOML template-kompozice, ruční převod OMP
+témat `atomic`/`jandedobbeleer` do Starship configu s přepínačem mezi nimi). Po živém vyzkoušení
+uživatel usoudil, že chce místo toho rovnou Oh My Posh — méně kompromisů (žádné ruční
+dohledávání/hádání Nerd Font kódových bodů, žádné "Starship neumí dynamicky přebarvit pozadí
+segmentu podle stavu" omezení, protože OMP témata běží nativně ve svém vlastním enginu). Starship
+byl z repa kompletně odstraněn (balíček, všechny `.chezmoitemplates/starship-*`,
+`dot_config/starship.toml.tmpl`, `dot_config/starship/{atomic,jandedobbeleer}.toml`,
+init soubory pro zsh/fish/PowerShell, `starship-theme` přepínač, `helpers/install-starship.sh`).
+
+- **Oh My Posh** řeší prompt napříč shelly sám, ale **nenahrazuje** klasický nativní prompt/color
+  mechanismus (viz korekce v sekci 1) — ten zůstává univerzálně nasazený všude jako baseline,
+  oh-my-posh se navíc přidá tam, kde je nainstalovaný a přirozeně ho vrstevnatě přebije.
+  **Téma je vendorované přímo v repu** (`dot_config/oh-my-posh/atomic.omp.json`, staženo 1:1 z
+  `github.com/JanDeDobbeleer/oh-my-posh/themes/atomic.omp.json`, žádná ruční úprava) — ne
+  odkazované přes package-manager-specific cestu k bundlovaným tématům (ta se liší:
+  `$env:POSH_THEMES_PATH` na Windows/winget vs. jinak verzované umístění u brew/dnf), takže
+  stejný soubor, stejná cesta (`~/.config/oh-my-posh/atomic.omp.json`) na všech platformách.
+  - **zsh**: `dot_zshrc.d/99-theme-init.zsh`. Pojmenováno "theme-init", ne "ohmyposh-init" —
+    živě ověřeno, že `99-ohmyposh-init.zsh` by se v `for rc in ~/.zshrc.d/*(N)` globu seřadil
+    **před** `99-prompt.zsh` (`'o' < 'p'`), takže klasický prompt by po něm načetl a přebil zpátky
+    `PROMPT` přiřazení z oh-my-posh. `99-theme-init.zsh` (`'t' > 'p'`) se řadí správně za.
+  - **fish**: `dot_config/fish/conf.d/ohmyposh-init.fish` — žádný pořadí problém, fish nemá
+    samostatný "classic prompt" soubor k přebití (`oh-my-posh init fish | source` rovnou
+    přepisuje `fish_prompt` funkci).
+  - **PowerShell — IMPLEMENTOVÁNO a ověřeno živě (2026-08-17, winlab.local, `winget install
+    --id JanDeDobbeleer.OhMyPosh`):** `Documents/PowerShell/dotfiles.d/99-ohmyposh-init.ps1`
+    (přejmenováno z `99-starship-init.ps1`), stejný "if nainstalovaný" guard jako zsh/fish
+    (`Get-Command oh-my-posh -ErrorAction SilentlyContinue`).
+  - **bash NENÍ pokryt** — stejná volba jako dřív u Starship (sekce 1: klasický prompt je
+    univerzální baseline, fancy prompt engine se vrství jen tam, kde dává smysl — zsh je macOS
+    default, fish je primární cíl, PowerShell je Windows cíl; bash zůstává na klasickém `PS1`).
   **Bonusem přidáno na žádost uživatele — fish-like autosuggestions přes PSReadLine**
   (`90-psreadline.ps1`, `Set-PSReadLineOption -PredictionSource History -PredictionViewStyle
   ListView` — PSReadLine je součástí PowerShellu 7, nic navíc netřeba instalovat, ověřena verze
@@ -871,23 +893,15 @@ funkce, telemetrie, firemní politika) — neřešit teď, řešit až při reá
   skript, co `$PROFILE` jen dot-sourcne s přesměrovaným výstupem) — ověřeno přes
   `[Console]::IsOutputRedirected`, guard `if (-not [Console]::IsOutputRedirected) { ... }` to
   řeší, aniž by to shodilo zbytek profilu.
-  **Alternativní presety + přepínač (2026-08-17).** Výchozí `~/.config/starship.toml` je Pastel
-  Powerline preset (viz sekce výše). Přidány dva další, samostatné (nekomponované) presety —
-  ruční převod Oh My Posh témat `atomic`/`jandedobbeleer` z uživatelova starého PowerShell
-  profilu (`dot_config/starship/{atomic,jandedobbeleer}.toml`, ne přes `.chezmoitemplates` —
-  žádný dynamický obsah, tak čistý statický soubor). Zdokumentované, neodstranitelné rozdíly
-  oproti OMP originálu: Starship neumí dynamicky měnit barvu POZADÍ segmentu podle stavu (OMP
-  `background_templates`, např. git segment měnící barvu podle ahead/behind) — jen text/symbol
-  reaguje; a chybí ekvivalent pro OMP-only moduly (Angular, Nx, Azure Functions, YouTube Music
-  "ytm" now-playing). Ověřeno živě přes `STARSHIP_CONFIG=<soubor> starship prompt
-  [--right] --terminal-width=N` (`--right` nutné zvlášť pro `right_format`, `starship prompt`
-  samo o sobě right stranu nevykresl) — obě témata renderují bez varování
-  (`STARSHIP_LOG=warn`), podmíněné moduly (nodejs/os/battery/...) se správně zobrazují/skrývají.
-  Přepínání za běhu (`STARSHIP_CONFIG` se čte lazy, není potřeba restart shellu) přes sdílenou
-  `starship-theme <pastel|atomic|jandedobbeleer>` funkci — jen pro aktuální session (žádný trvalý
-  stav), samostatně napsaná pro bash/zsh (`dot_bashrc.d/starship-theme`, sdíleno i do zsh přes
-  `00-shared.zsh`), fish (`dot_config/fish/functions/starship-theme.fish`) a PowerShell (přidáno
-  do `99-starship-init.ps1`).
+  **Balíčkové pokrytí** (sekce 7): `brew`/`dnf`/`winget` mají `oh-my-posh` přímo (ověřeno živě
+  2026-08-17 — brew formula v `homebrew/core`, Fedora balíček ve správě Go SIG přes
+  `src.fedoraproject.org`, winget `JanDeDobbeleer.OhMyPosh` reálně nainstalováno na winlab.local).
+  `apt` (Debian/Ubuntu) v defaultní archívě balíček nemá (ověřeno přes Launchpad API) — chybí
+  vlastní apt repo setup, zatím `skip`, viz sekce 7 GitHub-release fallback poznámka.
+  **Neověřeno od přechodu:** the root=red/green subprocess-caching finding z předchozí Starship
+  implementace (níže v této sekci, historická poznámka) nebyl přetestován proti oh-my-posh — OMP
+  má jinou architekturu (persistentní `oh-my-posh` proces vs. Starship spouštěný čerstvě při
+  každém vykreslení), takže stejný test by měl smysl zopakovat, až bude příležitost.
 - **Ghostty (ověřeno, IMPLEMENTOVÁNO a ověřeno proti reálnému Ghostty binárnímu 2026-08-01)**:
   nativní include — `config-file = ?cesta` (`?` prefix = tichý no-op, když soubor chybí — podobné
   gitu). Pozdější `config-file` přepisuje dřívější hodnoty → common → profil → profil+OS, stejný
@@ -917,42 +931,14 @@ funkce, telemetrie, firemní politika) — neřešit teď, řešit až při reá
   ```
   Maskování per profil/OS/`has_gui` je v `.chezmoiignore.tmpl` (cílové cesty, ne zdrojové —
   `private_` prefix zmizí v cílové cestě).
-- **Starship (ověřeno, IMPLEMENTOVÁNO a ověřeno proti reálnému starship binárnímu 2026-08-01)**:
-  **žádný nativní include** (multi-file podpora je zatím jen otevřený PR #6894, ne stabilní
-  release). `STARSHIP_CONFIG` env proměnná existuje na přesměrování na jiný soubor, ale je to
-  zbytečná oklika — starship zůstává na defaultní cestě `~/.config/starship.toml`, obsah je
-  složený **template-kompozicí** (sekce 2.5): `dot_config/starship.toml.tmpl` volá
-  `.chezmoitemplates/starship-common` + `starship-{personal,work}` podle `.deployment.profile`
-  (na rozdíl od Ghostty tu není potřeba `.chezmoiignore` maskování — je to jeden renderovaný
-  soubor, ne fyzicky přítomné/nepřítomné fragmenty). **Nasazeno univerzálně, bez `has_gui`/role
-  podmínky** — potvrzeno v sekci 1: aliasy/env/fish/starship jsou čistě shell-úrovňové, fungují
-  stejně přes SSH/konzoli jako v GUI terminálu. Iniciace je tenký `dot_config/fish/conf.d/starship-init.fish`
-  (`if command -q starship; starship init fish | source; end`) — vrství se NAD klasický prompt,
-  aktivuje se jen když je starship reálně nainstalovaný (balíčkový model, sekce 7, zatím
-  nepostavený pro Linux/Windows — `dnf`/`apt` nemají starship v default repu).
 - **Požadavek: root=červená, user=zelená i přes SSH na vzdálené (dotfiles-spravované) stroje**
-  (1:1 náhrada dnešního ručně psaného `dot_bashrc.d/99-prompt.sh` `PS1` triku). Funguje, protože
-  vzdálený stroj má nasazený **stejný** koncept (fish/starship config), ne kvůli SSH-specifickému
-  mechanismu — SSH sem nic zvláštního nepřidává. Starship (ověřeno) má pro tohle nativní
-  `username` modul s `style_user`/`style_root` poli:
-  ```toml
-  [username]
-  style_user = "bold green"
-  style_root = "bold red"
-  format = "[$user]($style)@"
-  show_always = true
-  ```
-  **Záludnost prověřena naživo (2026-08-01) a UKÁZALO SE, ŽE PRO FISH NEEXISTUJE** — žádný
-  `exec $SHELL` fix není potřeba. Test na reálném čerstvém Linux lab VM: `starship prompt` jako
-  normální uživatel → `\033[1;32m` (zelená), stejný příkaz jako root (`sudo ... starship prompt`)
-  → `\033[1;31m` (červená), okamžitě a bez zpoždění. Přesněji reprodukován i **skutečný
-  "uprostřed session" scénář**: v běžící interaktivní fish session spuštěn `sudo fish` (nová
-  vnořená fish jako root, potomek téhož procesu) — prompt v ní byl červený hned na první
-  vykreslení, žádná zpožděná/cachovaná zelená. Vysvětlení: starship je vždy spouštěný jako čerstvý
-  subprocess při každém vykreslení promptu (přes `fish_prompt` hook nastavený `starship init
-  fish`), takže tu není co cachovat — komunitní reporty o "cache bugu" se zjevně týkají jiné
-  kombinace shellu/starship verze, ne fish + starship 1.26.0. `alias root='sudo -i'`
-  (`50-aliases-power.sh`, zatím nemigrovaný do nového datového modelu) nepotřebuje žádnou úpravu.
+  (1:1 náhrada dnešního ručně psaného `dot_bashrc.d/99-prompt.sh` `PS1` triku) — řeší už samotný
+  klasický prompt baseline (sekce 1), nezávisle na tom, jestli běží Oh My Posh navrch. **Historická
+  poznámka ze Starship éry** (viz git historie): u fish bylo naživo ověřeno, že root/user barva se
+  přepíná okamžitě i uprostřed session (`sudo fish` z běžící session), protože Starship se
+  spouští jako čerstvý subprocess při každém vykreslení promptu — žádné cachování barvy. Oh My
+  Posh má jinou procesní architekturu, takže tenhle konkrétní test by měl smysl zopakovat, až
+  bude příležitost (zatím neověřeno).
 
 ---
 
@@ -1068,9 +1054,10 @@ Linux (kde `ejson` v dnf/apt repu není) a jako záchranná síť, kdyby Homebre
 selhal.
 
 **Odloženo (samostatné navazující kroky, ne řešeno v tomhle):**
-- **GitHub-release fallback** pro nástroje bez default repo balíčku (typicky `starship` na
-  dnf/apt) — `.chezmoitemplates/get-github-latest-verson` helper existuje, ale není zapojený.
-  `helpers/install-starship.sh` (legacy manuální skript) zůstává, dokud fallback nepřistane.
+- **GitHub-release fallback** pro nástroje bez default repo balíčku (dnešní příklad: `oh-my-posh`
+  na apt — Starship, co tohle dřív ilustroval, bylo odstraněno, viz sekce 6) —
+  `.chezmoitemplates/get-github-latest-verson` helper existuje, ale není zapojený.
+  (`helpers/install-starship.sh`, legacy manuální skript, smazán spolu se Starship.)
 - **Windows Terminal `defaultProfile`/`settings.json` správa** — fragment (font-size, viz níže)
   je hotový, ale globální nastavení (nastavit dotfiles profil jako výchozí, keybindings) by
   vyžadovalo sáhnout na skutečný, MSIX-balený a JSONC `settings.json` — vědomě odloženo, viz níže.
@@ -1175,7 +1162,8 @@ Green-field POC, žádné reálné nasazení k ochraně — proto stavět rovnou
    Mac + Linux.
 3. **Fish aliasy/env jako první shell cíl** (ne bash) — sekce 3-4, paralelně na mac i linux.
 4. **Ghostty config** (sekce 6, nativní include).
-5. **Starship config** (sekce 6, template-kompozice).
+5. **Prompt engine config** (sekce 6) — původně Starship (template-kompozice), 2026-08-17
+   nahrazeno Oh My Posh (vendorovaný `atomic.omp.json`, žádná kompozice potřeba).
 6. **Bash+zsh (sdílené) a PowerShell renderery** — rozšíření stejné datové základny, až fish
    funguje. **Bash+zsh HOTOVO a ověřeno 2026-08-01** (viz sekce 3.3 pro detaily a korekci
    původního "přejmenovat na dot_shrc.d" nápadu). PowerShell zbývá.

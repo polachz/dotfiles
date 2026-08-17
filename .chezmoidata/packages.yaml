@@ -14,11 +14,12 @@ packages:
     - name: fish
       roles: [workstation]
       winget: skip # not a target shell on Windows in this project — PowerShell 7 covers that (see CONCEPT_ROADMAP.md §1)
-    - name: starship
+    - name: oh-my-posh
       roles: [workstation]
-      dnf: skip # not in default Fedora repos (verified live 2026-08-07)
-      apt: skip
-      winget: Starship.Starship
+      dnf: oh-my-posh # real Fedora package, Go SIG (verified via src.fedoraproject.org 2026-08-17)
+      apt: skip # not in Debian/Ubuntu's primary archive (verified via Launchpad API 2026-08-17) — needs oh-my-posh's own apt repo, not built yet
+      brew: oh-my-posh # homebrew/core, no tap needed (verified 2026-08-17)
+      winget: JanDeDobbeleer.OhMyPosh # verified live on winlab.local 2026-08-17
     - name: bitwarden
       roles: [workstation]
       requires_gui: true
