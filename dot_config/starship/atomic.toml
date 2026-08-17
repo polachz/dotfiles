@@ -9,7 +9,35 @@
 # ~/.config/starship.toml. Switch to this one with `starship-theme atomic`
 # (sets $STARSHIP_CONFIG for the current shell session).
 #
-# Known, unavoidable differences from the OMP original:
+# Revised 2026-08-17 after live testing on macOS/fish and Windows/pwsh
+# surfaced two real bugs in the first pass:
+# - Powerline transition glyphs between modules were hardcoded as always
+#   shown, even for modules that render nothing (sudo with no cached creds,
+#   language modules outside a matching project dir, battery on hardware
+#   without one, cmd_duration before any command has run yet in a new
+#   session). Result: orphaned/doubled-up transition arrows with no content
+#   between them. Fixed on the left prompt by wrapping both the git segment
+#   and the cmd_duration segment (each with their own transitions) in their
+#   own conditional `(...)` groups — shown only when they'd actually render
+#   something. One known remaining seam: the leading transition into
+#   cmd_duration's group assumes the git segment's yellow
+#   transition into $cmd_duration assumes the git segment's yellow
+#   background even when git didn't render (falls back to whatever
+#   $directory's orange looks like behind it) — a real Starship limitation
+#   (format strings can't ask "what did the previous segment render as").
+#   The right-hand language/cloud icons dropped inter-segment transitions
+#   entirely instead (flat colored chips, no connecting arrows) — with up
+#   to a dozen mutually-optional modules there, no fixed transition color
+#   is ever reliably correct.
+# - Several hand-picked Nerd Font codepoints for sudo/cmd_duration/time/os
+#   symbols didn't render as intended (showed as an unrelated emoji or a
+#   tofu box depending on platform) — replaced with values verified against
+#   Starship's own documented defaults/examples, or dropped. The `sudo`
+#   module was removed outright: it means "sudo credentials are currently
+#   cached", not "running as root/elevated" like OMP's root segment — the
+#   wrong concept even before the icon problem.
+#
+# Other known, unavoidable differences from the OMP original:
 # - Starship module styles are static — it can't swap a segment's
 #   BACKGROUND color based on live state the way OMP's Go-template
 #   `background_templates` does (e.g. atomic's git segment turning purple
@@ -25,12 +53,12 @@
 "$schema" = 'https://starship.rs/config-schema.json'
 
 format = """
-[](bg:#0077c2)$shell[](fg:#0077c2 bg:#ef5350)$sudo[](fg:#ef5350 bg:#FF9248)$directory[](fg:#FF9248 bg:#FFFB38)$git_branch$git_status[](fg:#FFFB38 bg:#83769c)$cmd_duration[](fg:#83769c)
+[](bg:#0077c2)$shell[](fg:#0077c2 bg:#FF9248)$directory([](fg:#FF9248 bg:#FFFB38)$git_branch$git_status)([](fg:#FFFB38 bg:#83769c)$cmd_duration[](fg:#83769c))
 $line_break\
-[╰─](#21c7c7)[$status ](fg:#e0f8ff)$character"""
+[╰─](#21c7c7)([$status ](fg:#e0f8ff))$character"""
 
 right_format = """
-[](fg:#303030 bg:#303030)$nodejs[](fg:#303030 bg:#306998)$python[](fg:#306998 bg:#0e8ac8)$java[](fg:#0e8ac8 bg:#0e0e0e)$dotnet[](fg:#0e0e0e bg:#ffffff)$golang[](fg:#ffffff bg:#f3f0ec)$rust[](fg:#f3f0ec bg:#e1e8e9)$dart[](fg:#e1e8e9 bg:#945bb3)$julia[](fg:#945bb3 bg:#ffffff)$ruby[](fg:#ffffff bg:#565656)$aws[](fg:#565656 bg:#316ce4)$kubernetes[](fg:#316ce4 bg:#b2bec3)$os[](fg:#b2bec3 bg:#f36943)$battery[](fg:#f36943 bg:#40c4ff)$time[](fg:#40c4ff)
+$nodejs$python$java$dotnet$golang$rust$dart$julia$ruby$aws$kubernetes$os$battery$time
 """
 
 [shell]
@@ -41,12 +69,6 @@ bash_indicator = "bash"
 zsh_indicator = "zsh"
 fish_indicator = "fish"
 powershell_indicator = "pwsh"
-
-[sudo]
-disabled = false
-format = "[ $symbol ]($style)"
-symbol = "󰚌"
-style = "fg:#FFFB38"
 
 [directory]
 style = "fg:#2d3436 bg:#FF9248"
@@ -66,7 +88,7 @@ format = '([$all_status$ahead_behind ]($style))'
 
 [cmd_duration]
 style = "fg:#ffffff bg:#83769c"
-format = "[ 󱦟 $duration ]($style)"
+format = "[ ⏱ $duration ]($style)"
 min_time = 0
 
 [character]
@@ -129,11 +151,10 @@ format = '[ $symbol$context( \($namespace\)) ]($style)'
 disabled = false
 style = "fg:#222222 bg:#b2bec3"
 format = "[ $symbol ]($style)"
-
-[os.symbols]
-Macos = "󰀵"
-Linux = "󰌽"
-Windows = "󰍲"
+# Default os.symbols (plain emoji: 🍎/🐧/🪟) are kept deliberately instead of
+# custom Nerd Font codepoints — verified live that hand-picked PUA codepoints
+# here rendered as broken/unrelated glyphs; the built-in emoji defaults need
+# no font support beyond standard Unicode color emoji.
 
 [battery]
 format = "[ $symbol$percentage ]($style)"
@@ -145,5 +166,5 @@ style = "fg:#262626 bg:#f36943"
 [time]
 disabled = false
 style = "fg:#ffffff bg:#40c4ff"
-format = "[ 󰥔 $time ]($style)"
+format = "[ 🕙 $time ]($style)"
 time_format = "%_2d,%H:%M"
