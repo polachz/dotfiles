@@ -48,7 +48,11 @@ packages:
       dnf: skip # not verified yet — needs per-distro nerd-fonts packaging check
       apt: skip # not verified yet — needs per-distro nerd-fonts packaging check
       brew: font-jetbrains-mono-nerd-font # cask, brew auto-detects (verified live 2026-08-14)
-      winget: skip # not verified yet
+      # DEVCOM's WiX build (verified live 2026-08-17 on winlab.local) — registers as font
+      # family "JetBrainsMono NF", NOT "JetBrainsMono Nerd Font" like the Homebrew cask.
+      # Windows Terminal's font.face must use the Windows-specific name (see the fragment
+      # profile under AppData/).
+      winget: DEVCOM.JetBrainsMonoNerdFont
     - name: windows-terminal
       roles: [workstation]
       requires_gui: true

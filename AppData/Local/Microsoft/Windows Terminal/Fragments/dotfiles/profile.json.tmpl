@@ -11,8 +11,10 @@
   Own, fixed GUID below (never reused/regenerated) so this is always additive, never an
   `"updates"` reference to an existing profile — no possible collision with the user's real data.
 
-  Scope matches today's Ghostty config exactly (font-size only, no font-family/color scheme) —
-  see dot_config/private_ghostty/{common,work/common}.conf.
+  font.face added 2026-08-17 (jetbrains-mono-nerd-font in packages.yaml) — needed for OMP/
+  Starship prompt segment glyphs to render instead of tofu boxes, confirmed live on
+  winlab.local. "JetBrainsMono NF" is the Windows-specific family name (DEVCOM's WiX build),
+  NOT "JetBrainsMono Nerd Font" like the Homebrew cask used for Ghostty on macOS.
 */ -}}
 {
     "profiles": [
@@ -21,6 +23,7 @@
             "name": "Dotfiles",
             "commandline": "pwsh.exe -NoLogo",
             "font": {
+                "face": "JetBrainsMono NF",
                 "size": {{ if eq .deployment.profile "work" }}14{{ else }}13{{ end }}
             }
         }
