@@ -566,10 +566,14 @@ zůstává ručně udržovaný mimo značky.
 
 ### 3.5 Workflow pro přidání/úpravu aliasu
 
-**Existující bug k opravě:** dnešní `dot_bashrc.d/personal/dev-shortcuts`/`ali` alias otvírá
-**deployed** cestu (`~/.bashrc.d/git-aliases` — `git-aliases`/`chezmoi-aliases` přesunuty
-2026-08-15 z `personal/` do sdíleného top-level scope, viz §3.6), ne dev repo — editace se
-přepíše při dalším `chezmoi apply` (stejná past jako "two-repo mental model" u evaultu).
+**Bug opraven (2026-08-17):** `dot_bashrc.d/personal/dev-shortcuts`/`ali` alias dřív otvíral
+**deployed** cestu (`~/.bashrc.d/git-aliases`) přímo `$EDITOR`em, ne dev repo — editace se
+přepsala při dalším `chezmoi apply` (stejná past jako "two-repo mental model" u evaultu). Vyřešeno
+tím, že git aliasy (`g`/`gcm`/`gcam`/`gp`/`gst`/`gam`/`ga` — žádný z nich nemá shell-specifické
+zvláštnosti jako `chezmoi-aliases`' `history -a`) přesunuty do sdíleného YAML alias modelu
+(`.chezmoidata/aliases/common/git.yaml`, fish/PowerShell parita zdarma) a `ali` teď volá
+`edit-aliases-core aliases/common/git.yaml` — stejný commit/push/`chezmoi update` workflow jako
+`edit-evault`.
 
 Nový mechanismus:
 - **`edit-aliases-core <scope>`** — sdílený externí skript, stejný bezpečnostní vzor jako
@@ -597,11 +601,15 @@ Nový mechanismus:
   skripty v `PATH` místo shell-built-in funkcí, aby je bash i fish volaly stejně jako externí
   příkaz — obchází problém syntaktické portability. `zpfn_systemd_service_exists` je Linux-only
   (systemd) — OS-gated, ne univerzální.
-- Většina dnešního `dot_bashrc.d/personal/*` obsahu není fakticky personal-specifická. `git-aliases`
-  a `chezmoi-aliases` přesunuty do sdíleného top-level `dot_bashrc.d/` **2026-08-15** (včetně
+- Většina dnešního `dot_bashrc.d/personal/*` obsahu není fakticky personal-specifická.
+  `chezmoi-aliases` přesunuty do sdíleného top-level `dot_bashrc.d/` **2026-08-15** (včetně
   zsh — doplněny do explicitního seznamu v `00-shared.zsh`, a odstranění hardcoded
-  `CHZ_DEPLOYMENT_PROFILE="personal"` exportu z `chezmoi-aliases`, viz `ALIASES.md`). `home-paths`
-  (kromě konkrétních cest) a `dev-shortcuts` zůstávají kandidáty, zatím nepřesunuty.
+  `CHZ_DEPLOYMENT_PROFILE="personal"` exportu, viz `ALIASES.md`). `git-aliases` šel o krok dál
+  **2026-08-17** — místo pouhého přesunu do top-level `dot_bashrc.d/` migrován rovnou do sdíleného
+  YAML alias modelu (`.chezmoidata/aliases/common/git.yaml`, `+gcam`/`gp`), protože žádný z těch
+  příkazů nemá shell-specifickou zvláštnost jako `chezmoi-aliases`' `history -a` — fish a
+  PowerShell tak dostaly git zkratky poprvé, ne jen bash/zsh. `home-paths` (kromě konkrétních
+  cest) a `dev-shortcuts` zůstávají kandidáty, zatím nepřesunuty.
 - Drobné nálezy k opravě: mrtvý řádek `LESS_TERMCAP_md="${yellow}"` v `dot_bashrc.d/exports`
   (nedefinovaná proměnná, přepsaná o dva řádky níž); duplicitní/překrývající se logika hledání
   nejnovějšího GitHub release existuje na dvou místech (`zpfn_get_github_project_latest_release_download_link`

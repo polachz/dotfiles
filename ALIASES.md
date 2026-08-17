@@ -26,6 +26,18 @@ regardless of `kind`.
 <!-- GENERATED:aliases-doc-aliases:start (see .chezmoitemplates/generate-aliases-doc-aliases; regenerate with `edit-aliases-core`, no args = regen-only mode — do not edit this block by hand) -->
 ## Common scope — aliases (`.chezmoidata/aliases/common/`)
 
+### `git`
+
+| Command | Linux | macOS | Windows | Kind | Description |
+|---|---|---|---|---|---|
+| `g` | `git` | `git` | `git` | abbr | Git |
+| `gcm` | `git commit -m` | `git commit -m` | `git commit -m` | abbr | Commit with message |
+| `gcam` | `git commit -am` | `git commit -am` | `git commit -am` | abbr | Commit all tracked changes with message (does not stage new untracked files, unlike git add .) |
+| `gp` | `git push` | `git push` | `git push` | abbr | Push |
+| `gst` | `git status` | `git status` | `git status` | abbr | Status |
+| `gam` | `git add -u` | `git add -u` | `git add -u` | abbr | Stage modified + deleted files |
+| `ga` | `git add` | `git add` | `git add` | abbr | Stage files |
+
 ### `ls`
 
 | Command | Linux | macOS | Windows | Kind | Description |
@@ -144,11 +156,16 @@ native history mechanism): `HISTSIZE`, `HISTFILESIZE`, `HISTCONTROL`,
 
 Sourced by both bash and zsh (see `CONCEPT_ROADMAP.md` §3.8.1 for the 3-tier
 library model and why `export -f` — used by the old, now-removed functions
-below — is broken in zsh).
+below — is broken in zsh). `mkcd` is also implemented separately for fish
+(`dot_config/fish/functions/mkcd.fish`) and PowerShell
+(`Documents/PowerShell/dotfiles.d/80-functions.ps1`) — a multi-step function
+like this doesn't fit the plain-command-substitution alias YAML model, so
+it's hand-written once per shell instead.
 
 | Function | Description |
 |----------|-------------|
 | `color <attr> <code>` | Emit an ANSI escape — e.g. `color 0 31` for dark red |
+| `mkcd <path>` | Create a directory (and missing parents) and `cd` into it in one step |
 
 **Removed 2026-08-01** (unused, confirmed with the user during a joint
 review): `zpfn_get_github_project_latest_release_download_link`,
@@ -166,20 +183,6 @@ for a normal user (bash: `PS1` with `\[...\]`; zsh: `PROMPT` with `%{...%}`
 `00-colors.sh`). [Oh My Posh](https://ohmyposh.dev/) layers on top if
 installed (`99-theme-init.zsh` / `dot_config/fish/conf.d/ohmyposh-init.fish`),
 without replacing this baseline.
-
-### Git shortcuts (`git-aliases`)
-
-Moved here from `~/.bashrc.d/personal/` 2026-08-15 — plain git wrapper
-aliases apply equally to work machines, nothing personal-specific about
-them (`CONCEPT_ROADMAP.md` §3.6).
-
-| Command | Expands to | Description |
-|---------|-----------|-------------|
-| `g` | `git` | Git |
-| `gcm` | `git commit -m` | Commit with message |
-| `gst` | `git status` | Status |
-| `gam` | `git add -u` | Stage modified + deleted |
-| `ga` | `git add` | Stage files |
 
 ### Chezmoi shortcuts (`chezmoi-aliases`)
 
@@ -208,7 +211,7 @@ machine exists to validate against.
 | Command | Expands to | Description |
 |---------|-----------|-------------|
 | `e` | `${EDITOR}` | Open `$EDITOR` |
-| `ali` | `${EDITOR} ~/.bashrc.d/git-aliases` | Edit the git aliases file |
+| `ali` | `edit-aliases-core aliases/common/git.yaml` | Edit git aliases (dev repo copy, validated + regenerates `ALIASES.md`) — fixed 2026-08-17, used to open the deployed file directly |
 
 ### Home paths (`home-paths`)
 

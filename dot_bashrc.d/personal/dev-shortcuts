@@ -4,5 +4,11 @@
 # Was zpfn_edit "$@" (a thin ${EDITOR} wrapper) — that function was removed
 # 2026-08-01 (unused, per CONCEPT_ROADMAP.md §3.8.1), inlined directly here.
 
-alias ali='${EDITOR} ~/.bashrc.d/git-aliases'
+# `ali` used to open the DEPLOYED ~/.bashrc.d/git-aliases directly — a real
+# bug (edits there get reset by the next chezmoi apply, same two-repo-model
+# trap as evault). Now that git aliases live in the shared YAML model
+# (.chezmoidata/aliases/common/git.yaml), edit-aliases-core is the correct
+# tool: opens the DEV repo copy, validates, regenerates ALIASES.md — same
+# commit/push/`chezmoi update` workflow as edit-evault.
+alias ali='edit-aliases-core aliases/common/git.yaml'
 alias e='${EDITOR}'

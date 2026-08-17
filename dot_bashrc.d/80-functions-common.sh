@@ -20,3 +20,8 @@
 function color {
   echo "\033[$1;$2m"
 }
+
+# Create a directory (and any missing parents) and cd into it in one step.
+function mkcd {
+  mkdir -p -- "$1" && cd -- "$1"
+}
