@@ -871,6 +871,23 @@ funkce, telemetrie, firemní politika) — neřešit teď, řešit až při reá
   skript, co `$PROFILE` jen dot-sourcne s přesměrovaným výstupem) — ověřeno přes
   `[Console]::IsOutputRedirected`, guard `if (-not [Console]::IsOutputRedirected) { ... }` to
   řeší, aniž by to shodilo zbytek profilu.
+  **Alternativní presety + přepínač (2026-08-17).** Výchozí `~/.config/starship.toml` je Pastel
+  Powerline preset (viz sekce výše). Přidány dva další, samostatné (nekomponované) presety —
+  ruční převod Oh My Posh témat `atomic`/`jandedobbeleer` z uživatelova starého PowerShell
+  profilu (`dot_config/starship/{atomic,jandedobbeleer}.toml`, ne přes `.chezmoitemplates` —
+  žádný dynamický obsah, tak čistý statický soubor). Zdokumentované, neodstranitelné rozdíly
+  oproti OMP originálu: Starship neumí dynamicky měnit barvu POZADÍ segmentu podle stavu (OMP
+  `background_templates`, např. git segment měnící barvu podle ahead/behind) — jen text/symbol
+  reaguje; a chybí ekvivalent pro OMP-only moduly (Angular, Nx, Azure Functions, YouTube Music
+  "ytm" now-playing). Ověřeno živě přes `STARSHIP_CONFIG=<soubor> starship prompt
+  [--right] --terminal-width=N` (`--right` nutné zvlášť pro `right_format`, `starship prompt`
+  samo o sobě right stranu nevykresl) — obě témata renderují bez varování
+  (`STARSHIP_LOG=warn`), podmíněné moduly (nodejs/os/battery/...) se správně zobrazují/skrývají.
+  Přepínání za běhu (`STARSHIP_CONFIG` se čte lazy, není potřeba restart shellu) přes sdílenou
+  `starship-theme <pastel|atomic|jandedobbeleer>` funkci — jen pro aktuální session (žádný trvalý
+  stav), samostatně napsaná pro bash/zsh (`dot_bashrc.d/starship-theme`, sdíleno i do zsh přes
+  `00-shared.zsh`), fish (`dot_config/fish/functions/starship-theme.fish`) a PowerShell (přidáno
+  do `99-starship-init.ps1`).
 - **Ghostty (ověřeno, IMPLEMENTOVÁNO a ověřeno proti reálnému Ghostty binárnímu 2026-08-01)**:
   nativní include — `config-file = ?cesta` (`?` prefix = tichý no-op, když soubor chybí — podobné
   gitu). Pozdější `config-file` přepisuje dřívější hodnoty → common → profil → profil+OS, stejný

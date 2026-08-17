@@ -1,0 +1,108 @@
+# Conversion of the Oh My Posh "jandedobbeleer" theme
+# (github.com/JanDeDobbeleer/oh-my-posh/blob/main/themes/jandedobbeleer.omp.json)
+# to Starship, 2026-08-17 — the OMP theme this project's original PowerShell
+# profile intended to use first, before a second, later `oh-my-posh init`
+# call for "atomic" silently overrode it (see atomic.toml).
+#
+# One of two alternate full presets (see also atomic.toml) — not composed
+# with starship-common/personal/work like the default ~/.config/starship.toml.
+# Switch to this one with `starship-theme jandedobbeleer` (sets
+# $STARSHIP_CONFIG for the current shell session).
+#
+# Known, unavoidable differences from the OMP original:
+# - Starship module styles are static — can't swap a segment's BACKGROUND
+#   color based on live state the way OMP's `background_templates` does
+#   (git segment turning orange/purple on changes/ahead-behind, aws segment
+#   color depending on which profile is active). git_status text color
+#   still reflects state; segment backgrounds are fixed here.
+# - No Starship equivalent for the "ytm" (YouTube Music now-playing) module
+#   or Azure Functions detection — both dropped entirely, no substitute.
+# - Uses Starship's own default per-language symbols rather than hand-porting
+#   OMP's exact icon codepoints — both are Nerd Font glyphs, just not
+#   byte-identical to the original theme.
+"$schema" = 'https://starship.rs/config-schema.json'
+
+format = """
+[](fg:#c386f1)$username[](fg:#c386f1 bg:#ff479c)$directory[](fg:#ff479c bg:#fffb38)$git_branch$git_status[](fg:#fffb38 bg:#6CA35E)$nodejs[](fg:#6CA35E bg:#8ED1F7)$golang[](fg:#8ED1F7 bg:#4063D8)$julia[](fg:#4063D8 bg:#FFDE57)$python[](fg:#FFDE57 bg:#AE1401)$ruby[](fg:#AE1401 bg:#FEAC19)$aws[](fg:#FEAC19 bg:#ffff66)$sudo[](fg:#ffff66 bg:#83769c)$cmd_duration[](fg:#83769c bg:#00897b)$status[](fg:#00897b)
+"""
+
+right_format = """
+[](fg:#f36943)$battery[](fg:#f36943 bg:#2e9599)$time[](fg:#2e9599)
+"""
+
+[username]
+show_always = true
+style_user = "fg:#ffffff bg:#c386f1"
+style_root = "fg:#ffffff bg:#c386f1"
+format = "[ $user ]($style)"
+
+[directory]
+style = "fg:#ffffff bg:#ff479c"
+format = "[  $path ]($style)"
+truncation_length = 3
+truncation_symbol = "…/"
+home_symbol = "~"
+
+[git_branch]
+style = "fg:#193549 bg:#fffb38"
+format = "[ $symbol$branch ]($style)"
+symbol = " "
+
+[git_status]
+style = "fg:#193549 bg:#fffb38"
+format = '([$all_status$ahead_behind ]($style))'
+
+[nodejs]
+style = "fg:#ffffff bg:#6CA35E"
+format = "[ $symbol($version) ]($style)"
+
+[golang]
+style = "fg:#111111 bg:#8ED1F7"
+format = "[ $symbol($version) ]($style)"
+
+[julia]
+style = "fg:#111111 bg:#4063D8"
+format = "[ $symbol($version) ]($style)"
+
+[python]
+style = "fg:#111111 bg:#FFDE57"
+format = '[ $symbol($version)(\($virtualenv\)) ]($style)'
+
+[ruby]
+style = "fg:#ffffff bg:#AE1401"
+format = "[ $symbol($version) ]($style)"
+
+[aws]
+style = "fg:#ffffff bg:#FEAC19"
+format = '[ $symbol($profile )(\($region\)) ]($style)'
+
+[sudo]
+disabled = false
+style = "fg:#111111 bg:#ffff66"
+format = "[ $symbol ]($style)"
+symbol = "󰚌"
+
+[cmd_duration]
+style = "fg:#ffffff bg:#83769c"
+format = "[ 󱦟 $duration ]($style)"
+min_time = 0
+
+[status]
+disabled = false
+style = "fg:#ffffff bg:#00897b"
+format = "[ $symbol ]($style)"
+symbol = ""
+success_symbol = ""
+map_symbol = true
+
+[battery]
+format = "[ $symbol$percentage ]($style)"
+
+[[battery.display]]
+threshold = 100
+style = "fg:#ffffff bg:#f36943"
+
+[time]
+disabled = false
+style = "fg:#ffffff bg:#2e9599"
+format = "[ $time ]($style)"
