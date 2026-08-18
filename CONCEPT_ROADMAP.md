@@ -1410,6 +1410,53 @@ forwarding z workstationu), GUI Linux má dostat plnou desktop appku "oficiáln�
     sandboxovanou cestu) — ale žádný reálný test s appkou skutečně běžící a SSH agentem
     zapnutým zatím neproběhl, viz předchozí bod.
 
+**`bootstrap.ps1` — Windows sourozenec `bootstrap.sh`, IMPLEMENTOVÁNO a živě ověřeno end-to-end
+(2026-08-18), včetně idempotentního re-runu.** Stejné flagy/env proměnné jako `bootstrap.sh`
+(`-DotfilesProfile`/`-Role`/`-Gui`/`-Branch`/`-DryRun`/`-Apply`/`-Reinit`, `CHZ_DEPLOYMENT_*`),
+stejné interaktivní menu jako fallback. Prerekvizity (`chezmoi`, `git`) jdou přes winget —
+mnohem jednodušší než macOS/Linux (žádná CLT/Homebrew/tar tancovačka, oba mají reálné winget
+balíčky, ověřeno živě).
+
+**Klíčový rozdíl oproti macOS/Linux**: EJSON na Windows vůbec neexistuje (starý, už dřív
+nahlášený gap), takže `chezmoi init --apply` **vždy** spadne na `.config/git/work/common.
+gitconfig` (git identita z evaultu). Skript tohle NEPŘEDSTÍRÁ pryč — spustí stejný `chezmoi init
+--apply` jako `bootstrap.sh`, a pokud selže konkrétně kvůli chybějícímu `ejson` (detekováno
+matchem na "ejson" v chybovém výstupu), bere to jako očekávané, nefatální selhání:
+
+- **Zásadní živě ověřené zjištění**: kombinovaný `chezmoi init --apply` na chybu v šabloně
+  nereaguje "aplikuj co jde, přeskoč rozbité" — **zastaví CELOU fázi aplikace regulérních
+  souborů**, i entries co s `.config/git` nemají nic společného (`Documents/PowerShell/
+  dotfiles.d` — bez čehož nefunguje vůbec nic — se vůbec nevytvořilo, přestože abecedně řadí
+  dlouho za `.config/git`). Prostý druhý pokus (`chezmoi apply`) nepomůže, spadne na úplně
+  stejném místě pokaždé.
+- **Oprava: aplikovat každý top-level spravovaný cíl JEDNOTLIVĚ**, s výjimkou `.config/git`
+  (zjištěno dynamicky přes `chezmoi managed`, ne natvrdo napsaný seznam cest — přežije budoucí
+  změny struktury repa). `.chezmoiscripts` samo o sobě není platný apply cíl, přeskočeno,
+  skripty co potřebují se spustí zvlášť.
+- **`$PROFILE` sourcing implementován NATIVNĚ v PowerShellu, ne přes re-render šablony přes
+  `chezmoi execute-template`** — živě (opakovaně, nedeterministicky) ověřeno, že pipe `Get-
+  Content | chezmoi execute-template | Out-File` v tomhle vnořeném kontextu občas tiše
+  produkoval nefunkční/neúplný výstup bez viditelné chyby, kořenová příčina nedohledána
+  (pravděpodobně nativní-proces stdio interakce po víc předchozích chezmoi subprocess voláních
+  ve stejné session). Bez funkčního `$PROFILE` nefunguje nic — proto natvrdo, nativně, zrcadlí
+  `run_after_ensure-powershell-profile-sourcing.ps1.tmpl` (udržovat obojí synchronně, pokud se ta
+  šablona změní). Package-install re-run zůstal přes render-a-spusť (nižší sázka — každý install
+  je sám o sobě idempotentní, neúspěch tady jen znamená, že se to dožene při příštím reálném
+  apply).
+- **NEJDŮLEŽITĚJŠÍ nalezený bug, hodiny debugování**: parametr `-Profile` (pro výběr personal/
+  work) **koliduje s vestavěnou automatickou proměnnou `$PROFILE`** — PowerShell proměnné
+  nerozlišují velikost písmen, takže deklarace `[string]$Profile` tiše PŘEPÍŠE `$PROFILE` na
+  řetězec `"work"` pro zbytek skriptu. Žádná chyba, žádné varování — `Test-Path`/`Split-Path`/
+  `Add-Content` na `$PROFILE` prostě potichu pracovaly s nesmyslem. Oprava: parametr přejmenován
+  na `$DotfilesProfile` (s `[Alias("Profile")]`, takže `-Profile work` na příkazové řádce furt
+  funguje). Ponaučení pro jakýkoliv budoucí PowerShell skript v tomhle repu: nikdy nepojmenovávat
+  parametr/proměnnou stejně jako existující PowerShell automatickou proměnnou (`$PROFILE`,
+  `$HOME`, `$HOST`, `$ERROR`, `$ARGS`, `$INPUT`, `$PWD`, ...).
+- **Živě ověřeno end-to-end na `WinLab Template` ARM64 klonu**: čerstvý stroj bez chezmoi/gitu →
+  winget instalace → `chezmoi init --apply` → očekávaný ejson pád → zotavení → `$PROFILE`
+  správně nasourcuje `dotfiles.d` → nová PowerShell session má funkční `mkcd`/`brc`/`ll`/aliasy/
+  Oh My Posh. Idempotentní re-run (`-Apply` na už nastaveném stroji) proběhl čistě.
+
 ---
 
 ## 8. Testovací prostředí (UTM lab VM)

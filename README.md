@@ -23,7 +23,7 @@ This README covers day-one usage.
 | Fedora / RHEL (dnf) | Primary |
 | Debian / Ubuntu (apt) | Partial (see [`CONCEPT_ROADMAP.md`](./CONCEPT_ROADMAP.md) §2.1 for a known `~/.bashrc.d` auto-sourcing gap, self-healed) |
 | WSL2 (Windows Subsystem for Linux) | Supported (includes Windows SSH agent relay) |
-| Native Windows / PowerShell | Not yet implemented |
+| Native Windows / PowerShell | Supported via `bootstrap.ps1`, except git identity (see below — no EJSON binary for Windows yet) |
 
 Shells: **bash**, **zsh**, **fish** — one shared alias/env-variable data
 model renders into all three. Native prompt (root=red/user=green) is
@@ -95,6 +95,32 @@ If `DOTFILES_ROLE`/`DOTFILES_HAS_GUI` aren't set, chezmoi prompts
 interactively (once — cached in `~/.config/chezmoi/chezmoi.yaml`, never
 committed to the repo). `DOTFILES_PROFILE` also works as a direct chezmoi-level
 override, equivalent to `bootstrap.sh --profile`.
+
+### Windows
+
+`bootstrap.ps1` is the PowerShell sibling of `bootstrap.sh` — same flags/env
+vars (`-DotfilesProfile`/`-Role`/`-Gui`/`-Branch`, `CHZ_DEPLOYMENT_*`), same
+interactive menus if you omit them. Installs `chezmoi`/`git` via `winget`
+(no manual prerequisite installs needed).
+
+```powershell
+irm https://raw.githubusercontent.com/polachz/dotfiles/main/bootstrap.ps1 | iex
+```
+
+Or download and run with flags to skip the menus:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/polachz/dotfiles/main/bootstrap.ps1 -OutFile bootstrap.ps1
+.\bootstrap.ps1 -DotfilesProfile work -Role workstation -Gui yes
+```
+
+**Known limitation**: there's no EJSON binary for Windows yet, so the
+encrypted evault chain (currently used only for per-profile git identity —
+`user.name`/`user.email`) can't resolve. `bootstrap.ps1` detects this
+specific, expected failure and works around it automatically — everything
+else (shell aliases/functions/prompt, Oh My Posh, winget packages) still
+ends up fully configured. Git identity itself stays unset until Windows
+EJSON support is built (tracked in [`CONCEPT_ROADMAP.md`](./CONCEPT_ROADMAP.md)).
 
 ---
 
@@ -537,7 +563,8 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 ```
 .
 ├── CONCEPT_ROADMAP.md               # Authoritative design doc — read this for the "why"
-├── bootstrap.sh                     # Self-contained installer (curl/wget entry point)
+├── bootstrap.sh                     # Self-contained installer (curl/wget entry point, macOS/Linux)
+├── bootstrap.ps1                    # Self-contained installer (Windows, PowerShell)
 ├── .chezmoi.yaml.tmpl               # Chezmoi config template (profile/role/has_gui, crypto vars)
 ├── .chezmoiversion                  # Required chezmoi version
 ├── .chezmoiignore.tmpl              # Per-profile/OS/GUI masking rules
