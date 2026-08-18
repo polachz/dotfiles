@@ -90,5 +90,10 @@ aliases:
         - name: lb
           command:
             default: "cd ~/.local/bin"
-            windows: skip
+            # Windows has no ~/.local convention (see `loc` above), but DOES
+            # now have its own user-scope bin dir: $HOME\bin, where
+            # bootstrap.ps1 installs manually-fetched binaries (ejson, ...)
+            # and adds to the User PATH — deliberately not ~\.local\bin,
+            # since Windows has no dotfiles culture (2026-08-18).
+            windows: "Set-Location ~/bin"
           description: Go to the user-local binaries directory

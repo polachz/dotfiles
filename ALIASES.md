@@ -86,7 +86,7 @@ regardless of `kind`.
 | `dl` | `cd ~/Downloads` | `cd ~/Downloads` | `Set-Location ~/Downloads` | abbr | Go to the Downloads directory |
 | `dt` | `cd ~/Desktop` | `cd ~/Desktop` | `Set-Location ~/Desktop` | abbr | Go to the Desktop directory |
 | `loc` | `cd ~/.local` | `cd ~/.local` | — | abbr | Go to the user-local data directory |
-| `lb` | `cd ~/.local/bin` | `cd ~/.local/bin` | — | abbr | Go to the user-local binaries directory |
+| `lb` | `cd ~/.local/bin` | `cd ~/.local/bin` | `Set-Location ~/bin` | abbr | Go to the user-local binaries directory |
 
 ### `power`
 

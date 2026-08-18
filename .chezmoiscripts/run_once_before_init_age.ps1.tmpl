@@ -1,0 +1,76 @@
+{{- if eq .chezmoi.os "windows" -}}
+# Profile-aware Age + EJSON key bootstrap (interactive) — Windows counterpart
+# of run_once_before_init_age.sh.tmpl. Same flow, same data, same files -
+# only the shell differs. See that script for the full design rationale.
+#
+# Uses chezmoi's OWN built-in `age`/`decrypt` subcommands throughout - no
+# external `age` binary is needed for this part (that's why bootstrap.ps1
+# never installs one). The external `ejson` binary IS needed, but only
+# later, when templates like .chezmoitemplates/evault-field run `ejson
+# decrypt` against the key file this script produces - bootstrap.ps1
+# installs it before invoking `chezmoi init --apply`.
+
+$profile = '{{ .deployment.profile }}'
+
+$chCfgDir = '{{ .chezmoi_config_dir }}'
+$ageRecipient = '{{ .crypt.age.age_recipient }}'
+$ekeyId = '{{ .crypt.ejson.key_id }}'
+$keysDir = '{{ .crypt.keys_dir }}'
+$ageKeyFile = '{{ .crypt.age.age_key_file }}'
+
+$ageBlob = '{{ joinPath .chezmoi.sourceDir "age_key_" }}' + "$profile.age"
+$ejsonBlob = '{{ joinPath .chezmoi.sourceDir "ejson_key_" }}' + "$profile.age"
+$ekeyFile = Join-Path $keysDir $ekeyId
+$chTmpCfg = Join-Path $chCfgDir "tmp_cfg.toml"
+
+Write-Host "🔃 Processing key files for profile '$profile'" -ForegroundColor Blue
+
+New-Item -ItemType Directory -Path $keysDir -Force | Out-Null
+
+if (-not (Test-Path $ageKeyFile)) {
+    Write-Host "🔃 Decrypting Age key for profile '$profile'" -ForegroundColor Blue
+    # `chezmoi age decrypt --passphrase` needs a real console to prompt
+    # securely - in a redirected/non-interactive context (automation, a
+    # remote exec with no real console) it would fail instantly, and
+    # without this upfront check the retry loop below would spin at
+    # effectively zero cost per iteration (same class of bug as the bash
+    # version's TTY check and the earlier PowerShell `ping` self-recursion
+    # finding - see CONCEPT_ROADMAP.md). Fail fast instead.
+    if ([Console]::IsInputRedirected) {
+        Write-Host "❌ No interactive console available to prompt for the $profile Age passphrase. Run this from a real PowerShell session, not a non-interactive/redirected context." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "🔵 Paste the $profile Age passphrase from your password manager when prompted." -ForegroundColor Blue
+    $attempt = 0
+    $maxAttempts = 10
+    while (-not (Test-Path $ageKeyFile)) {
+        $attempt++
+        if ($attempt -gt $maxAttempts) {
+            Write-Host "❌ Failed to decrypt $ageBlob after $maxAttempts attempts - giving up." -ForegroundColor Red
+            exit 1
+        }
+        & chezmoi age decrypt --passphrase --output $ageKeyFile $ageBlob
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Decrypting $ageBlob failed (attempt $attempt/$maxAttempts). Try again..." -ForegroundColor Red
+        }
+    }
+}
+
+if (-not (Test-Path $ekeyFile)) {
+    Write-Host "🔃 Decrypting EJSON key for profile '$profile'" -ForegroundColor Blue
+    @"
+encryption = 'age'
+[age]
+    identity = '$ageKeyFile'
+    recipient = '$ageRecipient'
+"@ | Set-Content -Path $chTmpCfg -Encoding utf8
+
+    & chezmoi -c $chTmpCfg decrypt --output $ekeyFile $ejsonBlob
+    $decryptExit = $LASTEXITCODE
+    Remove-Item $chTmpCfg -Force -ErrorAction SilentlyContinue
+    if ($decryptExit -ne 0) {
+        Write-Host "❌ Decrypting $ejsonBlob failed." -ForegroundColor Red
+        exit 1
+    }
+}
+{{- end -}}
