@@ -31,15 +31,25 @@ aliases:
         - name: makeme
           command:
             default: "sudo chown $USER:$USER"
-            # UX differs from sudo: pops a new elevated (UAC) window rather
-            # than prompting inline. Verified `takeown /F` syntax live.
-            windows: 'Start-Process pwsh -Verb RunAs -ArgumentList ''-NoProfile'',''-Command'',"takeown /F `"$args`""'
+            # Prefers Windows 11 24H2+'s native `sudo.exe` (inline, same-window
+            # UX, close to Unix sudo) when present; falls back to the old
+            # `Start-Process -Verb RunAs` popup (new elevated window) on older
+            # Windows. Verified live on winlab.local (2026-08-18): BOTH paths
+            # require an interactive desktop session to show the UAC consent —
+            # over a plain (non-`administrators_authorized_keys`) SSH session
+            # `sudo` fails fast with a clear "You are not allowed to run sudo"
+            # error, while `Start-Process -Verb RunAs` silently never launches
+            # anything at all (no error, no process). Neither is usable for
+            # unattended/headless bootstrap — see CONCEPT_ROADMAP.md's Windows
+            # user-scope/elevation section. `sudo.exe`/`takeown /F` syntax
+            # verified live.
+            windows: 'if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo.exe takeown /F "$args" } else { Start-Process pwsh -Verb RunAs -ArgumentList ''-NoProfile'',''-Command'',"takeown /F `"$args`"" }'
           description: Set file owner to the current user
 
         - name: makeroot
           command:
             default: "sudo chown 0:0"
-            windows: 'Start-Process pwsh -Verb RunAs -ArgumentList ''-NoProfile'',''-Command'',"takeown /F `"$args`" /A"'
+            windows: 'if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo.exe takeown /F "$args" /A } else { Start-Process pwsh -Verb RunAs -ArgumentList ''-NoProfile'',''-Command'',"takeown /F `"$args`" /A" }'
           description: Set file owner to root (Windows — Administrators group)
 
         - name: sha
@@ -79,3 +89,43 @@ aliases:
             default: "date +%V"
             windows: "Get-Date -UFormat %V"
           description: Print the current ISO week number
+
+        # Migrated from dot_bashrc.d/personal/dev-shortcuts 2026-08-18 — same
+        # reasoning as home-paths above (nav.yaml): was personal-scope AND
+        # bash-only, neither `e` nor `ali` is actually identity-specific.
+        - name: e
+          command:
+            # Plain $EDITOR, not ${EDITOR} — same fish incompatibility as
+            # `reload`'s $SHELL fix (power.yaml): fish hard-errors on the
+            # brace form. Unbraced works identically in bash/zsh/fish.
+            default: "$EDITOR"
+            # `& $env:EDITOR`, not bare `$env:EDITOR` — a bare variable
+            # reference is an expression, not a command invocation, so the
+            # renderer's auto-appended `@args` would hit the exact same
+            # splatting parse error as `reload`/`root` in power.yaml (see
+            # CONCEPT_ROADMAP.md §3.3 bug #5). The `&` call operator makes
+            # this a real command invocation, which IS a valid splat target.
+            windows: "& $env:EDITOR"
+          description: Open $EDITOR
+
+        - name: ali
+          command:
+            default: "edit-aliases-core aliases/common/git.yaml"
+            # edit-aliases-core (like edit-evault) is a bash script deployed
+            # to ~/.local/bin — that whole external-script tooling has no
+            # Windows story at all today (bash doesn't run natively, and
+            # nothing adds ~/.local/bin-equivalent to PATH on Windows
+            # either). Not a syntax issue to work around — flagged as a
+            # separate, real gap (CONCEPT_ROADMAP.md §3.6), not silently
+            # stubbed here.
+            windows: skip
+          description: Edit git aliases (dev repo copy, validated + regenerates ALIASES.md)
+
+        - name: myip
+          command:
+            default: "curl -s https://ifconfig.me"
+            # curl.exe explicitly — PowerShell aliases bare `curl` to
+            # Invoke-WebRequest, which doesn't understand `-s`. curl.exe
+            # itself has shipped natively since Windows 10 1803.
+            windows: "curl.exe -s https://ifconfig.me"
+          description: Show this machine's public IP address

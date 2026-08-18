@@ -53,3 +53,42 @@ aliases:
             # handling, not expressible as a plain command string.
             windows: skip
           description: Go to previous directory
+
+        # Migrated from dot_bashrc.d/personal/home-paths 2026-08-18 — was
+        # personal-scope AND bash-only, on the real work machine these
+        # existed in no shell at all. Promoted to common: none of these are
+        # actually identity-specific (see CONCEPT_ROADMAP.md §3.6).
+        - name: d
+          command:
+            default: "cd ~/Devel"
+            # User's real Windows convention is a completely different path
+            # (C:\Sources), not just a different case/separator — confirmed
+            # by the user directly, not guessed.
+            windows: "Set-Location C:\\Sources"
+          description: Go to the source-code working directory
+
+        - name: dl
+          command:
+            default: "cd ~/Downloads"
+            windows: "Set-Location ~/Downloads"
+          description: Go to the Downloads directory
+
+        - name: dt
+          command:
+            default: "cd ~/Desktop"
+            windows: "Set-Location ~/Desktop"
+          description: Go to the Desktop directory
+
+        - name: loc
+          command:
+            default: "cd ~/.local"
+            # XDG convention, no Windows equivalent — user confirmed skip
+            # over inventing a mapping (2026-08-18).
+            windows: skip
+          description: Go to the user-local data directory
+
+        - name: lb
+          command:
+            default: "cd ~/.local/bin"
+            windows: skip
+          description: Go to the user-local binaries directory

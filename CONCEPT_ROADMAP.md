@@ -79,6 +79,16 @@ starship** (viz sekce "Pořadí implementace").
   službám zvenčí). Všechny se zatím provisionují nabootováním do základního stavu a pokračováním
   přes SSH — **ne zero-touch**. Pro tuhle fázi: server bootstrap = SSH-driven/interaktivní, stejný
   Age-passphrase flow jako workstation; role zatím mění jen výběr balíčků/configu.
+- **Windows: user scope, ne machine scope, kdykoli je to možné (uživatelský požadavek,
+  2026-08-18)** — motivace: `role: server` nasazení může cílit na Windows stroj, kde uživatel
+  nemusí mít admin práva vůbec. Standing požadavek pro VEŠKEROU budoucí Windows práci, ne jen
+  balíčky: winget instalace, registry zápisy, font instalace, cokoliv nového — vždy nejdřív zkusit
+  per-user variantu (`--scope user`, `HKCU` místo `HKLM`, `%LOCALAPPDATA%`/`Documents` místo
+  `Program Files`/`Windows`), machine-scope jen když to nástroj/funkce reálně vyžaduje, a pak jako
+  vědomě zdokumentovanou výjimku (viz `powershell7` v sekci 7). Žádný `run_once`/`run_onchange`
+  skript nesmí předpokládat, že elevace je vůbec dostupná — viz zjištění o `sudo`/elevaci na
+  Windows níže v sekci 7, live ověřeno, že elevace přes obyčejnou SSH session (i pro reálně
+  lokálně-admin účet) prostě nefunguje, stejná realita jako neprivilegovaný účet.
 - **Password manager**: self-hosted Bitwarden, dvě oddělené instance/URL (personal, work) — obě
   dnes obsahují Age passphrase daného profilu. Bitwarden Secrets Manager (dedikovaný produkt pro
   machine secrets) je cloud-only a nejde použít se self-hosted instancí.
@@ -482,7 +492,7 @@ Jedna render šablona na cílový shell, všechny čtou **stejná** `.chezmoidat
   **Renderer vzor — vždy `function jméno { příkaz @args }`, nikdy `Set-Alias`** (Set-Alias neumí
   navázat pevné argumenty, a skoro každý alias je "příkaz + vložené flagy").
 
-  **Tři reálné, živě odchycené chyby, žádná nebyla zjevná dopředu:**
+  **Pět reálných, živě odchycených chyb, žádná nebyla zjevná dopředu:**
   1. **`-` (cd -) nejde vůbec naportovat** — PowerShell parser bere holé `-` vždy jako unární
      minus, i funkci doslova pojmenovanou `-` lze zavolat jen přes `& "-"`, nikdy jako typed
      input na promptu. `windows: skip`, stejná kategorie jako `sudo`/`path` (§3.6).
@@ -502,6 +512,16 @@ Jedna render šablona na cílový shell, všechny čtou **stejná** `.chezmoidat
      s prázdným `$input` (žádný upstream pipe) potlačí veškerý výstup úplně. Řešení: nové
      explicitní YAML pole `pipes_stdin: true` (jen `grep`/`fgrep`/`egrep`), renderer podmíněně
      prepend `$input |` jen tam.
+  5. **Auto-append `@args` po dot-source (`.`) nebo po `if {...} else {...}` bloku je taky
+     syntax error, stejná kategorie jako chyba č. 2, jiný spouštěč** (nalezeno 2026-08-18 při
+     migraci `power.yaml`/`root`+`reload`, živě ověřeno na `winlab.local`): `. $PROFILE @args`
+     hodí `"The splatting operator '@' cannot be used to reference variables in an expression...
+     can be used only as an argument to a command"` a shodí načtení celého souboru, stejně jako
+     `.Count` dřív. Splatting je platný jen hned po volání skutečného příkazu/cmdletu — ani
+     dot-source, ani if/else blok se nepočítá. Oprava: stejný trik jako `contains "$args"`
+     potlačení u `makeme`/`makeroot` (§3.6/misc.yaml), jen aplikovaný tam, kde `$args` nemá
+     přirozené místo — přidat neškodné `; $args | Out-Null` na konec příkazového textu, aby
+     renderer auto-append přeskočil.
 
   **Reálné, ověřené PowerShell ekvivalenty pro dosavadní Unix-only aliasy** (§3.6/`.chezmoidata/aliases/common/*.yaml`,
   `windows:` klíč): `Get-ChildItem` (+ `-Force`/`-Directory`/`-Hidden`/`Sort-Object` varianty pro
@@ -609,12 +629,88 @@ Nový mechanismus:
   YAML alias modelu (`.chezmoidata/aliases/common/git.yaml`, `+gcam`/`gp`), protože žádný z těch
   příkazů nemá shell-specifickou zvláštnost jako `chezmoi-aliases`' `history -a` — fish a
   PowerShell tak dostaly git zkratky poprvé, ne jen bash/zsh. `home-paths` (kromě konkrétních
-  cest) a `dev-shortcuts` zůstávají kandidáty, zatím nepřesunuty.
+  cest) a `dev-shortcuts` zůstávají kandidáty, zatím nepřesunuty — viz cross-shell alias audit
+  2026-08-18 níže.
+- **Cross-shell alias audit (2026-08-18)** — uživatelský požadavek: najít další gapy stejné třídy
+  jako git aliasy (existuje jen v některých shellech). Nalezeno a opraveno:
+  - **`50-aliases-power.sh` → `.chezmoidata/aliases/common/power.yaml`** (`reboot`/`poweroff`/
+    `halt`/`shutdown`/`shutdownnow`/`root`/`reload`) — bash/zsh-only, teď plná parita včetně fish
+    a best-effort Windows (`Restart-Computer`/`Stop-Computer`, `root`/`reload` použijí stejný
+    native-sudo-first koncept jako `makeme`/`makeroot`, viz sekce 7). Původní `$UID`-runtime větev
+    (jiné chování pro roota) zjednodušena pryč — `sudo <cmd>` jako root je na testovaných systémech
+    neškodný no-op, model stejně nepodporuje runtime větvení, jen OS. macOS ověřeno živě: má
+    `/sbin/reboot`/`/sbin/halt`/`/sbin/shutdown`, NEMÁ `/sbin/poweroff` (darwin override na
+    `shutdown -h now`). `windows: skip` jen pro holý `shutdown` (flexible/scheduled forma nemá
+    bezpečný 1:1 Windows ekvivalent bez explicitních flagů). Při portování nalezena a opravená
+    5. PowerShell renderer chyba (`.` a `if/else` nejsou "command" pro `@args` splatting) — viz
+    seznam chyb výše v sekci 3.3.
+  - **`chezmoi-aliases` (`ch`/`chd`)** — `history -a` idiom zůstává bash/zsh-specifický (fish
+    píše historii live, nemá co flushovat), ale fish (`dot_config/fish/conf.d/chezmoi-aliases.fish`)
+    a PowerShell (`80-functions.ps1`) teď mají vlastní ručně psanou verzi bez `history -a` — dřív
+    tam nebylo vůbec nic.
+  - **`home-paths`/`dev-shortcuts` — rozhodnuto s uživatelem a doimplementováno (2026-08-18),
+    navazující na nahlášený nález výše.** `d` (devel adresář) má u uživatele reálně JINOU cestu na
+    Windows, ne jen jiný separator — `~/Devel` (Linux/macOS) vs. `C:\Sources` (Windows, potvrzeno
+    přímo uživatelem, ne odhad). `dl`/`dt` (Downloads/Desktop) přesunuty do `nav.yaml`, portují se
+    1:1 i na Windows. `loc`/`lb` (`~/.local`, `~/.local/bin`) taky do `nav.yaml`, ale `windows:
+    skip` — potvrzeno uživatelem, žádný Windows ekvivalent k vymýšlení. `e` (`$EDITOR` shortcut) a
+    `ali` přesunuty do `misc.yaml`; `ali` má `windows: skip` s jiným důvodem než obvykle — není to
+    syntaxová nepřenositelnost, ale to, že `edit-aliases-core`/`edit-evault` (bash skripty v
+    `~/.local/bin`) nemají na Windows vůbec žádnou cestu (bash nativně neběží, nic tam navíc
+    nepřidává `~/.local/bin`-ekvivalent do PATH) — samostatný, hlubší nedodělek, nahlášený, ne
+    řešený v rámci tohoto aliasového auditu. `dot_bashrc.d/personal/` je teď prázdný scaffold
+    (`.gitkeep`, stejně jako `work/`).
+  - **`brc` — user rozhodnutí: stejný název aliasu napříč shelly, ale JINÝ cíl per shell** (ne
+    přes YAML model, ten větví jen podle OS, ne podle shellu). Čtyři malé ručně psané soubory:
+    bash `dot_bashrc.d/config-dir-shortcut` → `~/.bashrc.d`, zsh
+    `dot_zshrc.d/05-config-dir-shortcut.zsh` → `~/.zshrc.d` (VĚDOMĚ jiná hodnota než bash, i když
+    normálně bash/zsh sdílí `50-aliases-generated.sh` přes stejný soubor — tohle je první případ,
+    kdy bash a zsh potřebují různou hodnotu stejného aliasu), fish
+    `dot_config/fish/conf.d/config-dir-shortcut.fish` → `~/.config/fish`, PowerShell (funkce v
+    `80-functions.ps1`) → `Documents/PowerShell/dotfiles.d`.
+  - **Při portování `e` na Windows nalezena další instance chyby č. 5 (sekce 3.3)** — `& $env:EDITOR`
+    (call operator), ne holé `$env:EDITOR` — bez `&` by to byl bare expression, ne "command", a
+    auto-append `@args` by spadl se stejnou "splatting operator... only as an argument to a
+    command" chybou jako u `root`/`reload`. `&` je tu navíc SPRÁVNÝ fix, ne jen obcházení bugu
+    (skutečně invokuje hodnotu `$env:EDITOR` jako příkaz) — na rozdíl od `root`/`reload`, kde šlo
+    o neškodné `; $args | Out-Null` potlačení. Živě ověřeno na `winlab.local` včetně reálného
+    end-to-end volání (`$env:EDITOR = "cmd.exe"; e "/c echo ..."` skutečně spustilo cmd.exe s
+    předaným argumentem).
+  - **Vedlejší nález (mimo aliasy, nahlášeno pro úplnost)**: `dot_bashrc.d/wsl2_ssh_agent_support`
+    je bash-only (chybí v explicitním `00-shared.zsh` seznamu i ve fish), ale `ALIASES.md` ho
+    dosud popisoval jako "universal" — nepravdivé tvrzení. Návrh sdíleného
+    `wsl2-ssh-agent-bridge` skriptu (viz sekce 3.7) existuje jen jako text v tomhle dokumentu,
+    nikdy nebyl implementovaný. Netýká se aliasů přímo, proto neopraveno v rámci tohoto auditu.
 - Drobné nálezy k opravě: mrtvý řádek `LESS_TERMCAP_md="${yellow}"` v `dot_bashrc.d/exports`
   (nedefinovaná proměnná, přepsaná o dva řádky níž); duplicitní/překrývající se logika hledání
   nejnovějšího GitHub release existuje na dvou místech (`zpfn_get_github_project_latest_release_download_link`
   runtime bash funkce vs. nepoužitý `.chezmoitemplates/get-github-latest-verson`) — ponechat jen
   chezmoi-template verzi (viz sekce 7).
+
+**Extra convenience functions (2026-08-18)** — uživatelský návrh, viz `ALIASES.md`'s "Extra
+convenience functions" tabulka pro plný seznam a per-funkce poznámky (`unpack`/`backup`/`serve`/
+`weather`/`myip`/`gclone`/`pathlist`/`up`/`killport`/`json`/`gclean`/`cheat`). Stejný vzor jako
+`mkcd` — hand-written per shell (`dot_bashrc.d/85-functions-extra.sh` sdílené bash/zsh,
+`dot_config/fish/functions/*.fish` jeden soubor na funkci, `80-functions.ps1` PowerShell), jen
+`myip` je čistá YAML alias (žádné argumenty, žádná logika). Zajímavá zjištění při implementaci:
+- **`fuser` na macOS je POSIX file/mount-point varianta, NE Linux psmisc síťová varianta**
+  (`fuser <port>/tcp` na macOS selže "does not exist") — ověřeno živě, `killport` proto
+  potřebuje reálné OS větvení (`uname`), ne jen jinou příponu/flag jako `ports`.
+- **`tar xf` (bez `-z`/`-j`/`-J`) autodetekuje kompresi** na bsdtar (macOS), GNU tar (Linux) i
+  Windows vestavěném `tar.exe` (taky libarchive/bsdtar based) — ověřeno živě na všech třech,
+  zjednodušilo `unpack` na jedinou větev pro celou tar-rodinu přípon místo párování flag↔přípona.
+- **fish 3.6+ má vestavěný `path` příkaz** (manipulace s cestami) — funkce stejného jména by ho
+  zastínila, proto `pathlist`, ne `path`, napříč všemi shelly (konzistence před zkratkou).
+- **`jq` přidán jako nová `workstation`-only závislost** (`packages.yaml`) — uživatelův explicitní
+  požadavek nezvětšovat server footprint. `openssl` (dřív zvažovaný pro budoucí `genpass`) zůstává
+  vyřazený (viz sekce 7) — `json`/`genpass`-třída funkcí musí buď najít závislost bez nového
+  balíčku, nebo si o nový balíček řekne explicitně, ne automaticky předpokládat přítomnost.
+- **Nejmenovaný random-string/heslo generátor (`genpass`) vědomě odložen** — uživatel má existující
+  implementaci v jiném (svém) projektu, chce z ní převzít přesný formát/syntaxi, ne unáhleně
+  navrhovat vlastní teď. Nezačínat, dokud nedodá referenci.
+- Živě ověřeno end-to-end na `WinLab Template` klonu (parse celého souboru, `unpack`/`backup`/
+  `up`/`json`/`myip`/`killport` skutečně spuštěné, ne jen nasyntaxovány — `killport` otestován
+  proti reálnému TCP listeneru, `myip` proti reálné síti).
 
 ### 3.7 WSL2 specifika
 
@@ -906,10 +1002,25 @@ init soubory pro zsh/fish/PowerShell, `starship-theme` přepínač, `helpers/ins
   `src.fedoraproject.org`, winget `JanDeDobbeleer.OhMyPosh` reálně nainstalováno na winlab.local).
   `apt` (Debian/Ubuntu) v defaultní archívě balíček nemá (ověřeno přes Launchpad API) — chybí
   vlastní apt repo setup, zatím `skip`, viz sekce 7 GitHub-release fallback poznámka.
-  **Neověřeno od přechodu:** the root=red/green subprocess-caching finding z předchozí Starship
-  implementace (níže v této sekci, historická poznámka) nebyl přetestován proti oh-my-posh — OMP
-  má jinou architekturu (persistentní `oh-my-posh` proces vs. Starship spouštěný čerstvě při
-  každém vykreslení), takže stejný test by měl smysl zopakovat, až bude příležitost.
+  **root=red/green proti Oh My Posh — přetestováno a POTVRZENO (2026-08-18), žádná regrese oproti
+  Starship.** OMP má sice jinou architekturu (`eval`/`init` jednou při startu shellu registruje
+  hook — `precmd_functions` u zsh — místo Starship's spouštění nanovo při každém vykreslení), ale
+  ten hook se stejně reálně volá znovu PŘED každým skutečným promptem, takže UID změna (např.
+  `sudo zsh`/`sudo fish` vnořený do živé session) se projeví okamžitě, bez restartu — ověřeno živě
+  (zsh: ruční zavolání `_omp_precmd` hooku před/po `sudo`, fish: `sudo fish -c ...`) — v obou
+  případech `atomic.omp.json`'s root indikátor segment (červené pozadí, jen když `.Root`) se
+  správně objevil jen ve root větvi, zmizel v uživatelské.
+  **Fish native fallback prompt — DOIMPLEMENTOVÁNO (2026-08-18)**, dřív reálně chybějící mezera:
+  nový `dot_config/fish/functions/fish_prompt.fish`, `set_color --bold <name>` (stejné dva SGR
+  parametry — bold + barva — jako bash/zsh `\033[01;3xm`, jen v opačném pořadí uvnitř escape
+  sekvence; ANSI terminál je bere jako neuspořádanou množinu, takže vykreslení je bajtově
+  identické, ověřeno živě). Fish tohle funguje autoloadovat LÍNĚ, jen když `fish_prompt` ještě
+  není definovaná v aktuální session v okamžiku prvního vykreslení promptu — pokud je
+  `ohmyposh-init.fish` nainstalovaný, jeho `source` proběhne při startu shellu dřív, než se
+  vůbec kreslí první prompt, takže tenhle fallback nikdy nesoutěží s OMP, přesně stejný vrstvící
+  model jako bash/zsh. Živě ověřeno (lokální Mac, fish 4.8.1): samotný fallback (root/user barvy
+  správně `31;1`/`32;1`, bajtově identické s bash) i společně s reálně nainstalovaným
+  `oh-my-posh` (OMP korektně vyhrává, fallback se vůbec nevyvolá).
 - **Ghostty (ověřeno, IMPLEMENTOVÁNO a ověřeno proti reálnému Ghostty binárnímu 2026-08-01)**:
   nativní include — `config-file = ?cesta` (`?` prefix = tichý no-op, když soubor chybí — podobné
   gitu). Pozdější `config-file` přepisuje dřívější hodnoty → common → profil → profil+OS, stejný
@@ -1101,6 +1212,74 @@ bash verze).
   (pty/tty detekce se zasekne mimo skutečnou konzoli) — `-T -G` funguje okamžitě. Nesouvisí s
   Include bugem, ale bez týhle opravy nešlo Include vůbec testovat.
 
+**Windows — sudo/elevace koncept a user-scope princip (2026-08-18), live ověřeno na čerstvém
+`WinLab Template` klonu.** Navazuje na požadavek v sekci 1 ("Windows: user scope, ne machine
+scope"). Cíl bylo zjistit, jestli natívní Windows 11 `sudo` dá spolehlivě fungovat, a navrhnout
+koncept pro Windows-stranu `makeme`/`makeroot`/budoucí elevation potřeby.
+
+- **Nativní `sudo.exe` reálně existuje** od Windows 11 24H2 (build ≥26100, `C:\Windows\System32\
+  sudo.exe`, ověřeno verze 1.0.1) — tři módy (`forceNewWindow` default / `disableInput` /
+  `normal`≈inline), přepínatelné přes Nastavení nebo `sudo config --enable <mode>` (vyžaduje
+  jednorázově elevated konzoli — stejné kuře-vejce jako `visudo` poprvé). Na testovacím klonu byl
+  už předkonfigurovaný v `normal`/inline módu (`sudo config` to potvrdil).
+- **Žádný z těch tří módů neobchází UAC dialog** — liší se jen v tom, jak elevovaný proces dostane
+  okno/vstup (nové okno / okno bez vstupu / inline se vstupem), ne v tom, jestli se ptá. Potvrzeno
+  oficiální Microsoft dokumentací ("sudo can only be elevated via UAC") i komunitními reporty.
+- **Sudo si NEPAMATUJE schválení — žádný cache/grace-period jako Unix `sudo` (typicky 5-15 min).**
+  Každé jednotlivé volání = nový UAC dialog, i těsně po předchozím schválení (potvrzeno oficiální
+  dokumentací i reálnými GitHub issues, např. `topgrade-rs/topgrade#1025`). Tohle je záměrný
+  bezpečnostní kompromis, ne bug — Microsoft sám v dokumentaci odkazuje na třetí-stranový `gsudo`
+  pro toho, kdo chce cachování (a přebírá tím jeho bezpečnostní trade-off vědomě sám). Praktický
+  důsledek pro `makeme`/`makeroot`: opakované volání za sebou = opakované klikání na "Ano", stejně
+  jako předtím se starým `Start-Process -Verb RunAs` (tam žádné cachování nikdy nebylo taky).
+- **Existuje jediný způsob, jak se dá UAC dialog úplně vypnout** — ale je to systémová politika
+  (`ConsentPromptBehaviorAdmin` v `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System`,
+  hodnota `0` = "Elevate without prompting"), nesouvisí přímo se sudem samotným, platí pro VŠECHNU
+  UAC elevaci na stroji. Microsoft to explicitně nedoporučuje ("minimizes the protection provided
+  by UAC... only in the most constrained environments") a vyžaduje samo o sobě jednorázovou
+  elevaci k nastavení (stejné kuře-vejce jako `sudo config --enable`). **Nezavádět do tohohle
+  repa** — je to reálná bezpečnostní degradace, ne dotfiles-scope rozhodnutí; zmíněno jen jako
+  úplnost odpovědi na "jde to vůbec někdy neptát".
+- **Zásadní zjištění: `sudo` (ani starý `Start-Process -Verb RunAs`) nefunguje přes obyčejnou SSH
+  session, ani když je připojený účet reálně v `BUILTIN\Administrators`.** Živě ověřeno na
+  `tester@winlab.local` (heslová SSH autentizace, member of Administrators, potvrzeno přes
+  `whoami /groups`):
+  - `sudo whoami` selže OKAMŽITĚ a čistě: `"You are not allowed to run sudo"` — žádné zaseknutí,
+    žádný nekonečný wait na UAC dialog (na rozdíl třeba od SSH `Include` bugu ze stejné sekce).
+  - `Start-Process -Verb RunAs` na stejné session **nehodí chybu vůbec**, jen tiše nikdy
+    nespustí cílový proces (ověřeno: `Get-Process` po zavolání nenašel žádný nový proces) — hůř
+    diagnostikovatelné než `sudo`, protože to vypadá jako úspěch (`$p.HasExited = $false`).
+  - **Kořen problému**: UAC consent vyžaduje "secure desktop" reálné interaktivní/konzolové (nebo
+    RDP) session — obyčejný SSH exec (heslo nebo běžný `authorized_keys`) běží mimo interaktivní
+    window station, takže elevaci ukázat nemá kam. Tohle je fundamentální hranice Windows security
+    modelu, ne dotfiles bug — stejná realita jako "`sudo` nefunguje, když nejsi v sudoers" na
+    Unixu, jen jiný trigger (chybí desktop, ne chybí oprávnění).
+  - **Zdokumentovaná výjimka (NEKONFIGUROVANÁ tímhle repem, jen referenční)**: Win32-OpenSSH má
+    `administrators_authorized_keys` (`%ProgramData%\ssh\`, ACL jen SYSTEM+Administrators,
+    pubkey-only) — účet přihlášený touhle cestou dostane rovnou plně elevovaný token bez UAC
+    dialogu vůbec. Reálná admin volba na úrovni SSH serveru, ne něco, co by dotfiles měly nastavit
+    samy (sdílené admin SSH klíče = compliance trade-off, viz Microsoft/Win32-OpenSSH dokumentace)
+    — zmíněno jako známá cesta pro toho, kdo GENUINE potřebuje elevovaný Windows SSH přístup.
+- **Design/koncept přijatý a implementovaný**: `makeme`/`makeroot`
+  (`.chezmoidata/aliases/common/misc.yaml`) teď na Windows nejdřív zkusí nativní `sudo.exe`
+  (`Get-Command sudo -ErrorAction SilentlyContinue`), a jen když chybí (starší Windows bez 24H2),
+  spadnou zpátky na starý `Start-Process -Verb RunAs` popup. `sudo.exe`, ne bare `sudo` — stejná
+  ochrana proti self-recursion jako `ping.exe` fix výše (kdyby si uživatel later definoval vlastní
+  `sudo` wrapper/funkci). Živě ověřeno na klonu: syntaxe se naparsuje bez chyby, a přes SSH session
+  (bez `administrators_authorized_keys`) `makeme` teď čistě selže se srozumitelnou `sudo` hláškou
+  místo starého tichého no-opu — zlepšení i pro headless případ, ne jen pro interaktivní. Obecný
+  `sudo`/`path` alias (misc.yaml komentář) zůstává `windows: skip` beze změny — to je bash/zsh
+  `sudo='sudo '` trailing-space trik (alias-expansion po sudu), koncept, co na PowerShellu vůbec
+  nedává smysl, nesouvisí s tímhle zjištěním.
+- **Důsledek pro budoucí Windows implementaci** (server bootstrap, packages, cokoliv
+  elevation-vyžadující): **nikdy nepředpokládat, že elevace přes SSH-driven `chezmoi apply` půjde**
+  — ani u lokálně-admin účtu. `run_onchange_install-packages.ps1.tmpl` dnes elevaci nevyžaduje
+  vůbec (winget bez `Start-Process -Verb RunAs` wrapperu, defaultní/uživatelská instalace tam, kde
+  to instalátor podporuje) — to je správně a zůstává tak. Jediná dnešní vědomá `scope: machine`
+  výjimka je `powershell7` (potřebuje `wix` instalaci pro `DefaultShell`/`defaultProfile`
+  registraci) — pokud by tenhle krok kdy selhal na neelevated/no-admin cíli, očekávané chování je
+  jasná chyba/log, ne tichý pád celého apply.
+
 **Windows Terminal font-size fragment — IMPLEMENTOVÁNO a živě ověřeno 2026-08-07.** Windows
 Terminal má nativní, dokumentovaný "fragment extension" mechanismus
 (`%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\<app>\*.json`) — funguje bez ohledu na to,
@@ -1207,6 +1386,10 @@ Green-field POC, žádné reálné nasazení k ochraně — proto stavět rovnou
 - **PowerShell abbr-parita** (fish-like rozbalení po mezeře) — schéma (`kind` pole) je navržené
   tak, aby šlo přidat později jen výměnou/rozšířením PowerShell rendereru (přes PSReadLine custom
   key handler `Set-PSReadLineKeyHandler -Key Spacebar ...`), bez zásahu do datového modelu.
+- **SSH klíč pro git commit signing** (`user.signingkey`/`gpg.format = ssh`/`commit.gpgsign`) —
+  zmíněno víckrát v diskuzi (git identity/evault plán), vždy vědomě odloženo uživatelem. Zapsáno
+  tady jako samostatný globální task, ne vázaný na jeden konkrétní plán — řešit až bude explicitně
+  požádáno, nezačínat proaktivně.
 
 ---
 

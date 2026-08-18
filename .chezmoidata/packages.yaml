@@ -20,6 +20,9 @@ packages:
       apt: skip # not in Debian/Ubuntu's primary archive (verified via Launchpad API 2026-08-17) — needs oh-my-posh's own apt repo, not built yet
       brew: oh-my-posh # homebrew/core, no tap needed (verified 2026-08-17)
       winget: JanDeDobbeleer.OhMyPosh # verified live on winlab.local 2026-08-17
+    - name: jq
+      roles: [workstation] # deliberately NOT server — user's explicit call, keep server footprint minimal
+      winget: skip # PowerShell's native ConvertFrom-Json/ConvertTo-Json covers the `json` function there, no external tool needed
     - name: bitwarden
       roles: [workstation]
       requires_gui: true

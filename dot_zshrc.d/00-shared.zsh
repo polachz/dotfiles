@@ -4,8 +4,13 @@
 # files (99-prompt.sh: PS1 escapes, 01-bash-history.sh: HISTCONTROL/HISTFILESIZE
 # have no zsh equivalent). 80-functions-common.sh was excluded until
 # 2026-08-01 for using `export -f` (confirmed no-op/broken in zsh) — fixed,
-# now shared (see CONCEPT_ROADMAP.md §3.8.1).
-for _zpfn_f in "$HOME/.bashrc.d/00-colors.sh" "$HOME/.bashrc.d/05-env-generated.sh" "$HOME/.bashrc.d/50-aliases-generated.sh" "$HOME/.bashrc.d/50-aliases-power.sh" "$HOME/.bashrc.d/80-functions-common.sh" "$HOME/.bashrc.d/chezmoi-aliases"; do
+# now shared (see CONCEPT_ROADMAP.md §3.8.1). 50-aliases-power.sh removed
+# 2026-08-18 — migrated into the YAML alias model (power.yaml), now covered
+# by 50-aliases-generated.sh like everything else there. 85-functions-extra.sh
+# added 2026-08-18 (unpack/backup/serve/weather/gclone/pathlist/up/killport/
+# json/gclean/cheat) — verified C-style `for ((...))` (used by `up`) works
+# identically in zsh, no bash-only syntax in this file.
+for _zpfn_f in "$HOME/.bashrc.d/00-colors.sh" "$HOME/.bashrc.d/05-env-generated.sh" "$HOME/.bashrc.d/50-aliases-generated.sh" "$HOME/.bashrc.d/80-functions-common.sh" "$HOME/.bashrc.d/85-functions-extra.sh" "$HOME/.bashrc.d/chezmoi-aliases"; do
     [ -f "${_zpfn_f}" ] && [ -r "${_zpfn_f}" ] && source "${_zpfn_f}"
 done
 

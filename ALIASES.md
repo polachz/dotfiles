@@ -6,8 +6,8 @@
 `edit-aliases-core` (no args = regen-only mode; give it a YAML file path to
 edit + validate + regenerate in one step). Never edit inside those markers by
 hand, it's overwritten verbatim on every regeneration. Everything outside the
-markers (prose, non-YAML-sourced sections like Power management or the
-personal/zsh-only scopes) is still hand-maintained.
+markers (prose, non-YAML-sourced sections like the personal/zsh-only scopes)
+is still hand-maintained.
 
 **Looking to add a new entry, not just look one up?** See
 [`DAILY_WORKFLOW.md` → S10 (alias)](./DAILY_WORKFLOW.md#s10-add-a-new-alias),
@@ -61,12 +61,15 @@ regardless of `kind`.
 |---|---|---|---|---|---|
 | `gh` | `history \| grep` | `history \| grep` | `Get-History \| Out-String -Stream \| Select-String` | abbr | Search shell history for a pattern (session-scope only, on every shell) |
 | `count` | `find . -type f \| wc -l` | `find . -type f \| wc -l` | `Get-ChildItem -Recurse -File \| Measure-Object \| Select-Object -ExpandProperty Count` | abbr | Count all files in the current directory tree |
-| `makeme` | `sudo chown $USER:$USER` | `sudo chown $USER:$USER` | `Start-Process pwsh -Verb RunAs -ArgumentList '-NoProfile','-Command',"takeown /F `"$args`""` | abbr | Set file owner to the current user |
-| `makeroot` | `sudo chown 0:0` | `sudo chown 0:0` | `Start-Process pwsh -Verb RunAs -ArgumentList '-NoProfile','-Command',"takeown /F `"$args`" /A"` | abbr | Set file owner to root (Windows — Administrators group) |
+| `makeme` | `sudo chown $USER:$USER` | `sudo chown $USER:$USER` | `if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo.exe takeown /F "$args" } else { Start-Process pwsh -Verb RunAs -ArgumentList '-NoProfile','-Command',"takeown /F `"$args`"" }` | abbr | Set file owner to the current user |
+| `makeroot` | `sudo chown 0:0` | `sudo chown 0:0` | `if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo.exe takeown /F "$args" /A } else { Start-Process pwsh -Verb RunAs -ArgumentList '-NoProfile','-Command',"takeown /F `"$args`" /A" }` | abbr | Set file owner to root (Windows — Administrators group) |
 | `sha` | `shasum -a 256` | `shasum -a 256` | `Get-FileHash -Algorithm SHA256 -Path` | abbr | SHA-256 checksum shortcut |
 | `ping` | `ping -c 5` | `ping -c 5` | `ping.exe -n 5` | alias | Ping with a bounded count of 5 |
 | `ports` | `netstat -tulanp` | `lsof -iTCP -sTCP:LISTEN -n -P` | `Get-NetTCPConnection -State Listen` | abbr | Show all listening ports on this machine |
 | `week` | `date +%V` | `date +%V` | `Get-Date -UFormat %V` | abbr | Print the current ISO week number |
+| `e` | `$EDITOR` | `$EDITOR` | `& $env:EDITOR` | abbr | Open $EDITOR |
+| `ali` | `edit-aliases-core aliases/common/git.yaml` | `edit-aliases-core aliases/common/git.yaml` | — | abbr | Edit git aliases (dev repo copy, validated + regenerates ALIASES.md) |
+| `myip` | `curl -s https://ifconfig.me` | `curl -s https://ifconfig.me` | `curl.exe -s https://ifconfig.me` | abbr | Show this machine's public IP address |
 
 ### `nav`
 
@@ -79,6 +82,23 @@ regardless of `kind`.
 | `hh` | `cd ~` | `cd ~` | `Set-Location ~` | abbr | Go to home directory |
 | `ee` | `cd /etc` | `cd /etc` | `Set-Location C:\Windows\System32\drivers\etc` | abbr | Go to /etc (Windows equivalent — hosts file, protocol/service definitions) |
 | `-` | `cd -` | `cd -` | — | abbr | Go to previous directory |
+| `d` | `cd ~/Devel` | `cd ~/Devel` | `Set-Location C:\Sources` | abbr | Go to the source-code working directory |
+| `dl` | `cd ~/Downloads` | `cd ~/Downloads` | `Set-Location ~/Downloads` | abbr | Go to the Downloads directory |
+| `dt` | `cd ~/Desktop` | `cd ~/Desktop` | `Set-Location ~/Desktop` | abbr | Go to the Desktop directory |
+| `loc` | `cd ~/.local` | `cd ~/.local` | — | abbr | Go to the user-local data directory |
+| `lb` | `cd ~/.local/bin` | `cd ~/.local/bin` | — | abbr | Go to the user-local binaries directory |
+
+### `power`
+
+| Command | Linux | macOS | Windows | Kind | Description |
+|---|---|---|---|---|---|
+| `reboot` | `sudo /sbin/reboot` | `sudo /sbin/reboot` | `Restart-Computer -Force` | abbr | Reboot the machine |
+| `poweroff` | `sudo /sbin/poweroff` | `sudo /sbin/shutdown -h now` | `Stop-Computer -Force` | abbr | Power off the machine |
+| `halt` | `sudo /sbin/halt` | `sudo /sbin/halt` | `Stop-Computer -Force` | abbr | Halt the machine |
+| `shutdown` | `sudo /sbin/shutdown` | `sudo /sbin/shutdown` | — | abbr | Shut down the machine (flexible/scheduled form) |
+| `shutdownnow` | `sudo /sbin/shutdown -h now` | `sudo /sbin/shutdown -h now` | `Stop-Computer -Force` | abbr | Shut down the machine immediately |
+| `root` | `sudo -i` | `sudo -i` | `if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo pwsh } else { Start-Process pwsh -Verb RunAs }; $args \| Out-Null` | abbr | Start a root/elevated shell |
+| `reload` | `exec $SHELL -l` | `exec $SHELL -l` | `. $PROFILE; $args \| Out-Null` | abbr | Reload the shell (re-exec as a login shell; PowerShell re-sources $PROFILE instead) |
 <!-- GENERATED:aliases-doc-aliases:end -->
 
 **Not yet migrated to the YAML model** (need per-shell native syntax, not a
@@ -86,21 +106,6 @@ plain command string — see `.chezmoidata/aliases/common/misc.yaml`'s own
 comment): the old `sudo='sudo '` trailing-space trick and the `path` alias
 (`${PATH//:/\n}`, bash-only parameter expansion). Currently **not
 implemented in any shell** — dropped during migration, not yet rebuilt.
-
-### Power management (`dot_bashrc.d/50-aliases-power.sh`, bash/zsh only — not yet in the YAML model)
-
-For a non-root user the destructive commands are wrapped in `sudo`; as
-root they run directly.
-
-| Command | Expands to (non-root) | Description |
-|---------|----------------------|-------------|
-| `reboot` | `sudo /sbin/reboot` | Reboot |
-| `poweroff` | `sudo /sbin/poweroff` | Power off |
-| `halt` | `sudo /sbin/halt` | Halt |
-| `shutdown` | `sudo /sbin/shutdown` | Shutdown |
-| `shutdownnow` | `sudo /sbin/shutdown -h now` | Immediate shutdown |
-| `root` | `sudo -i` | Root login shell |
-| `reload` | `exec ${SHELL} -l` | Re-exec the shell as a login shell |
 
 ---
 
@@ -175,14 +180,53 @@ survives as `github_release_asset_url()` in `.chezmoitemplates/scripts-library`
 (build-time helper, for a future GitHub-release package-manager fallback —
 not an interactive function anymore).
 
-### Prompt (`99-prompt.sh` / `99-prompt.zsh`)
+### Extra convenience functions (`dot_bashrc.d/85-functions-extra.sh`)
+
+Added 2026-08-18. Same reasoning as `mkcd` — real logic (loops, case/switch,
+argument parsing), doesn't fit the plain-command-substitution alias model,
+so each is hand-written once per shell: bash/zsh share
+`dot_bashrc.d/85-functions-extra.sh`, fish gets one file per function under
+`dot_config/fish/functions/`, PowerShell versions live in
+`Documents/PowerShell/dotfiles.d/80-functions.ps1`. All live-verified
+(macOS locally; PowerShell on a disposable `WinLab Template` clone).
+
+| Function | Description | Notes |
+|----------|-------------|-------|
+| `unpack <archive>` | Extract almost any archive based on its extension (`.tar`/`.tar.gz`/`.tgz`/`.tar.bz2`/`.zip`/`.rar`/`.7z`/`.gz`/`.bz2`/`.xz`/`.Z`) | Named `unpack`, not `extract` (user's preference) or `unzip`/`untar` (real tool names). `tar xf` alone auto-detects compression on bsdtar/GNU tar/Windows' bundled tar.exe — no per-extension flag needed. `.zip` on Windows uses `Expand-Archive`; `.7z`/`.rar` need those tools present, same as Unix. |
+| `backup <path>` | Copy a file/dir to a timestamped `<path>.bak-<timestamp>` sibling | |
+| `serve [port]` | Serve the current directory over HTTP via `python3 -m http.server` (default port 8000) | Relies on `python3`/`python` being on PATH — not a tracked dependency in this repo, fails with a clear message if missing rather than a cryptic error. |
+| `weather [location]` | Quick weather report via `curl wttr.in/<location>` | Empty arg = auto-detect location by IP. |
+| `myip` | Show this machine's public IP address | Plain alias (`.chezmoidata/aliases/common/misc.yaml`), not a function — no arguments needed. |
+| `gclone <url>` | `git clone` then `cd` into the resulting directory | |
+| `pathlist` | Print `$PATH` one entry per line | Named `pathlist`, not `path` — fish 3.6+ has a builtin `path` command (path manipulation) that a function of that name would shadow. |
+| `up [N]` | `cd` up N directories (default 1) | Complements the fixed-depth `..`/`...`/`....`/`.....` nav aliases with an arbitrary depth. |
+| `killport <port>` | Find and kill whatever process is listening on a TCP port | Genuine macOS/Linux tool split (not just a flag difference): macOS's `fuser` is the POSIX file/mount-point variant with no network-port awareness at all (verified live) — macOS uses `lsof`, Linux uses `fuser -k <port>/tcp`. Windows uses `Get-NetTCPConnection`/`Stop-Process`. |
+| `json [file]` | Pretty-print JSON, piped or from a file argument | Unix via `jq` (new workstation-only package, see `packages.yaml` — deliberately not server, and not `python3 -m json.tool`, an untracked dependency). Windows needs no extra tool — native `ConvertFrom-Json`/`ConvertTo-Json`. |
+| `gclean` | Delete local git branches already merged into the repo's default branch | Detects the default branch from `origin/HEAD`, falls back to `main`; the current branch and `main`/`master` are always excluded as an extra safety net regardless of what detection returns. |
+| `cheat <topic>` | Quick cheatsheet lookup via `curl cheat.sh/<topic>` | |
+
+Deliberately **not yet implemented**: a random string/password generator —
+user has an existing implementation in another project to port the exact
+format/syntax from first, tracked as a follow-up, not started.
+
+### Prompt (`99-prompt.sh` / `99-prompt.zsh` / `functions/fish_prompt.fish`)
 
 Native prompt, colorizes `user@host dir$` — red username for root, green
-for a normal user (bash: `PS1` with `\[...\]`; zsh: `PROMPT` with `%{...%}`
-— can't share syntax, but reuse the same `$FG_*` variables from
-`00-colors.sh`). [Oh My Posh](https://ohmyposh.dev/) layers on top if
-installed (`99-theme-init.zsh` / `dot_config/fish/conf.d/ohmyposh-init.fish`),
-without replacing this baseline.
+for a normal user (bash: `PS1` with `\[...\]`; zsh: `PROMPT` with `%{...%}`;
+fish: `set_color --bold <name>` — none share syntax, but bash/zsh reuse the
+same `$FG_*` variables from `00-colors.sh`, and fish's `set_color --bold`
+emits the identical two SGR parameters just in a different order, verified
+byte-for-byte). [Oh My Posh](https://ohmyposh.dev/) layers on top if
+installed (`99-theme-init.zsh` / `dot_config/fish/conf.d/ohmyposh-init.fish`
+/ `Documents/PowerShell/dotfiles.d/99-ohmyposh-init.ps1`), without replacing
+this baseline — fish's `fish_prompt.fish` is autoloaded lazily by fish
+itself, only if Oh My Posh hasn't already defined `fish_prompt` at shell
+startup, so it's a true fallback, added 2026-08-18 (previously fish had no
+native fallback at all). Root-vs-user recoloring re-verified live against
+Oh My Posh itself (not just the classic prompt) on both zsh and fish
+2026-08-18 — correctly re-evaluates every prompt via Oh My Posh's own
+per-render hook, no shell restart needed, no regression from the earlier
+Starship-based behavior.
 
 ### Chezmoi shortcuts (`chezmoi-aliases`)
 
@@ -197,32 +241,40 @@ existed as real chezmoi template data).
 | `ch` | `history -a && chezmoi` | chezmoi (history flushed first, since chezmoi may restart the shell) |
 | `chd` | `history -a && chezmoi cd` | chezmoi source directory |
 
+**Ported to fish and PowerShell (2026-08-18)** — same `ch`/`chd` shortcuts,
+found missing there during a cross-shell alias audit (same class of gap the
+git aliases had before). Not YAML-migrated: the `history -a` idiom above is
+bash/zsh-specific (works around history being lost on a chezmoi-triggered
+shell restart) and doesn't apply to fish (writes history live, nothing to
+flush) or PowerShell — so each shell gets its own trivial hand-written
+version instead of forcing a shared command string through the alias model.
+See `dot_config/fish/conf.d/chezmoi-aliases.fish` and
+`Documents/PowerShell/dotfiles.d/80-functions.ps1`.
+
 ---
 
-## Personal scope (`~/.bashrc.d/personal/`, bash only — not yet ported to zsh/fish)
+## Personal scope (`~/.bashrc.d/personal/`)
 
-Loaded only when the active profile is `personal`. Git/chezmoi shortcuts
-moved out to the shared scope above 2026-08-15 (see `CONCEPT_ROADMAP.md`
-§3.6) — what's left here hasn't been reviewed the same way yet, no personal
-machine exists to validate against.
+Now an empty placeholder (`.gitkeep`, mirrors `work/`) — the former
+`dev-shortcuts` (`e`, `ali`) and `home-paths` (`loc`, `lb`, `d`, `dl`, `dt`)
+content moved to the common `nav`/`misc` tables above 2026-08-18 (none of it
+was actually personal-identity-specific — same reasoning as the git aliases'
+own earlier migration), gaining fish/PowerShell parity in the process. `brc`
+did NOT move there — see below, it needs a different value per shell, which
+the OS-keyed alias model can't express.
 
-### Developer shortcuts (`dev-shortcuts`)
+### Config directory shortcut (`brc`)
 
-| Command | Expands to | Description |
-|---------|-----------|-------------|
-| `e` | `${EDITOR}` | Open `$EDITOR` |
-| `ali` | `edit-aliases-core aliases/common/git.yaml` | Edit git aliases (dev repo copy, validated + regenerates `ALIASES.md`) — fixed 2026-08-17, used to open the deployed file directly |
+Same alias name in every shell, but the target is each shell's own fragment
+directory — not expressible in the common OS-keyed alias model (that varies
+by OS, not by shell), so it's four small hand-written files instead:
 
-### Home paths (`home-paths`)
-
-| Command | Expands to |
-|---------|-----------|
-| `loc` | `cd ~/.local` |
-| `lb` | `cd ~/.local/bin` |
-| `d` | `cd ~/devel` |
-| `dl` | `cd ~/Downloads` |
-| `dt` | `cd ~/Desktop` |
-| `brc` | `cd ~/.bashrc.d` |
+| Shell | File | Target |
+|---|---|---|
+| bash | `dot_bashrc.d/config-dir-shortcut` | `~/.bashrc.d` |
+| zsh | `dot_zshrc.d/05-config-dir-shortcut.zsh` | `~/.zshrc.d` |
+| fish | `dot_config/fish/conf.d/config-dir-shortcut.fish` | `~/.config/fish` |
+| PowerShell | `Documents/PowerShell/dotfiles.d/80-functions.ps1` | `Documents/PowerShell/dotfiles.d` |
 
 ---
 

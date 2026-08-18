@@ -201,8 +201,7 @@ itself. Profile-specific files live in subdirectories, sourced by
 | `00-colors.sh` | ANSI color codes (`FG_*`, `BG_*`) |
 | `01-bash-history.sh` | `HISTSIZE`/`HISTFILESIZE`/`HISTCONTROL`/`HISTIGNORE` |
 | `05-env-generated.sh` | Generated from `.chezmoidata/env/` (see above) |
-| `50-aliases-generated.sh` | Generated from `.chezmoidata/aliases/` (see above) |
-| `50-aliases-power.sh` | reboot/halt/shutdown/reload (not yet migrated to the YAML model) |
+| `50-aliases-generated.sh` | Generated from `.chezmoidata/aliases/` (see above), includes power management (reboot/halt/shutdown/reload) |
 | `80-functions-common.sh` | `color` — ANSI escape helper. Also shared into zsh. |
 | `99-prompt.sh` | PS1 (root=red, user=green) |
 | `wsl2_ssh_agent_support` | WSL2 only: Windows SSH agent forwarding |
@@ -233,6 +232,11 @@ Fish autoloads everything in `conf.d/*.fish`, so there's no loader file —
 just the generated `aliases.fish`/`env.fish` (see above, rendered as `abbr`
 by default so history stores the expanded command) plus
 `ohmyposh-init.fish` (`oh-my-posh init fish --config ... | source`, if installed).
+`functions/fish_prompt.fish` provides the native root=red/user=green
+fallback prompt (bash/zsh's `99-prompt.sh`/`.zsh` equivalent) — fish
+autoloads it lazily only if `ohmyposh-init.fish` hasn't already defined
+`fish_prompt` at shell startup, so it's a true fallback, never a competing
+override.
 
 ### Terminal & prompt
 
