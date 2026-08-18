@@ -393,6 +393,19 @@ fi
 
 log_task "Preparing Chezmoi run..."
 
+# TEMPORARY (2026-08-18): default to dotfiles-rework, not this repo's actual
+# default branch (main) — main doesn't have this session's work yet
+# (env-var-first deployment resolution, Windows package_manager support, the
+# EJSON evault chain, ...), so a bare `chezmoi init --apply <url>` with no
+# --branch silently bootstraps a much older, incompatible tree instead of
+# what's actually being tested/shipped right now. Verified live as the real
+# root cause of a Windows machine re-prompting for profile (main's
+# .chezmoi.yaml.tmpl unconditionally calls promptStringOnce, no env-var
+# check at all) and then failing outright (no `package_manager: winget`
+# branch on main). Remove/repoint this default once dotfiles-rework is
+# merged into main — see CONCEPT_ROADMAP.md.
+: "${CHZ_BOOTSTRAP_BRANCH:=dotfiles-rework}"
+
 if [ -n "${bootstrap_chezmoi_reinit-}" ]; then
     chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1
     chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1

@@ -78,7 +78,32 @@ function Invoke-DotfilesBootstrap {
     function Write-LogInfo  { param([string]$Text) Write-LogColor Blue   "🔵 $Text" }
     function Write-LogWarn  { param([string]$Text) Write-LogColor Yellow "⚠️  $Text" }
     function Write-LogError { param([string]$Text) Write-LogColor Red    "❌ $Text" }
-    function Exit-WithError { param([string]$Text) Write-LogError $Text; exit 1 }
+    # `throw`, not `exit 1` - `exit` terminates the whole PowerShell PROCESS,
+    # not just this function. Harmless for a real `.ps1` file run, but when
+    # this script runs via `irm <url> | iex` (its main advertised usage),
+    # `iex` executes the fetched text in the CALLER'S OWN process - so `exit`
+    # would close the user's entire interactive PowerShell window on any
+    # error. Confirmed live 2026-08-18. `throw` propagates a catchable
+    # exception instead; the top-level call at the bottom of this file
+    # decides whether to actually set a process exit code.
+    function Exit-WithError { param([string]$Text) throw $Text }
+
+    # winget/other installers write PATH to the registry, not to this
+    # process's already-running copy of $env:Path. Refreshed up front, before
+    # any Get-Command check below, not just after our own installs - a tool
+    # (git, in particular) may already be present because something else
+    # installed it earlier (a previous bootstrap.ps1 run, a different
+    # installer, ...) without this specific PowerShell session ever having
+    # picked that up. Skipping this and checking against the stale PATH risks
+    # a false "not installed" and a redundant reinstall - confirmed live
+    # 2026-08-18 as the real cause of an unexpected UAC prompt from `winget
+    # install ... Git.Git` re-triggering on a machine that already had git.
+    function Update-SessionPath {
+        $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+        $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+        $env:Path = "$machinePath;$userPath"
+    }
+    Update-SessionPath
 
     # ───── Help ──────────────────────────────────────────────────────────
 
@@ -113,7 +138,19 @@ Env vars (same names as bootstrap.sh, for consistency):
     $deploymentProfile = if ($DotfilesProfile) { $DotfilesProfile } else { $env:CHZ_DEPLOYMENT_PROFILE }
     $deploymentRole    = if ($Role)    { $Role }    else { $env:CHZ_DEPLOYMENT_ROLE }
     $hasGuiChoice      = if ($Gui)     { $Gui }     else { $env:CHZ_HAS_GUI }
-    $bootstrapBranch   = if ($Branch)  { $Branch }  else { $env:CHZ_BOOTSTRAP_BRANCH }
+    # TEMPORARY (2026-08-18): falls back to dotfiles-rework, not this repo's
+    # actual default branch (main) - main doesn't have this session's work
+    # yet (env-var-first deployment resolution, Windows package_manager
+    # support, the EJSON evault chain, ...), so a bare `chezmoi init --apply
+    # <url>` with no --branch silently bootstraps a much older, incompatible
+    # tree. Verified live as the real root cause of a Windows machine
+    # re-prompting for profile (main's .chezmoi.yaml.tmpl unconditionally
+    # calls promptStringOnce, no env-var check at all) and then failing
+    # outright (no `package_manager: winget` branch on main) - which, run via
+    # `irm | iex`, closed the whole PowerShell window (see Exit-WithError
+    # below). Remove/repoint this default once dotfiles-rework is merged into
+    # main - see CONCEPT_ROADMAP.md.
+    $bootstrapBranch   = if ($Branch)  { $Branch }  elseif ($env:CHZ_BOOTSTRAP_BRANCH) { $env:CHZ_BOOTSTRAP_BRANCH }  else { "dotfiles-rework" }
     $dryRun            = $DryRun.IsPresent   -or ($env:CHZ_BOOTSTRAP_DRY_RUN -eq "1")
     $verboseOut        = $VerbosePreference -ne "SilentlyContinue" -or ($env:CHZ_BOOTSTRAP_VERBOSE -eq "1") -or $DebugAll.IsPresent
     $chezmoiDebug      = $ChezmoiDebug.IsPresent -or $DebugAll.IsPresent
@@ -197,16 +234,17 @@ Env vars (same names as bootstrap.sh, for consistency):
     # ───── Install chezmoi + git via winget ──────────────────────────────────
     # No CLT/Homebrew/tar-style prerequisite dance needed here - winget already
     # has both as real packages (twpayne.chezmoi, Git.Git), verified live
-    # 2026-08-18. Refresh $env:Path from the registry after each install so
-    # this same script session can use them immediately, without requiring the
-    # user to open a new shell (winget updates the registry PATH, not the
-    # current process's copy of it).
-
-    function Update-SessionPath {
-        $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-        $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-        $env:Path = "$machinePath;$userPath"
-    }
+    # 2026-08-18. Update-SessionPath (defined above, already called once) is
+    # called again after each install so this same script session can use the
+    # newly-installed tool immediately, without opening a new shell.
+    #
+    # Git.Git explicitly gets --scope user: its winget manifest defaults to a
+    # machine-wide install, which triggers a UAC prompt - confirmed live
+    # 2026-08-18. Standing rule for this repo is to prefer user scope on
+    # Windows wherever a tool supports it (a target machine may have no admin
+    # rights at all, e.g. a locked-down server) - see CONCEPT_ROADMAP.md.
+    # chezmoi's package is already scope-less/portable (no prompt observed),
+    # so it's left as-is rather than risking an unsupported --scope flag.
 
     if (-not (Get-Command chezmoi -ErrorAction SilentlyContinue)) {
         Write-LogTask "Installing chezmoi via winget..."
@@ -222,7 +260,7 @@ Env vars (same names as bootstrap.sh, for consistency):
 
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-LogTask "Installing git via winget..."
-        winget install -e --id Git.Git --source winget --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
+        winget install -e --id Git.Git --scope user --source winget --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
         Update-SessionPath
         if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
             Exit-WithError "git install via winget appears to have failed - check the output above and re-run."
@@ -323,4 +361,16 @@ Env vars (same names as bootstrap.sh, for consistency):
     Write-LogInfo "Bootstrap complete - open a new PowerShell session to pick up the updated `$PROFILE."
 }
 
-Invoke-DotfilesBootstrap @args
+# See the Exit-WithError comment above: a real `.ps1` file run still gets a
+# meaningful process exit code (useful for CI/scripting), but under `irm |
+# iex` (no $MyInvocation.MyCommand.Path - the code has no file of its own),
+# a fatal error is reported and control returns to the user's shell instead
+# of closing their window.
+try {
+    Invoke-DotfilesBootstrap @args
+} catch {
+    Write-Host "❌ $($_.Exception.Message)" -ForegroundColor Red
+    if ($MyInvocation.MyCommand.Path) {
+        exit 1
+    }
+}
