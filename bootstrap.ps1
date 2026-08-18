@@ -138,19 +138,14 @@ Env vars (same names as bootstrap.sh, for consistency):
     $deploymentProfile = if ($DotfilesProfile) { $DotfilesProfile } else { $env:CHZ_DEPLOYMENT_PROFILE }
     $deploymentRole    = if ($Role)    { $Role }    else { $env:CHZ_DEPLOYMENT_ROLE }
     $hasGuiChoice      = if ($Gui)     { $Gui }     else { $env:CHZ_HAS_GUI }
-    # TEMPORARY (2026-08-18): falls back to dotfiles-rework, not this repo's
-    # actual default branch (main) - main doesn't have this session's work
-    # yet (env-var-first deployment resolution, Windows package_manager
-    # support, the EJSON evault chain, ...), so a bare `chezmoi init --apply
-    # <url>` with no --branch silently bootstraps a much older, incompatible
-    # tree. Verified live as the real root cause of a Windows machine
-    # re-prompting for profile (main's .chezmoi.yaml.tmpl unconditionally
-    # calls promptStringOnce, no env-var check at all) and then failing
-    # outright (no `package_manager: winget` branch on main) - which, run via
-    # `irm | iex`, closed the whole PowerShell window (see Exit-WithError
-    # below). Remove/repoint this default once dotfiles-rework is merged into
-    # main - see CONCEPT_ROADMAP.md.
-    $bootstrapBranch   = if ($Branch)  { $Branch }  elseif ($env:CHZ_BOOTSTRAP_BRANCH) { $env:CHZ_BOOTSTRAP_BRANCH }  else { "dotfiles-rework" }
+    # No default branch override here on purpose - this always targets
+    # whatever is on the repo's actual default branch (main). To test a
+    # work-in-progress branch that hasn't been merged yet, pass -Branch or
+    # set CHZ_BOOTSTRAP_BRANCH explicitly - don't bake a specific branch
+    # name into this script's default, that doesn't scale past the current
+    # branch and has to be remembered and reverted later. See
+    # CONCEPT_ROADMAP.md.
+    $bootstrapBranch   = if ($Branch)  { $Branch }  else { $env:CHZ_BOOTSTRAP_BRANCH }
     $dryRun            = $DryRun.IsPresent   -or ($env:CHZ_BOOTSTRAP_DRY_RUN -eq "1")
     $verboseOut        = $VerbosePreference -ne "SilentlyContinue" -or ($env:CHZ_BOOTSTRAP_VERBOSE -eq "1") -or $DebugAll.IsPresent
     $chezmoiDebug      = $ChezmoiDebug.IsPresent -or $DebugAll.IsPresent
