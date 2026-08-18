@@ -97,7 +97,7 @@ regardless of `kind`.
 | `halt` | `sudo /sbin/halt` | `sudo /sbin/halt` | `Stop-Computer -Force` | abbr | Halt the machine |
 | `shutdown` | `sudo /sbin/shutdown` | `sudo /sbin/shutdown` | — | abbr | Shut down the machine (flexible/scheduled form) |
 | `shutdownnow` | `sudo /sbin/shutdown -h now` | `sudo /sbin/shutdown -h now` | `Stop-Computer -Force` | abbr | Shut down the machine immediately |
-| `root` | `sudo -i` | `sudo -i` | `if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo pwsh } else { Start-Process pwsh -Verb RunAs }; $args \| Out-Null` | abbr | Start a root/elevated shell |
+| `root` | `sudo $SHELL` | `sudo $SHELL` | `if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo pwsh } else { Start-Process pwsh -Verb RunAs }; $args \| Out-Null` | abbr | Start a root/elevated shell |
 | `reload` | `exec $SHELL -l` | `exec $SHELL -l` | `. $PROFILE; $args \| Out-Null` | abbr | Reload the shell (re-exec as a login shell; PowerShell re-sources $PROFILE instead) |
 <!-- GENERATED:aliases-doc-aliases:end -->
 

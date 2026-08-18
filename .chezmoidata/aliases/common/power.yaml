@@ -57,7 +57,20 @@ aliases:
 
         - name: root
           command:
-            default: "sudo -i"
+            # Bare `sudo $SHELL`, NOT `sudo -i` — `-i` unconditionally resets
+            # $HOME to root's real home (verified live on both platforms),
+            # defeating the whole point of a convenience root shell (no
+            # dotfiles, no colored prompt, root's own unconfigured
+            # environment). Bare `sudo $SHELL` preserves $HOME on macOS
+            # (verified live) — nothing more needed there. On Linux, bare
+            # sudo does NOT preserve $HOME either (Fedora's sudoers ships
+            # `Defaults always_set_home`, verified live, `sudo -E` doesn't
+            # override it) — paired with the new
+            # run_after_ensure-root-environment-mirror.sh.tmpl, which
+            # mirrors the invoking user's aliases/functions/prompt into
+            # /root via $SUDO_USER instead. See CONCEPT_ROADMAP.md §3.8 for
+            # the full reasoning and live verification.
+            default: "sudo $SHELL"
             # Same native-sudo-first, RunAs-fallback concept as makeme/
             # makeroot (see misc.yaml) — CONCEPT_ROADMAP.md §7. `sudo pwsh`
             # opens an elevated PowerShell (new window or inline, depending

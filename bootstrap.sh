@@ -281,6 +281,28 @@ if [ "$(uname -s)" = "Darwin" ] && ! command -v brew >/dev/null 2>&1; then
     eval "$('/opt/homebrew/bin/brew' shellenv 2>/dev/null || '/usr/local/bin/brew' shellenv)"
 fi
 
+# ───── Linux: ensure tar ──────────────────────────────────────────────────────
+# A genuinely minimal Fedora image has no tar at all — breaks chezmoi's own
+# get.chezmoi.io install script (needs tar to unpack the downloaded binary)
+# and the EJSON GitHub-tarball fallback below, both silently on a fresh box.
+# Verified live on a fresh LinLab clone (2026-08-18): without this, the
+# chezmoi install step printed "installed successfully" despite having
+# completely failed (tar's own error got lost in the piped install script),
+# and the whole bootstrap died much later with a far more confusing
+# "chezmoi: No such file or directory" instead of a clear cause.
+
+if [ "$(uname -s)" = "Linux" ] && ! command -v tar >/dev/null 2>&1; then
+    log_task "Installing tar (needed for chezmoi/EJSON install scripts)..."
+    if command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y tar || error "Failed to install tar via dnf — install it manually and re-run."
+    elif command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get update && sudo apt-get install -y tar || error "Failed to install tar via apt-get — install it manually and re-run."
+    else
+        error "tar is required but not found, and no supported package manager (dnf/apt) was detected — install tar manually and re-run."
+    fi
+    log_info "tar installed."
+fi
+
 # ───── Install chezmoi ───────────────────────────────────────────────────────
 
 chezmoi_github_url=""
@@ -308,6 +330,12 @@ else
         fi
         sh -c "${chezmoi_install_script}" -- -b "$chezmoi_bin_dir"
         unset chezmoi_install_script
+        # get.chezmoi.io's own install script can fail (e.g. missing tar)
+        # without ever returning a non-zero exit status itself — verified
+        # live. Check the actual binary exists before declaring success.
+        if [ ! -x "${chezmoi}" ]; then
+            error "Chezmoi install script ran but ${chezmoi} was not created — check the output above for the real cause (e.g. missing tar)."
+        fi
     fi
     log_info "Chezmoi installed successfully."
 fi

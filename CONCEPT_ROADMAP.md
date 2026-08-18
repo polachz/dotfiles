@@ -1021,6 +1021,60 @@ init soubory pro zsh/fish/PowerShell, `starship-theme` přepínač, `helpers/ins
   model jako bash/zsh. Živě ověřeno (lokální Mac, fish 4.8.1): samotný fallback (root/user barvy
   správně `31;1`/`32;1`, bajtově identické s bash) i společně s reálně nainstalovaným
   `oh-my-posh` (OMP korektně vyhrává, fallback se vůbec nevyvolá).
+
+  **ZÁSADNÍ NÁLEZ (2026-08-18, objeveno při Linux paritním testu na `LinLab SSH Backup`
+  klonu): "root=red/green" mechanismus je fundamentálně omezený reálným `sudo <shell>`/`sudo -i`
+  chováním, a to JINAK na macOS a na Linuxu — netýká se jen dnešního fish přírůstku, platí to
+  stejně pro už dávno existující bash/zsh `99-prompt.sh`/`.zsh`, protože kořen problému je
+  `$HOME`, ne konkrétní prompt engine.**
+  - **macOS**: bare `sudo fish`/`sudo bash` (bez `-i`) **zachovává** volajícího uživatele `$HOME`
+    — proto předchozí testy (i dnešní) správně viděly obarvený root prompt. Ale `sudo -i`
+    (simuluje plný root login) **resetuje `$HOME` na `/var/root`** i na macOS — ověřeno živě.
+  - **Fedora Linux**: `/etc/sudoers` má defaultně `Defaults always_set_home` — **i holé
+    `sudo fish`/`sudo bash` (bez `-i`) resetuje `$HOME` na `/root`**, přísnější než macOS.
+    `sudo -E` to NEOBEJDE (`always_set_home` má přednost před `-E`, ověřeno živě — sudoers
+    komentář to i explicitně vysvětluje). Žádná sudo-flag kombinace na Fedoře reálně nefunguje.
+  - **Důsledek**: jakmile `$HOME` ukáže na `/root`, root nemá VŮBEC ŽÁDNÝ nasazený dotfiles obsah
+    (chezmoi nasazuje jen pro konkrétního uživatele, ne pro `root` účet) — žádný `fish_prompt`,
+    žádný `99-prompt.sh`, žádný Oh My Posh config, nic. Root dostane holý distribuční default
+    prompt bez barevného varování, přesně tu situaci, které měl "root=red" zabránit.
+  - **Náš vlastní `root` alias (dřív `sudo -i`) byl tímhle přímo zasažený** — na obou platformách,
+    ne jen na Linuxu, protože `-i` vždy resetuje `$HOME` podle definice.
+  - **Doplňkové zjištění, uživatelův reálný návyk**: uživatel běžně používá `sudo su`, ne přímé
+    `sudo <shell>` — to je JINÝ program s jiným chováním, doověřeno zvlášť: **`sudo su` (v
+    jakékoli formě, i s `-`) resetuje `$HOME` na obou platformách**, včetně macOS (`/var/root`) —
+    `su`'s vlastní logika nastavuje `$HOME` podle cílového uživatele nezávisle na sudoers
+    nastavení. `-p`/`-m` (POSIX preserve-environment flag) na macOS `$HOME` zachová (BSD `su` je
+    v tomhle benevolentní), ale na Linuxu ne — util-linux `su` dokumentovaně nepovažuje
+    `HOME`/`SHELL`/`USER` za "environment" pro účely `-p`/`-m`, vždy je nastaví na cílového
+    uživatele. Uživatel se rozhodl přejít na `root` alias místo `sudo su` návyku.
+
+  **ŘEŠENÍ IMPLEMENTOVÁNO a živě ověřeno (2026-08-18)** — uživatelovo zadání: naučit se používat
+  `root` příkaz místo `sudo su`, ale chce si v něm zachovat co nejpodobnější pracovní prostředí.
+  - **`root` alias změněn**: `sudo -i` → `sudo $SHELL` (`.chezmoidata/aliases/common/power.yaml`).
+    Sám o sobě už kompletně řeší macOS (`$HOME` zachované, žádná další infrastruktura potřeba).
+  - **Nový `.chezmoiscripts/run_after_ensure-root-environment-mirror.sh.tmpl`, Linux-only.**
+    Místo duplikace obsahu dotfiles do `/root` (věčná dvojitá údržba) — malý root-owned loader,
+    co za běhu čte `$SUDO_USER` (sudo ho nastavuje VŽDY, i pod `always_set_home`, protože je to
+    audit/security info, ne "user environment") a živě nasourcuje TOHOTO uživatele skutečné
+    `~/.bashrc.d`/`~/.zshrc.d`/fish `conf.d`+`functions` — žádná kopie, vždy aktuální. Bezpečnostně
+    nic nepřidává (sudoer už dnes může spustit cokoliv ze svých dotfiles jako root triviálně,
+    `sudo bash -c "$(cat ~/.bashrc.d/*)"` — tohle to jen zautomatizuje).
+  - **`$HOME` se během sourcování dočasně přepne na volajícího uživatele a pak vrátí zpět na
+    `/root`** — živě ověřený, reálný důvod: Oh My Posh init řádek (`oh-my-posh init fish --config
+    "$HOME/.config/oh-my-posh/atomic.omp.json"`) resolvuje `$HOME` v okamžiku spuštění — bez
+    dočasného přepnutí by to ukázalo na neexistující `/root/.config/oh-my-posh/...` a OMP by
+    vykreslil doslova "CONFIG NOT FOUND" segment místo tématu (přesně tohle se stalo při prvním
+    testu, dokud nebyl `$HOME`-restore přidaný). Po přepnutí zpět zůstává `cd ~`/běžné souborové
+    operace v `/root`, jen mirrorovaná shell konfigurace vidí volajícího uživatele `$HOME`.
+  - **Fish specialita**: funkce se nemirrorují ručním sourcováním, ale přidáním volajícího
+    uživatele `~/.config/fish/functions` do `$fish_function_path` — fish je pak líně autoloaduje
+    stejně jako svoje vlastní, žádný extra kód netřeba.
+  - **Živě ověřeno end-to-end na `LinLab SSH Backup` klonu** (`root` alias → `sudo $SHELL` pro
+    bash/zsh/fish): `$HOME` uvnitř `/root`, `$EUID`/skutečné UID `0`, `reboot`/všechny aliasy a
+    funkce správně zrcadlené, `PS1`/prompt správně červený (`01;31`), Oh My Posh na zsh i fish
+    korektně vykreslil `atomic` téma (ne "CONFIG NOT FOUND"). Idempotence ověřena (2× spuštění →
+    žádný duplicitní blok, `grep -c DOTFILES_ROOT_MIRROR` = 1 v každém souboru).
 - **Ghostty (ověřeno, IMPLEMENTOVÁNO a ověřeno proti reálnému Ghostty binárnímu 2026-08-01)**:
   nativní include — `config-file = ?cesta` (`?` prefix = tichý no-op, když soubor chybí — podobné
   gitu). Pozdější `config-file` přepisuje dřívější hodnoty → common → profil → profil+OS, stejný
@@ -1302,6 +1356,59 @@ jiná pro Preview kanál), navíc JSONC s komentáři (naivní `ConvertFrom-Json
 roundtrip by komentáře smazal a soubor přeformátoval), a `defaultProfile` je skalární hodnota,
 kterou by automatický zápis přepsal bez zeptání (na rozdíl od čistě aditivních fragmentů/include
 bloků všude jinde v tomhle repu). Uživatel by si dotfiles profil zatím vybíral ručně z dropdownu.
+
+**Bitwarden desktop na Linuxu — IMPLEMENTOVÁNO a živě ověřeno na ARM64 (2026-08-18), řeší
+zásadní SSH agent gap zjištěný při Linux paritním testu.** Uživatelovo zadání: SSH agent je
+hlavní motivace, server/no-GUI role to řešit vůbec nemusí (tam se pracuje přes SSH agent
+forwarding z workstationu), GUI Linux má dostat plnou desktop appku "oficiální cestou".
+
+- **Proč ne dnf/apt/Flatpak/Snap**: žádný oficiální Fedora/Debian repo balíček neexistuje.
+  Flatpak na Flathubu **není Bitwardenův vlastní build** — community repack, u password manageru
+  reálný důvěryhodnostní problém, ne jen technická otázka. Snap je oficiální a má auto-update,
+  ale vyžaduje zavést celý nový balíčkovací ekosystém (snapd), který se nikde jinde na stroji
+  nepoužívá — uživatelovo rozhodnutí to nedělat.
+- **Proč ne oficiální `.rpm`/`.deb`**: živě ověřeno, že jsou **jen x86_64** — na reálném ARM64
+  Linuxu (přesně tenhle projekt's vlastní `LinLab` běží na Apple Silicon přes UTM, tedy ARM64)
+  `dnf install` tvrdě odmítne s "does not have a compatible architecture". Až do dneška
+  nesprávná domněnka (z veřejných zdrojů, mezitím zastaralých) byla "Bitwarden nemá Linux ARM64
+  vůbec" — živě ověřeno přímo v GitHub release assets, že **oficiální `.tar.gz` a `.snap` pro
+  arm64 existují**, jen ne rpm/deb/Flatpak/AppImage.
+- **Řešení: oficiální `.tar.gz`** (`bitwarden_<verze>_<x64|arm64>.tar.gz`,
+  `github.com/bitwarden/clients`, tag `desktop-v<verze>`) — jediný mechanismus fungující stejně
+  na obou architekturách. Nový `.chezmoiscripts/run_after_install-bitwarden-desktop-linux.sh.tmpl`
+  (`role: workstation` + `has_gui`, plain `run_` prefix = kontroluje verzi při každém apply):
+  - **Zjištění nejnovější verze přes GitHub API, ne `bitwarden.com/download/` redirector** —
+    ten redirector (funguje skvěle pro rpm, `variant=rpm`) **nepodporuje tar.gz variantu vůbec**
+    (živě ověřeno, 404 na všechny vyzkoušené názvy). `bitwarden/clients` repo hostuje
+    desktop/browser-extension/CLI release dohromady s různými tag prefixy — nutné filtrovat
+    konkrétně na `desktop-v*`, ne brát prostě "latest" (stejný `grep` idiom jako `bootstrap.sh`
+    už používá pro EJSON).
+  - **Instalace do `~/.local/share/bitwarden`** (per-user, žádné sudo na extrakci), verze
+    trackovaná v `.installed-version` souboru — druhé spuštění správně nic nedělá (idempotence
+    živě ověřena).
+  - **Desktop-menu integrace ručně** (holý tarball to na rozdíl od rpm/deb/Flatpak nedělá sám):
+    tarball má vlastní `resources/com.bitwarden.desktop.desktop`, jen s `Exec=bitwarden` (počítá
+    s PATH) — přepsáno na absolutní cestu. Ikony (7 velikostí) nakopírované do
+    `~/.local/share/icons/hicolor/<size>/apps/`.
+  - **`chrome-sandbox` setuid root fix** — Electron sandbox helper potřebuje root vlastnictví +
+    setuid bit pro reálné sandboxování, což holá extrakce (na rozdíl od rpm/deb postinst skriptu)
+    sama neudělá — `sudo chown root:root` + `sudo chmod 4755`, živě ověřeno výsledné `-rwsr-xr-x`.
+  - **Žádný checksum k dispozici** — ani rpm, ani tar.gz asset nemá `.sha256` sidecar,
+    `latest-linux.yml` (electron-builder auto-update manifest) pokrývá jen x86_64
+    AppImage/deb/rpm, žádné tar.gz/arm64 záznamy. Stejná důvěra jako zbytek repa (HTTPS +
+    oficiální GitHub release), žádné checksum pinning nikde jinde v projektu taky není.
+  - **Živě ověřeno na `LinLab SSH Backup` ARM64 klonu**: čerstvá instalace (verze/soubory/ikony/
+    permissions správně), idempotence (2. spuštění = "already up to date"), binárka se spustí
+    bez chybějících knihoven **kromě GTK/X11/ATK sad** (`libatk`, `libgtk-3`, `libX11`, ...) —
+    to je ale očekávané, `LinLab` je holý headless SSH image bez desktop prostředí, žádné GUI
+    workstation reálně nemá tenhle problém (GNOME/KDE apod. tyhle knihovny táhnou jako base
+    závislosti samy). Skutečné vizuální spuštění (a tím i reálné potvrzení SSH agent socketu)
+    by vyžadovalo plné desktop prostředí — mimo rozsah dnešního ověření.
+  - **SSH agent socket cesta pro Linux přidána, ale NEOVĚŘENÁ živě** (`10-bitwarden-ssh-agent.
+    {zsh,sh,fish}`) — stejná plochá `$HOME/.bitwarden-ssh-agent.sock` cesta jako macOS, odvozeno
+    z toho, že instalace záměrně obchází Flatpak/Snap sandboxing (Flatpak má potvrzeně jinou,
+    sandboxovanou cestu) — ale žádný reálný test s appkou skutečně běžící a SSH agentem
+    zapnutým zatím neproběhl, viz předchozí bod.
 
 ---
 

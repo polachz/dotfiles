@@ -26,7 +26,12 @@ packages:
     - name: bitwarden
       roles: [workstation]
       requires_gui: true
-      dnf: skip # not in default Fedora repos (verified live 2026-08-07)
+      dnf: skip # not in default Fedora repos (verified live 2026-08-07). Real
+      # Linux install is .chezmoiscripts/run_after_install-bitwarden-desktop-linux.sh.tmpl
+      # instead (official GitHub-hosted .tar.gz, works on x64 AND arm64 — the
+      # official .rpm/.deb are x64-only, Flatpak isn't Bitwarden's own build,
+      # Snap needs adopting a whole new packaging ecosystem — see
+      # CONCEPT_ROADMAP.md §7 for the full reasoning, live-verified 2026-08-18).
       apt: skip
       brew: bitwarden # cask, brew auto-detects (verified live)
       winget: Bitwarden.Bitwarden
