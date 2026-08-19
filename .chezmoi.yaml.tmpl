@@ -33,7 +33,14 @@
   {{- fail (printf "Invalid role %q — must be 'workstation' or 'server'" $role) -}}
 {{- end -}}
 
-{{/* GUI presence is orthogonal to role — a workstation can be headless. Gates GUI-only tools (Ghostty). */}}
+{{/*
+  GUI presence is orthogonal to role — a workstation can be headless. Gates GUI-only tools
+  (Ghostty, Windows Terminal, Bitwarden desktop, the Nerd Font). Only asks interactively on
+  Linux, where a headless machine is common (that's what --role server is for elsewhere too) —
+  macOS/Windows default straight to true without a prompt, since a headless Mac/Windows box
+  isn't a real scenario this project needs to ask about every run. DOTFILES_HAS_GUI still
+  overrides on any OS, for the rare exception (e.g. a genuinely headless Mac build server).
+*/}}
 {{- $hasGuiEnv := env "DOTFILES_HAS_GUI" -}}
 {{- $has_gui := false -}}
 {{- if ne $hasGuiEnv "" -}}
@@ -41,6 +48,8 @@
     {{- fail (printf "Invalid DOTFILES_HAS_GUI %q — must be 'true' or 'false'" $hasGuiEnv) -}}
   {{- end -}}
   {{- $has_gui = eq $hasGuiEnv "true" -}}
+{{- else if ne .chezmoi.os "linux" -}}
+  {{- $has_gui = true -}}
 {{- else -}}
   {{- $has_gui = promptBoolOnce . "deployment.has_gui" "Does this machine have a GUI" true -}}
 {{- end -}}

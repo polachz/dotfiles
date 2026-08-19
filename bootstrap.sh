@@ -70,7 +70,8 @@ Usage: bootstrap.sh [options]
 Options:
   -p, --profile <personal|work>       Pre-select dotfiles profile (skip menu)
   --role <workstation|server>         Pre-select machine role (skip menu)
-  --gui <yes|no>                      Pre-select GUI presence (skip menu)
+  --gui <yes|no>                      Override GUI presence (default: yes on
+                                        macOS, no menu there; Linux still asks)
   -b, --branch <name>                 Clone/checkout this git branch instead
                                         of the default branch (e.g. a
                                         work-in-progress branch not yet
@@ -198,6 +199,14 @@ esac
 log_info "Selected role: ${CHZ_DEPLOYMENT_ROLE}"
 
 # ───── Resolve GUI presence ──────────────────────────────────────────────────
+# No interactive menu on macOS - a headless Mac isn't a real scenario this
+# project needs to ask about every run (unlike headless Linux servers, which
+# are common and exactly what --role server is for). Defaults to "yes" on
+# Darwin unless explicitly overridden via --gui/CHZ_HAS_GUI; Linux still asks.
+
+if [ -z "${CHZ_HAS_GUI-}" ] && [ "$(uname -s)" = "Darwin" ]; then
+    CHZ_HAS_GUI="yes"
+fi
 
 if [ -z "${CHZ_HAS_GUI-}" ]; then
     while true; do
