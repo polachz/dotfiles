@@ -16,10 +16,15 @@ true || source ../.chezmoitemplates/scripts-library
 
 profile='{{ .deployment.profile }}'
 
-log_task "Install Age tool if necessary"
-{{- if not (includeTemplate "is-os-command-available" (list "age")) -}}
-{{ template "install-os-package" (dict "package_manager" $.package_manager "package" "age") }}
-{{- end }}
+{{- /*
+  No external `age` binary install here on purpose - despite the name, this whole script only
+  ever calls chezmoi's OWN built-in `chezmoi age decrypt`/`chezmoi decrypt` subcommands below,
+  never a real `age`/`age-keygen` command. The external binary is only used by an operator's
+  manual key setup/rotation workflow (ENCRYPTION_SETUP.md, helpers/setup-encryption.sh - neither
+  of which is deployed to any machine, both excluded via .chezmoiignore.tmpl), covered instead
+  by packages.yaml's own `age` entry (roles: [workstation]) for whoever does that manual work on
+  their own workstation - a server gets no forced age install at all now, same reasoning as git.
+*/ -}}
 
 {{- /*
   git is only ensured here for workstation role - this script's own age/EJSON decrypt uses

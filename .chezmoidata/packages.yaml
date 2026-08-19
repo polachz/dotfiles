@@ -7,6 +7,17 @@ packages:
     - name: git
       roles: [workstation]
       winget: Git.Git
+    - name: age
+      # Convenience only, for an operator doing manual key setup/rotation
+      # (ENCRYPTION_SETUP.md / helpers/setup-encryption.sh) on their own
+      # workstation — the automated per-machine bootstrap never calls the
+      # external `age` binary at all, only chezmoi's own built-in
+      # `chezmoi age`/`chezmoi decrypt` subcommands (see
+      # run_once_before_init_age.sh.tmpl/.ps1.tmpl). Not needed on Windows
+      # either — chezmoi's built-in age covers it there too, and
+      # helpers/setup-encryption.sh is a bash script anyway.
+      roles: [workstation]
+      winget: skip
   personal: []
   work: []
   # Tools independent of profile, gated by role/GUI/platform instead.
