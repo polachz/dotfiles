@@ -60,8 +60,12 @@ add_to_group dialout
 add_to_group vboxsf
 {{- end }}
 
+{{- if eq .deployment.role "workstation" }}
 # Switch chezmoi source repo from https to ssh so future pushes work without password.
-# {{ .chezmoi.sourceDir }} is the local clone.
+# Workstation-only — a server never pushes back to the dotfiles repo, and this is the
+# only place in the whole repo that actually needs a real `git` binary (chezmoi's own
+# built-in git handles the initial clone regardless of role, see
+# run_once_before_init_age.sh.tmpl). {{ .chezmoi.sourceDir }} is the local clone.
 git_local_dir="{{ joinPath .chezmoi.sourceDir ".git" }}"
 git_repo_url=$(git --git-dir="${git_local_dir}" remote get-url origin)
 if ! echo "${git_repo_url}" | grep -q "^git"; then
@@ -74,6 +78,7 @@ if ! echo "${git_repo_url}" | grep -q "^git"; then
     git remote set-url origin "${new_repo_url}" || error "Change remote repo url from https to ssh failed!"
     popd > /dev/null
 fi
+{{- end }}
 
 # Make chezmoi config readable only by the user.
 log_task "Changing chezmoi config file rights"

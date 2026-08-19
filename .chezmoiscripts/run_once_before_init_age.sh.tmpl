@@ -21,9 +21,23 @@ log_task "Install Age tool if necessary"
 {{ template "install-os-package" (dict "package_manager" $.package_manager "package" "age") }}
 {{- end }}
 
+{{- /*
+  git is only ensured here for workstation role - this script's own age/EJSON decrypt uses
+  chezmoi's built-in `chezmoi age decrypt`/`chezmoi decrypt` subcommands (see below), never a
+  real `git` binary. The only actual git-binary usage anywhere in this repo is
+  run_onchange_after_user-settings.sh.tmpl's remote-to-SSH switch, a workstation-only concern
+  (a server never pushes back to the dotfiles repo) - so a server role gets no forced git
+  install here at all. chezmoi's own built-in git (go-git) already handles the initial clone
+  with no external git needed regardless of role. Workstations still get git properly via
+  packages.yaml's own `git` entry during the normal apply - this pre-emptive install only
+  matters for the later remote-switch script, which runs before packages.yaml's git would
+  otherwise land.
+*/ -}}
+{{- if eq .deployment.role "workstation" }}
 log_task "Install Git tool if necessary"
 {{- if not (includeTemplate "is-os-command-available" (list "git")) -}}
 {{ template "install-os-package" (dict "package_manager" $.package_manager "package" "git") }}
+{{- end }}
 {{- end }}
 
 ch_cfg_dir='{{ .chezmoi_config_dir }}'

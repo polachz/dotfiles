@@ -9,8 +9,10 @@ any other repo file being present locally already, same self-containment
 rule as bootstrap.sh.
 
 Installs EJSON from Shopify's GitHub releases (real Windows amd64/arm64
-builds exist, no winget package though) alongside chezmoi/git via winget,
-then runs the same `chezmoi init --apply` bootstrap.sh uses. The Age/EJSON
+builds exist, no winget package though) alongside chezmoi via winget, then
+runs the same `chezmoi init --apply` bootstrap.sh uses - no git install
+here, chezmoi's built-in git (go-git) handles the clone with no external
+git binary needed at all (see the comment further down). The Age/EJSON
 key-unlock step that used to be bash-only now has a PowerShell sibling too
 (.chezmoiscripts/run_once_before_init_age.ps1.tmpl), so the encrypted
 evault chain (per-profile git identity) resolves on Windows the same way
@@ -219,30 +221,25 @@ Env vars (same names as bootstrap.sh, for consistency):
         Exit-WithError "winget was not found. It ships with Windows 11/recent Windows 10 (App Installer) - install it from the Microsoft Store, then re-run."
     }
 
-    # ───── Install chezmoi + git via winget ──────────────────────────────────
-    # No CLT/Homebrew/tar-style prerequisite dance needed here - winget already
-    # has both as real packages (twpayne.chezmoi, Git.Git), verified live
+    # ───── Install chezmoi via winget ────────────────────────────────────────
+    # No CLT/Homebrew/tar-style prerequisite dance needed here - winget
+    # already has it as a real package (twpayne.chezmoi), verified live
     # 2026-08-18. Update-SessionPath (defined above, already called once) is
-    # called again after each install so this same script session can use the
-    # newly-installed tool immediately, without opening a new shell.
+    # called again after install so this same script session can use it
+    # immediately, without opening a new shell.
     #
-    # Git.Git explicitly gets --scope user, per this repo's standing
-    # preference for user scope on Windows wherever supported (a target
-    # machine may have no admin rights at all, e.g. a locked-down server) -
-    # see CONCEPT_ROADMAP.md. UPDATE (2026-08-19, verified against the actual
-    # git-for-windows/build-extra install.iss source): the UAC prompt seen on
-    # test VMs is expected and harmless, not a real limitation for a genuine
-    # no-admin machine. Git's Inno Setup installer uses
-    # `PrivilegesRequired=none`, which Inno Setup's own documented behavior
-    # only turns into a UAC prompt for accounts that ARE members of the
-    # local Administrators group (asking if they want to use those rights,
-    # which they can decline) - a genuine Standard User account is never
-    # prompted at all and gets a silent per-user install. Every WinLab test
-    # account used in this repo's testing so far is a local admin (confirmed
-    # separately for the sudo/elevation research), which is why this always
-    # prompts here - not because --scope user doesn't work.
-    # chezmoi's package is already scope-less/portable (no prompt observed),
-    # so it's left as-is rather than risking an unsupported --scope flag.
+    # git is deliberately NOT installed here as a bootstrap prerequisite -
+    # chezmoi has its own built-in git implementation (go-git, enabled by
+    # default via useBuiltinGit) that `chezmoi init <url>` uses to clone,
+    # with no external git binary needed at all. Nothing else in this
+    # script or in any Windows-specific chezmoi script actually shells out
+    # to a real `git` command (confirmed by checking - the only real git-
+    # binary usage in this whole repo is Mac/Linux-only, gated to
+    # workstation role, for switching the source repo's remote to SSH so
+    # pushes work - a workstation-only concern). git only gets installed
+    # at all now via packages.yaml's own `git` entry (roles: [workstation]),
+    # during the normal apply below - so a server role never gets git
+    # unless something explicitly lists it as a package to install.
 
     if (-not (Get-Command chezmoi -ErrorAction SilentlyContinue)) {
         Write-LogTask "Installing chezmoi via winget..."
@@ -254,18 +251,6 @@ Env vars (same names as bootstrap.sh, for consistency):
         Write-LogInfo "chezmoi installed successfully."
     } else {
         Write-LogInfo "chezmoi already installed."
-    }
-
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-LogTask "Installing git via winget..."
-        winget install -e --id Git.Git --scope user --source winget --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
-        Update-SessionPath
-        if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-            Exit-WithError "git install via winget appears to have failed - check the output above and re-run."
-        }
-        Write-LogInfo "git installed successfully."
-    } else {
-        Write-LogInfo "git already installed."
     }
 
     # ───── Install EJSON if missing ──────────────────────────────────────────
