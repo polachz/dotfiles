@@ -342,6 +342,40 @@ Env vars (same names as bootstrap.sh, for consistency):
     }
 
     Write-LogInfo "Bootstrap complete - open a new PowerShell session to pick up the updated `$PROFILE."
+
+    # Font/profile changes (Nerd Font, Windows Terminal cmd/PowerShell font.face)
+    # only take effect in a NEW Windows Terminal instance - unlike Ghostty on
+    # macOS/Linux (no forced restart needed there: a reload_config keybind, or
+    # `systemctl reload --user app-com.mitchellh.ghostty.service` on Linux
+    # systemd, refreshes it live), Windows Terminal has no live-reload for
+    # these specific settings. Only prompted in a real interactive session -
+    # [Console]::IsInputRedirected true means a script/automation context,
+    # where blocking on Read-Host would just hang forever, so this silently
+    # falls back to a plain reminder instead. User's explicit call
+    # (2026-08-19): offer to restart, not just kill - closing every Windows
+    # Terminal window with no way back would nuke unrelated open tabs/work
+    # with zero warning, so a plain "kill" option was rejected in favor of
+    # kill-then-relaunch.
+    if ($hasGuiChoice -eq "yes" -and -not [Console]::IsInputRedirected) {
+        $restartAnswer = Read-Host "Close and restart Windows Terminal now so the new font/profile settings take effect? [y/N]"
+        if ($restartAnswer -match '^[Yy]') {
+            Write-LogInfo "Restarting Windows Terminal..."
+            # Detached, delayed, and in a separate process on purpose - this
+            # script is very likely itself running inside the Windows Terminal
+            # window being closed, so killing it inline here would kill this
+            # script (and this whole function) mid-execution before it could
+            # ever launch the replacement window. The 2s delay lets this
+            # function return and the host process exit cleanly first.
+            Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+                "-NoProfile", "-Command",
+                "Start-Sleep -Seconds 2; Get-Process WindowsTerminal -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1; Start-Process wt.exe"
+            ) | Out-Null
+        } else {
+            Write-LogInfo "OK - close and reopen Windows Terminal manually later to pick up the new font/profile settings."
+        }
+    } else {
+        Write-LogInfo "Close and reopen Windows Terminal to pick up the new font/profile settings."
+    }
 }
 
 # See the Exit-WithError comment above: a real `.ps1` file run still gets a

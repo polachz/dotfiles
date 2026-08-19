@@ -14,6 +14,18 @@
 # PATH, no elevation needed since it's per-user) rather than the versioned
 # WindowsApps path or a shell:AppsFolder virtual target (WScript.Shell's
 # CreateShortcut doesn't handle the latter correctly for TargetPath).
+#
+# The alias itself is NOT usable for the shortcut ICON, though - found live
+# 2026-08-19: it's an empty reparse-point stub (that's how AppExecutionAlias
+# works), with no embedded icon resource of its own, so a shortcut using it
+# for IconLocation falls back to a generic icon. Resolved separately via
+# Get-AppxPackage to find the real (versioned) install location and pull the
+# icon from the actual WindowsTerminal.exe there instead - only for the
+# icon, not the launch target, so this stays correct even if that versioned
+# path becomes stale after a later update (worst case then is just a
+# generic icon again, not a broken shortcut, and it's only resolved once -
+# same as the rest of this script, since it returns early once the .lnk
+# already exists).
 
 $ErrorActionPreference = "Stop"
 
@@ -28,10 +40,19 @@ if (-not (Test-Path $wtAlias)) {
     return
 }
 
+$iconSource = $wtAlias
+$wtPackage = Get-AppxPackage -Name "Microsoft.WindowsTerminal" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($wtPackage) {
+    $realExe = Join-Path $wtPackage.InstallLocation "WindowsTerminal.exe"
+    if (Test-Path $realExe) {
+        $iconSource = $realExe
+    }
+}
+
 $wshShell = New-Object -ComObject WScript.Shell
 $shortcut = $wshShell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $wtAlias
-$shortcut.IconLocation = $wtAlias
+$shortcut.IconLocation = $iconSource
 $shortcut.Save()
 
 Write-Host "OK: Windows Terminal Desktop shortcut created" -ForegroundColor Green
