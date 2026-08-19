@@ -21,15 +21,21 @@
 # HKCU\...\CurrentVersion\Fonts), with no elevation prompt for anyone,
 # admin or not.
 #
-# Deliberately the plain "JetBrainsMonoNerdFont-*" variant from the zip (not
-# "...Mono-*"/"...Propo-*"/"JetBrainsMonoNL..."), matching what
-# dot_config/private_ghostty/common.conf.tmpl already uses on macOS/Linux
-# (font-family = "JetBrainsMono Nerd Font") - confirmed by inspecting the
-# font's own name table (nameID 16, "typographic family") that this exact
-# variant registers as that exact family name, so Windows Terminal's
-# font.face can now match Ghostty's name instead of the old Windows-only
-# "JetBrainsMono NF" (that was specific to the DEVCOM WiX build being
-# replaced here - see AppData/.../Fragments/dotfiles/profile.json.tmpl).
+# Uses the "...Mono" variant specifically ("JetBrainsMonoNerdFontMono-*"),
+# NOT the plain "JetBrainsMonoNerdFont-*" that dot_config/private_ghostty/
+# common.conf.tmpl uses on macOS/Linux (font-family = "JetBrainsMono Nerd
+# Font") — found live 2026-08-19 that the plain variant's `post` table has
+# isFixedPitch=0 (confirmed via its font metadata), so Windows Terminal's
+# font picker filters it out entirely (its default list only shows fonts
+# flagged monospace) and silently falls back instead of rendering it, even
+# with the registry/files correctly in place — survived a full machine
+# reboot, ruling out a font-cache-timing issue. The "...Mono" variant has
+# isFixedPitch=1 and registers as family "JetBrainsMono Nerd Font Mono"
+# (nameID 16) — that's what Windows Terminal's font.face now uses (see
+# AppData/.../Fragments/dotfiles/profile.json.tmpl), accepting that it won't
+# exactly match Ghostty's family name (same situation as the old DEVCOM
+# build's Windows-specific "JetBrainsMono NF" — Windows just needs its own
+# reference here regardless of source).
 
 $ErrorActionPreference = "Stop"
 
@@ -41,18 +47,54 @@ New-Item -ItemType Directory -Path $fontsDir -Force | Out-Null
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 
 $latestTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest").tag_name
+# Version marker includes "-mono" so machines that already have the older
+# non-monospace-flagged variant installed (tag alone would match and skip)
+# correctly detect a change and re-run the install/cleanup below.
+$targetVersion = "$latestTag-mono"
 
 $installedVersion = $null
 if (Test-Path $versionFile) {
     $installedVersion = Get-Content $versionFile -Raw
 }
 
-if ($installedVersion -eq $latestTag) {
-    Write-Host "OK: JetBrainsMono Nerd Font already up to date ($latestTag)" -ForegroundColor Green
+if ($installedVersion -eq $targetVersion) {
+    Write-Host "OK: JetBrainsMono Nerd Font Mono already up to date ($latestTag)" -ForegroundColor Green
     return
 }
 
-Write-Host "-> Installing JetBrainsMono Nerd Font $latestTag (per-user, no elevation)" -ForegroundColor Blue
+Write-Host "-> Installing JetBrainsMono Nerd Font Mono $latestTag (per-user, no elevation)" -ForegroundColor Blue
+
+Add-Type -Name FontInstall -Namespace DotfilesBootstrap -MemberDefinition @'
+[DllImport("gdi32.dll", CharSet = CharSet.Auto)]
+public static extern int AddFontResourceEx(string lpFileName, uint fl, IntPtr pdv);
+[DllImport("gdi32.dll", CharSet = CharSet.Auto)]
+public static extern int RemoveFontResourceEx(string lpFileName, uint fl, IntPtr pdv);
+[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+'@
+
+$FR_PRIVATE = 0x10
+$HWND_BROADCAST = [IntPtr]0xffff
+$WM_FONTCHANGE = 0x001D
+
+# Clean up a previous run's non-monospace-flagged "JetBrainsMono Nerd Font
+# <Style> (TrueType)" entries (no "Mono" in the label — that's how the old
+# ones are told apart from the new "JetBrainsMono Nerd Font Mono <Style>"
+# ones) - stale files/registrations, not just harmless leftovers, since
+# leaving both around risks Windows Terminal picking the wrong one again.
+$oldRegValues = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts" -ErrorAction SilentlyContinue
+if ($oldRegValues) {
+    $oldRegValues.PSObject.Properties |
+        Where-Object { $_.Name -match '^JetBrainsMono Nerd Font (?!Mono)' } |
+        ForEach-Object {
+            $oldFile = Join-Path $fontsDir $_.Value
+            if (Test-Path $oldFile) {
+                [DotfilesBootstrap.FontInstall]::RemoveFontResourceEx($oldFile, $FR_PRIVATE, [IntPtr]::Zero) | Out-Null
+                Remove-Item $oldFile -Force -ErrorAction SilentlyContinue
+            }
+            Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $_.Name -Force -ErrorAction SilentlyContinue
+        }
+}
 
 $zipUrl = "https://github.com/ryanoasis/nerd-fonts/releases/download/$latestTag/JetBrainsMono.zip"
 $zipPath = Join-Path $env:TEMP "dotfiles-jetbrains-mono-nerd-font.zip"
@@ -62,24 +104,13 @@ Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
 if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
 Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
 
-# Excludes "...Mono-*"/"...Propo-*" (different family, not what Ghostty
-# uses) and "JetBrainsMonoNL..." (no-ligatures variant) - only the plain
-# "JetBrainsMonoNerdFont-<Style>.ttf" files match this pattern.
-$fontFiles = Get-ChildItem $extractDir -Filter "*.ttf" | Where-Object { $_.Name -match '^JetBrainsMonoNerdFont-[A-Za-z]+\.ttf$' }
+# Only the "...Mono-<Style>.ttf" variant - excludes the plain/"...Propo-*"
+# variants (not monospace-flagged, see the file-level comment above) and
+# "JetBrainsMonoNL..." (no-ligatures variant).
+$fontFiles = Get-ChildItem $extractDir -Filter "*.ttf" | Where-Object { $_.Name -match '^JetBrainsMonoNerdFontMono-[A-Za-z]+\.ttf$' }
 if (-not $fontFiles) {
-    throw "No matching JetBrainsMonoNerdFont-*.ttf files found in $zipUrl - archive layout may have changed, check manually."
+    throw "No matching JetBrainsMonoNerdFontMono-*.ttf files found in $zipUrl - archive layout may have changed, check manually."
 }
-
-Add-Type -Name FontInstall -Namespace DotfilesBootstrap -MemberDefinition @'
-[DllImport("gdi32.dll", CharSet = CharSet.Auto)]
-public static extern int AddFontResourceEx(string lpFileName, uint fl, IntPtr pdv);
-[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
-'@
-
-$FR_PRIVATE = 0x10
-$HWND_BROADCAST = [IntPtr]0xffff
-$WM_FONTCHANGE = 0x001D
 
 foreach ($file in $fontFiles) {
     $destPath = Join-Path $fontsDir $file.Name
@@ -88,11 +119,12 @@ foreach ($file in $fontFiles) {
     # Registry value NAME is just a human-readable label for the Fonts
     # control panel / uninstall bookkeeping - the family/style apps actually
     # use comes from the font file's own name table, not this string. Only
-    # needs to be unique per file and end in "(TrueType)".
-    $style = $file.BaseName -replace '^JetBrainsMonoNerdFont-?', ''
+    # needs to be unique per file and end in "(TrueType)" - "Mono" included
+    # here too so the cleanup regex above can tell old vs new apart.
+    $style = $file.BaseName -replace '^JetBrainsMonoNerdFontMono-?', ''
     if (-not $style) { $style = "Regular" }
     $styleSpaced = ($style -creplace '(?<!^)(?=[A-Z])', ' ')
-    $regName = "JetBrainsMono Nerd Font $styleSpaced (TrueType)"
+    $regName = "JetBrainsMono Nerd Font Mono $styleSpaced (TrueType)"
 
     New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $file.Name -PropertyType String -Force | Out-Null
     [DotfilesBootstrap.FontInstall]::AddFontResourceEx($destPath, $FR_PRIVATE, [IntPtr]::Zero) | Out-Null
@@ -106,7 +138,7 @@ $broadcastResult = [UIntPtr]::Zero
 Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
 Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
 
-Set-Content -Path $versionFile -Value $latestTag -NoNewline
+Set-Content -Path $versionFile -Value $targetVersion -NoNewline
 
-Write-Host "OK: JetBrainsMono Nerd Font $latestTag installed ($($fontFiles.Count) files, per-user, no elevation)" -ForegroundColor Green
+Write-Host "OK: JetBrainsMono Nerd Font Mono $latestTag installed ($($fontFiles.Count) files, per-user, no elevation)" -ForegroundColor Green
 {{- end -}}

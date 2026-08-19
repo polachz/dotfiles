@@ -15,9 +15,14 @@
   Oh My Posh prompt's segment glyphs to render instead of tofu boxes, confirmed live on
   winlab.local. Updated 2026-08-19: now installed from the upstream ryanoasis/nerd-fonts
   release (see run_after_install-jetbrains-mono-nerd-font-windows.ps1.tmpl) instead of the
-  DEVCOM WiX winget package, so this is now "JetBrainsMono Nerd Font" — the SAME family name
-  dot_config/private_ghostty/common.conf.tmpl uses on macOS/Linux (confirmed via the font's own
-  name table) — not the old Windows-only "JetBrainsMono NF" specific to the DEVCOM build.
+  DEVCOM WiX winget package — using the "...Mono" variant specifically, NOT the plain
+  "JetBrainsMono Nerd Font" that dot_config/private_ghostty/common.conf.tmpl uses on
+  macOS/Linux. Found live: the plain variant's `post` table has isFixedPitch=0, so Windows
+  Terminal's font picker filters it out and silently falls back (survived a full reboot,
+  ruling out a cache-timing issue) — the "...Mono" variant is properly flagged isFixedPitch=1
+  and registers as "JetBrainsMono Nerd Font Mono" (its own nameID 16), which IS what Windows
+  Terminal needs here even though it means the family name no longer matches Ghostty's exactly
+  (same situation as the old DEVCOM build's Windows-only "JetBrainsMono NF").
 */ -}}
 {
     "profiles": [
@@ -26,7 +31,7 @@
             "name": "Dotfiles",
             "commandline": "pwsh.exe -NoLogo",
             "font": {
-                "face": "JetBrainsMono Nerd Font",
+                "face": "JetBrainsMono Nerd Font Mono",
                 "size": {{ if eq .deployment.profile "work" }}14{{ else }}13{{ end }}
             }
         }
