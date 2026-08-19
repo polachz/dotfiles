@@ -75,10 +75,21 @@ function New-TotalCommanderShortcuts($tcExe, $workDir) {
     }
 }
 
-$downloadPageHtml = (Invoke-WebRequest -Uri "https://www.ghisler.com/download.htm" -UseBasicParsing).Content
+# A transient network failure (or, less likely than the GitHub-API-based
+# tools above, a page-structure change) here is not worth aborting the
+# WHOLE chezmoi apply over - this tool is optional, so it's skipped with a
+# clear warning (retried next apply) instead, same pattern as the Nerd
+# Font/7-Zip scripts.
+try {
+    $downloadPageHtml = (Invoke-WebRequest -Uri "https://www.ghisler.com/download.htm" -UseBasicParsing -ErrorAction Stop).Content
+} catch {
+    Write-Host "SKIP: could not reach https://www.ghisler.com/download.htm ($($_.Exception.Message)) - will retry next apply" -ForegroundColor Yellow
+    return
+}
 $urlMatch = [regex]::Match($downloadPageHtml, 'https://totalcommander\.ch/(\d+)/tcmd\1x64\.exe')
 if (-not $urlMatch.Success) {
-    throw "Could not find the Total Commander 64-bit download link on https://www.ghisler.com/download.htm - page structure may have changed, check manually."
+    Write-Host "SKIP: could not find the Total Commander 64-bit download link on https://www.ghisler.com/download.htm - page structure may have changed, check manually" -ForegroundColor Yellow
+    return
 }
 $downloadUrl = $urlMatch.Value
 $latestVersion = $urlMatch.Groups[1].Value

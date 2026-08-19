@@ -56,7 +56,30 @@ function New-SevenZipShortcuts($exePath, $workDir) {
     }
 }
 
-$latestTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/ip7z/7zip/releases/latest").tag_name
+# Unlike Total Commander (pure GUI file manager, not typically invoked from
+# a shell), 7z.exe is genuinely useful on the command line - added to the
+# User PATH (no elevation needed, same mechanism bootstrap.ps1 uses for
+# ejson), idempotent (only appends if not already present). User's explicit
+# call, 2026-08-19.
+function Add-SevenZipToPath($dir) {
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    if ($userPath -notlike "*$dir*") {
+        [System.Environment]::SetEnvironmentVariable("Path", "$userPath;$dir", "User")
+    }
+}
+
+# GitHub's unauthenticated API rate limit (60/hour per source IP) is a real
+# risk here, confirmed live 2026-08-19 during heavy same-day testing - this
+# tool is optional, so a transient network/rate-limit failure skips it with
+# a clear warning (retried next apply) instead of aborting the WHOLE
+# chezmoi apply, matching the pattern
+# run_after_install-bitwarden-desktop-linux.sh.tmpl already used.
+try {
+    $latestTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/ip7z/7zip/releases/latest" -ErrorAction Stop).tag_name
+} catch {
+    Write-Host "SKIP: could not resolve latest 7-Zip release ($($_.Exception.Message)) - will retry next apply" -ForegroundColor Yellow
+    return
+}
 
 $installedVersion = $null
 if (Test-Path $versionFile) {
@@ -68,6 +91,7 @@ if ($installedVersion -eq $latestTag) {
     $existingExe = Join-Path $installDir "7zFM.exe"
     if (Test-Path $existingExe) {
         New-SevenZipShortcuts -exePath $existingExe -workDir $installDir
+        Add-SevenZipToPath -dir $installDir
     }
     return
 }
@@ -107,6 +131,7 @@ foreach ($file in @("7zFM.exe", "7zG.exe", "7z.exe", "7z.dll", "7-zip.dll", "Lic
 
 $installedExe = Join-Path $installDir "7zFM.exe"
 New-SevenZipShortcuts -exePath $installedExe -workDir $installDir
+Add-SevenZipToPath -dir $installDir
 
 Remove-Item $decoderPath -Force -ErrorAction SilentlyContinue
 Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
@@ -114,5 +139,5 @@ Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
 
 Set-Content -Path $versionFile -Value $latestTag -NoNewline
 
-Write-Host "OK: 7-Zip $latestTag installed to $installDir (per-user, no elevation, no Explorer integration)" -ForegroundColor Green
+Write-Host "OK: 7-Zip $latestTag installed to $installDir (per-user, no elevation, on PATH, no Explorer integration)" -ForegroundColor Green
 {{- end -}}

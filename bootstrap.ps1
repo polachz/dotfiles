@@ -272,30 +272,45 @@ Env vars (same names as bootstrap.sh, for consistency):
         $ejsonBinDir = Join-Path $HOME "bin"
         New-Item -ItemType Directory -Path $ejsonBinDir -Force | Out-Null
 
-        $ejsonTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/Shopify/ejson/releases/latest").tag_name
-        if (-not $ejsonTag) {
-            Exit-WithError "Could not resolve latest EJSON release - install it manually into $ejsonBinDir and re-run."
+        # Degrades gracefully on any failure here (GitHub's unauthenticated
+        # API rate limit - 60/hour per source IP - is a real risk, confirmed
+        # live 2026-08-19 during heavy same-day testing) rather than
+        # aborting the whole bootstrap via Exit-WithError, matching
+        # bootstrap.sh's Linux/macOS EJSON install (also just warns and
+        # continues on failure there). Without EJSON, chezmoi's own
+        # age/EJSON decrypt step will fail later with a more specific error
+        # at that exact point instead - not pretended away, just not fatal
+        # this early.
+        $ejsonTag = $null
+        try {
+            $ejsonTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/Shopify/ejson/releases/latest" -ErrorAction Stop).tag_name
+        } catch {
+            Write-LogWarn "Could not resolve latest EJSON release ($($_.Exception.Message)) - continuing without it. Git identity (user.name/user.email) won't be configured; install it manually into $ejsonBinDir later, or re-run once the network/rate-limit issue clears."
         }
-        $ejsonVersion = $ejsonTag.TrimStart("v")
-        $ejsonUrl = "https://github.com/Shopify/ejson/releases/download/$ejsonTag/ejson_${ejsonVersion}_windows_${ejsonArch}.tar.gz"
-        $ejsonTarball = Join-Path $env:TEMP "ejson.tar.gz"
-        Invoke-WebRequest -Uri $ejsonUrl -OutFile $ejsonTarball
-        tar -xzf $ejsonTarball -C $ejsonBinDir ejson.exe
-        Remove-Item $ejsonTarball -Force -ErrorAction SilentlyContinue
 
-        if (-not (Test-Path (Join-Path $ejsonBinDir "ejson.exe"))) {
-            Exit-WithError "EJSON download/extract failed ($ejsonUrl) - install it manually into $ejsonBinDir and re-run."
-        }
+        if ($ejsonTag) {
+            $ejsonVersion = $ejsonTag.TrimStart("v")
+            $ejsonUrl = "https://github.com/Shopify/ejson/releases/download/$ejsonTag/ejson_${ejsonVersion}_windows_${ejsonArch}.tar.gz"
+            $ejsonTarball = Join-Path $env:TEMP "ejson.tar.gz"
+            Invoke-WebRequest -Uri $ejsonUrl -OutFile $ejsonTarball
+            tar -xzf $ejsonTarball -C $ejsonBinDir ejson.exe
+            Remove-Item $ejsonTarball -Force -ErrorAction SilentlyContinue
 
-        $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-        if ($userPath -notlike "*$ejsonBinDir*") {
-            [System.Environment]::SetEnvironmentVariable("Path", "$userPath;$ejsonBinDir", "User")
+            if (-not (Test-Path (Join-Path $ejsonBinDir "ejson.exe"))) {
+                Write-LogWarn "EJSON download/extract failed ($ejsonUrl) - continuing without it. Git identity won't be configured; install it manually into $ejsonBinDir later."
+            } else {
+                $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+                if ($userPath -notlike "*$ejsonBinDir*") {
+                    [System.Environment]::SetEnvironmentVariable("Path", "$userPath;$ejsonBinDir", "User")
+                }
+                Update-SessionPath
+                if (-not (Get-Command ejson -ErrorAction SilentlyContinue)) {
+                    Write-LogWarn "EJSON was installed to $ejsonBinDir but is still not on PATH - check manually."
+                } else {
+                    Write-LogInfo "EJSON installed successfully."
+                }
+            }
         }
-        Update-SessionPath
-        if (-not (Get-Command ejson -ErrorAction SilentlyContinue)) {
-            Exit-WithError "EJSON was installed to $ejsonBinDir but is still not on PATH - check the output above and re-run."
-        }
-        Write-LogInfo "EJSON installed successfully."
     } else {
         Write-LogInfo "EJSON already installed."
     }

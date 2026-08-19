@@ -46,7 +46,18 @@ $versionFile = Join-Path $stateDir "jetbrains-mono-nerd-font.version"
 New-Item -ItemType Directory -Path $fontsDir -Force | Out-Null
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 
-$latestTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest").tag_name
+# GitHub's unauthenticated API rate limit (60/hour per source IP) is a real
+# risk here, confirmed live 2026-08-19 during heavy same-day testing - this
+# tool is optional, so a transient network/rate-limit failure skips it with
+# a clear warning (retried next apply) instead of aborting the WHOLE
+# chezmoi apply, matching the pattern
+# run_after_install-bitwarden-desktop-linux.sh.tmpl already used.
+try {
+    $latestTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest" -ErrorAction Stop).tag_name
+} catch {
+    Write-Host "SKIP: could not resolve latest JetBrainsMono Nerd Font release ($($_.Exception.Message)) - will retry next apply" -ForegroundColor Yellow
+    return
+}
 # Version marker suffix bumped whenever the install mechanics change in a
 # way that needs existing installs to be redone (not just a new upstream
 # release) - "-mono" for the isFixedPitch variant switch, "-mono2" added
