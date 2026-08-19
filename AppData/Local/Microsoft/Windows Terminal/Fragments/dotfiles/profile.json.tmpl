@@ -5,11 +5,26 @@
   regardless of whether Windows Terminal is packaged (winget/Store) or not, since this path is
   the generic third-party drop location, not Windows Terminal's own config file.
 
-  Deliberately does NOT set defaultProfile or any other global setting (fragments can't — only
-  settings.json can, and that file's location is fragile for MSIX/winget installs plus is real
-  JSONC the user may have hand-edited, see CONCEPT_ROADMAP.md §7 for why that's out of scope).
-  Own, fixed GUID below (never reused/regenerated) so this is always additive, never an
-  `"updates"` reference to an existing profile — no possible collision with the user's real data.
+  UPDATED 2026-08-19 (user's explicit call): modifies the user's actual default Command Prompt
+  and PowerShell profiles directly via `"updates"` (a fragment CAN target the built-in default
+  profiles and dynamic profiles this way — Microsoft's own docs confirm "You can modify only
+  the default profiles, Command Prompt and PowerShell, as well as dynamic profiles through
+  fragments") instead of adding a separate "Dotfiles" profile nobody would actually use by
+  default (Windows Terminal fragments still can't set defaultProfile — that's the one thing
+  only settings.json itself can do, deliberately left alone, see CONCEPT_ROADMAP.md §7).
+
+  GUIDs below are Windows Terminal's own fixed identifiers for these profiles, confirmed
+  directly from its source (not just cited elsewhere) 2026-08-19:
+    - Command Prompt: defaults.json — "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}"
+    - Windows PowerShell (5.1): defaults.json — "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}"
+    - PowerShell 7/pwsh ("PowerShell", dynamically detected): PowershellCoreProfileGenerator.cpp
+      — hardcoded constant PowershellCoreGuid = {574e775e-4f2a-5b96-ac1e-a2962a402336}, NOT
+      computed via the generic dynamic-profile namespace+name hash (verified this does NOT
+      match that formula's output — pwsh's profile is special-cased in Terminal's own source
+      for backward compatibility, predating the generic hashing scheme WSL/SSH profiles use).
+      Only applies if pwsh is actually installed and detected — a bare `"updates"` targeting a
+      GUID with no matching profile silently does nothing, no error, so this is safe to ship
+      unconditionally even on a machine without pwsh yet.
 
   font.face added 2026-08-17 (jetbrains-mono-nerd-font in packages.yaml) — needed for the
   Oh My Posh prompt's segment glyphs to render instead of tofu boxes, confirmed live on
@@ -24,15 +39,28 @@
   Terminal needs here even though it means the family name no longer matches Ghostty's exactly
   (same situation as the old DEVCOM build's Windows-only "JetBrainsMono NF").
 */ -}}
+{{- $fontSize := ternary 14 13 (eq .deployment.profile "work") -}}
 {
     "profiles": [
         {
-            "guid": "{1ae1727f-65b8-4645-b6d2-ee9d98d5c1d1}",
-            "name": "Dotfiles",
-            "commandline": "pwsh.exe -NoLogo",
+            "updates": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
             "font": {
                 "face": "JetBrainsMono Nerd Font Mono",
-                "size": {{ if eq .deployment.profile "work" }}14{{ else }}13{{ end }}
+                "size": {{ $fontSize }}
+            }
+        },
+        {
+            "updates": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+            "font": {
+                "face": "JetBrainsMono Nerd Font Mono",
+                "size": {{ $fontSize }}
+            }
+        },
+        {
+            "updates": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
+            "font": {
+                "face": "JetBrainsMono Nerd Font Mono",
+                "size": {{ $fontSize }}
             }
         }
     ]
