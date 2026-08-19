@@ -75,20 +75,21 @@ packages:
     - name: totalcmd
       roles: [workstation]
       requires_gui: true
-      # Ghisler.TotalCommander's installer hard-requires elevation for
-      # EVERYONE, admin or not (confirmed live 2026-08-19 — a genuine
-      # Standard User gets a real credential-entry UAC prompt, not the
-      # simple "allow?" a local admin sees, and would hang a scripted
-      # bootstrap forever waiting for admin credentials that don't exist).
-      # Unlike git (PrivilegesRequired=none, degrades gracefully — see
-      # bootstrap.ps1), there's no graceful-degrade path here, so this is
-      # skipped outright (see run_onchange_install-packages.ps1.tmpl) when
-      # deployment.can_elevate is false, instead of getting stuck.
-      requires_elevation: true
       dnf: skip
       apt: skip
       brew: skip
-      winget: Ghisler.TotalCommander
+      # winget: skip — Ghisler.TotalCommander's INSTALLER hard-requires elevation for
+      # EVERYONE, admin or not (confirmed live 2026-08-19 — a genuine Standard User gets
+      # a real credential-entry UAC prompt, and neither the installer's own
+      # requestedExecutionLevel="highestAvailable" manifest NOR the __COMPAT_LAYER=
+      # RunAsInvoker shim suppresses it — it's forced by the installer's own code, not
+      # just the OS manifest). The actual PROGRAM needs none of that (TOTALCMD64.EXE's
+      # own manifest is asInvoker, and it's genuinely portable software) — installed
+      # instead by .chezmoiscripts/run_after_install-totalcmd-windows.ps1.tmpl, which
+      # unpacks the installer's payload directly with built-in Windows/.NET tools
+      # WITHOUT ever running the installer, per-user, no elevation for anyone. See that
+      # file for the full rationale.
+      winget: skip
     - name: 7zip
       roles: [workstation]
       requires_gui: true
