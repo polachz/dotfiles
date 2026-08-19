@@ -109,12 +109,14 @@ packages:
       brew: skip # macOS has no comparable shell-integration need; keg-only formula exists but out of scope
       # 7zip.7zip's manifest has ONLY `Scope: machine` (no user-scope option at
       # all, confirmed live 2026-08-19) plus `ElevationRequirement:
-      # elevatesSelf` — same situation as Total Commander/jetbrains-mono-
-      # nerd-font. Unlike the font, there's no good no-elevation alternative
-      # here (the main value is Explorer right-click shell integration, which
-      # is inherently machine-wide/HKLM), so this is skipped outright (see
-      # run_onchange_install-packages.ps1.tmpl) when deployment.can_elevate
-      # is false, same as totalcmd.
+      # elevatesSelf` — same situation as Total Commander. When
+      # deployment.can_elevate is false, this entry is skipped (see
+      # run_onchange_install-packages.ps1.tmpl) and
+      # run_after_install-7zip-windows.ps1.tmpl installs a portable,
+      # no-elevation fallback instead (GUI file manager + console tool, no
+      # Explorer right-click integration — that part is inherently
+      # HKLM/machine-wide either way) — see that file for the full
+      # rationale, same pattern as totalcmd's fallback.
       requires_elevation: true
       winget: 7zip.7zip
   # Generalizes the previous top-level virtualbox/vmware keys under the same roles-like
