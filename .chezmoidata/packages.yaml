@@ -78,18 +78,18 @@ packages:
       dnf: skip
       apt: skip
       brew: skip
-      # winget: skip — Ghisler.TotalCommander's INSTALLER hard-requires elevation for
-      # EVERYONE, admin or not (confirmed live 2026-08-19 — a genuine Standard User gets
-      # a real credential-entry UAC prompt, and neither the installer's own
-      # requestedExecutionLevel="highestAvailable" manifest NOR the __COMPAT_LAYER=
-      # RunAsInvoker shim suppresses it — it's forced by the installer's own code, not
-      # just the OS manifest). The actual PROGRAM needs none of that (TOTALCMD64.EXE's
-      # own manifest is asInvoker, and it's genuinely portable software) — installed
-      # instead by .chezmoiscripts/run_after_install-totalcmd-windows.ps1.tmpl, which
-      # unpacks the installer's payload directly with built-in Windows/.NET tools
-      # WITHOUT ever running the installer, per-user, no elevation for anyone. See that
-      # file for the full rationale.
-      winget: skip
+      # Real winget install ONLY when this account can actually elevate (proper Program
+      # Files install, uninstaller registration, etc.) — Ghisler.TotalCommander's
+      # INSTALLER hard-requires elevation for everyone via its own application code
+      # (confirmed live 2026-08-19: neither its highestAvailable manifest semantics nor
+      # __COMPAT_LAYER=RunAsInvoker suppress it for a genuine Standard User). When
+      # deployment.can_elevate is false, this entry is skipped (see
+      # run_onchange_install-packages.ps1.tmpl) and
+      # run_after_install-totalcmd-windows.ps1.tmpl installs the portable, no-elevation
+      # fallback instead (gated on can_elevate being false there too, so exactly one of
+      # the two ever runs) — see that file for the full rationale.
+      requires_elevation: true
+      winget: Ghisler.TotalCommander
     - name: 7zip
       roles: [workstation]
       requires_gui: true
