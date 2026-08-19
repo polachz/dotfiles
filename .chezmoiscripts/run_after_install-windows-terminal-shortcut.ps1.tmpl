@@ -1,0 +1,38 @@
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
+# Creates a per-user Desktop shortcut for Windows Terminal (installed by
+# packages.yaml's own `windows-terminal` entry, winget: Microsoft.WindowsTerminal
+# - that only installs it, no shortcut). Runs on every apply (plain
+# `run_after_` prefix), skips once the shortcut already exists.
+#
+# Windows Terminal is an MSIX/AppX-packaged app, not a plain .exe - there is
+# no API to create a desktop shortcut for a packaged app the normal way
+# (confirmed via Microsoft's own MSIX docs), and pointing a shortcut at the
+# real install path (%ProgramFiles%\WindowsApps\...) is fragile since that
+# path embeds a version number that changes on every update. The documented,
+# reliable approach for a script is to target the app's AppExecutionAlias
+# instead (wt.exe, under %LOCALAPPDATA%\Microsoft\WindowsApps - already on
+# PATH, no elevation needed since it's per-user) rather than the versioned
+# WindowsApps path or a shell:AppsFolder virtual target (WScript.Shell's
+# CreateShortcut doesn't handle the latter correctly for TargetPath).
+
+$ErrorActionPreference = "Stop"
+
+$shortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "Windows Terminal.lnk"
+if (Test-Path $shortcutPath) {
+    return
+}
+
+$wtAlias = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\wt.exe"
+if (-not (Test-Path $wtAlias)) {
+    Write-Host "SKIP: Windows Terminal alias (wt.exe) not found yet - shortcut not created, will retry next apply" -ForegroundColor Yellow
+    return
+}
+
+$wshShell = New-Object -ComObject WScript.Shell
+$shortcut = $wshShell.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = $wtAlias
+$shortcut.IconLocation = $wtAlias
+$shortcut.Save()
+
+Write-Host "OK: Windows Terminal Desktop shortcut created" -ForegroundColor Green
+{{- end -}}
