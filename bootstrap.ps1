@@ -114,7 +114,8 @@ Usage: bootstrap.ps1 [options]
 Options:
   -Profile <personal|work>      Pre-select dotfiles profile (skip menu)
   -Role <workstation|server>    Pre-select machine role (skip menu)
-  -Gui <yes|no>                 Pre-select GUI presence (skip menu)
+  -Gui <yes|no>                 Override GUI presence (default: yes, no menu -
+                                  a headless machine is the rare case here)
   -Branch <name>                Clone/checkout this git branch instead of
                                   the default branch
   -DryRun                       Run chezmoi in dry-run mode
@@ -198,22 +199,14 @@ Env vars (same names as bootstrap.sh, for consistency):
     Write-LogInfo "Selected role: $deploymentRole"
 
     # ───── Resolve GUI presence ──────────────────────────────────────────────
+    # No interactive menu here, unlike bootstrap.sh - this script only ever
+    # runs ON Windows, and a Windows machine having a GUI is the overwhelming
+    # default (headless Windows Server Core is a rare, deliberate choice, not
+    # the common case the way headless Linux servers are). Defaults to "yes"
+    # unless explicitly overridden via -Gui/CHZ_HAS_GUI, for that rare case.
 
     if (-not $hasGuiChoice) {
-        while ($true) {
-            Write-Host "Does this machine have a GUI?`n"
-            Write-Host "  1) Yes"
-            Write-Host "  2) No"
-            Write-Host "  e) Exit`n"
-            $choice = Read-Host "Enter your choice"
-            switch ($choice) {
-                "1" { $hasGuiChoice = "yes"; break }
-                "2" { $hasGuiChoice = "no"; break }
-                { $_ -in "e", "exit" } { Write-Host "Aborted."; return }
-                default { Write-Host "Invalid selection. Please try again."; continue }
-            }
-            if ($hasGuiChoice) { break }
-        }
+        $hasGuiChoice = "yes"
     }
     if ($hasGuiChoice -notin "yes", "no") {
         Exit-WithError "Invalid -Gui: '$hasGuiChoice' (must be 'yes' or 'no')"
