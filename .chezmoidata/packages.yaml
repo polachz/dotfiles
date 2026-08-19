@@ -89,6 +89,22 @@ packages:
       apt: skip
       brew: skip
       winget: Ghisler.TotalCommander
+    - name: 7zip
+      roles: [workstation]
+      requires_gui: true
+      dnf: skip # p7zip already covers this on Linux, no separate 7-Zip package needed here
+      apt: skip
+      brew: skip # macOS has no comparable shell-integration need; keg-only formula exists but out of scope
+      # 7zip.7zip's manifest has ONLY `Scope: machine` (no user-scope option at
+      # all, confirmed live 2026-08-19) plus `ElevationRequirement:
+      # elevatesSelf` — same situation as Total Commander/jetbrains-mono-
+      # nerd-font. Unlike the font, there's no good no-elevation alternative
+      # here (the main value is Explorer right-click shell integration, which
+      # is inherently machine-wide/HKLM), so this is skipped outright (see
+      # run_onchange_install-packages.ps1.tmpl) when deployment.can_elevate
+      # is false, same as totalcmd.
+      requires_elevation: true
+      winget: 7zip.7zip
   # Generalizes the previous top-level virtualbox/vmware keys under the same roles-like
   # principle: vm_types filters on .deployment.vm_type instead of a dedicated category per type.
   vm_guest_tools:
