@@ -47,10 +47,13 @@ New-Item -ItemType Directory -Path $fontsDir -Force | Out-Null
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 
 $latestTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest").tag_name
-# Version marker includes "-mono" so machines that already have the older
-# non-monospace-flagged variant installed (tag alone would match and skip)
-# correctly detect a change and re-run the install/cleanup below.
-$targetVersion = "$latestTag-mono"
+# Version marker suffix bumped whenever the install mechanics change in a
+# way that needs existing installs to be redone (not just a new upstream
+# release) - "-mono" for the isFixedPitch variant switch, "-mono2" added
+# 2026-08-19 for the full-path-in-registry-value fix (see below) - so
+# machines with an older, still-broken install correctly detect a change
+# and re-run instead of no-op'ing on a matching tag.
+$targetVersion = "$latestTag-mono2"
 
 $installedVersion = $null
 if (Test-Path $versionFile) {
@@ -121,12 +124,31 @@ foreach ($file in $fontFiles) {
     # use comes from the font file's own name table, not this string. Only
     # needs to be unique per file and end in "(TrueType)" - "Mono" included
     # here too so the cleanup regex above can tell old vs new apart.
+    #
+    # Registry VALUE, in contrast, is NOT cosmetic and must be the FULL PATH
+    # here, not just the bare filename - confirmed live 2026-08-19 (the real
+    # cause of the font still not appearing anywhere, even after a full
+    # reboot, despite the file/AddFontResourceEx/isFixedPitch fix all being
+    # correct). Windows' per-machine font loader (HKLM) resolves a bare
+    # filename relative to the well-known %WINDIR%\Fonts automatically, but
+    # there's no equivalent implicit base directory for HKCU entries -
+    # %LOCALAPPDATA%\...\Fonts isn't a "well-known root" the OS assumes, so
+    # a bare filename there silently fails to resolve for any process other
+    # than the one that called AddFontResourceEx itself (which is
+    # session/process-scoped by definition, not the persistent registration
+    # newly-started processes or a reboot use to reload it). A full path in
+    # the value fixes this - verified live via WPF's own font enumeration
+    # ([System.Windows.Media.Fonts]::SystemFontFamilies, closer to what
+    # packaged/DirectWrite apps like Windows Terminal see than GDI+'s
+    # InstalledFontCollection, which doesn't surface per-user fonts at all)
+    # picking it up immediately in a brand new process, with no reboot
+    # needed at all.
     $style = $file.BaseName -replace '^JetBrainsMonoNerdFontMono-?', ''
     if (-not $style) { $style = "Regular" }
     $styleSpaced = ($style -creplace '(?<!^)(?=[A-Z])', ' ')
     $regName = "JetBrainsMono Nerd Font Mono $styleSpaced (TrueType)"
 
-    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $file.Name -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $destPath -PropertyType String -Force | Out-Null
     [DotfilesBootstrap.FontInstall]::AddFontResourceEx($destPath, $FR_PRIVATE, [IntPtr]::Zero) | Out-Null
 }
 

@@ -52,6 +52,29 @@ $versionFile = Join-Path $stateDir "totalcmd.version"
 
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 
+# Per-user Start Menu + Desktop shortcuts ($env:APPDATA / the per-user
+# Desktop special folder, no elevation needed for either) - the all-users
+# locations (%ProgramData%, the public Desktop) would need admin,
+# deliberately not used here. A function, not inline, so it can run both
+# on a fresh install AND on the "already up to date" no-op path below (an
+# existing install from before shortcuts were added here shouldn't need a
+# version bump just to get them - CreateShortcut is cheap/idempotent to
+# just always re-ensure).
+function New-TotalCommanderShortcuts($tcExe, $workDir) {
+    $wshShell = New-Object -ComObject WScript.Shell
+    $shortcutTargets = @(
+        (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Total Commander.lnk"),
+        (Join-Path ([Environment]::GetFolderPath("Desktop")) "Total Commander.lnk")
+    )
+    foreach ($shortcutPath in $shortcutTargets) {
+        $shortcut = $wshShell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = $tcExe
+        $shortcut.WorkingDirectory = $workDir
+        $shortcut.IconLocation = $tcExe
+        $shortcut.Save()
+    }
+}
+
 $downloadPageHtml = (Invoke-WebRequest -Uri "https://www.ghisler.com/download.htm" -UseBasicParsing).Content
 $urlMatch = [regex]::Match($downloadPageHtml, 'https://totalcommander\.ch/(\d+)/tcmd\1x64\.exe')
 if (-not $urlMatch.Success) {
@@ -67,6 +90,10 @@ if (Test-Path $versionFile) {
 
 if ($installedVersion -eq $latestVersion) {
     Write-Host "OK: Total Commander already up to date ($latestVersion)" -ForegroundColor Green
+    $existingExe = Join-Path $installDir "TOTALCMD64.EXE"
+    if (Test-Path $existingExe) {
+        New-TotalCommanderShortcuts -tcExe $existingExe -workDir $installDir
+    }
     return
 }
 
@@ -99,17 +126,7 @@ if (-not (Test-Path $tcExe)) {
     throw "TOTALCMD64.EXE not found in $installDir after extraction - installer layout may have changed, check manually."
 }
 
-# Per-user Start Menu shortcut (%APPDATA%, no elevation needed) - the
-# all-users location (%ProgramData%) would need admin, deliberately not
-# used here.
-$startMenuDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
-$shortcutPath = Join-Path $startMenuDir "Total Commander.lnk"
-$wshShell = New-Object -ComObject WScript.Shell
-$shortcut = $wshShell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = $tcExe
-$shortcut.WorkingDirectory = $installDir
-$shortcut.IconLocation = $tcExe
-$shortcut.Save()
+New-TotalCommanderShortcuts -tcExe $tcExe -workDir $installDir
 
 Remove-Item $exePath -Force -ErrorAction SilentlyContinue
 Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
