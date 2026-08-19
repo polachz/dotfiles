@@ -57,11 +57,14 @@ packages:
       dnf: skip # not verified yet — needs per-distro nerd-fonts packaging check
       apt: skip # not verified yet — needs per-distro nerd-fonts packaging check
       brew: font-jetbrains-mono-nerd-font # cask, brew auto-detects (verified live 2026-08-14)
-      # DEVCOM's WiX build (verified live 2026-08-17 on winlab.local) — registers as font
-      # family "JetBrainsMono NF", NOT "JetBrainsMono Nerd Font" like the Homebrew cask.
-      # Windows Terminal's font.face must use the Windows-specific name (see the fragment
-      # profile under AppData/).
-      winget: DEVCOM.JetBrainsMonoNerdFont
+      # winget: skip — DEVCOM.JetBrainsMonoNerdFont's manifest is a WiX MSI with NO
+      # per-user Scope option at all (confirmed live 2026-08-19), so it always requires
+      # elevation, for admins and Standard Users alike (unlike git/Total Commander, which
+      # degrade gracefully for a genuine Standard User — see bootstrap.ps1's git comment).
+      # Installed instead by .chezmoiscripts/run_after_install-jetbrains-mono-nerd-font-
+      # windows.ps1.tmpl, straight from the upstream ryanoasis/nerd-fonts GitHub release,
+      # per-user, no elevation for anyone — see that file for the full rationale.
+      winget: skip
     - name: windows-terminal
       roles: [workstation]
       requires_gui: true

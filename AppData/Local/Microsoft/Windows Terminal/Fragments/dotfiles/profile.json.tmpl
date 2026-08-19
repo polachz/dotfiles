@@ -13,8 +13,11 @@
 
   font.face added 2026-08-17 (jetbrains-mono-nerd-font in packages.yaml) — needed for the
   Oh My Posh prompt's segment glyphs to render instead of tofu boxes, confirmed live on
-  winlab.local. "JetBrainsMono NF" is the Windows-specific family name (DEVCOM's WiX build),
-  NOT "JetBrainsMono Nerd Font" like the Homebrew cask used for Ghostty on macOS.
+  winlab.local. Updated 2026-08-19: now installed from the upstream ryanoasis/nerd-fonts
+  release (see run_after_install-jetbrains-mono-nerd-font-windows.ps1.tmpl) instead of the
+  DEVCOM WiX winget package, so this is now "JetBrainsMono Nerd Font" — the SAME family name
+  dot_config/private_ghostty/common.conf.tmpl uses on macOS/Linux (confirmed via the font's own
+  name table) — not the old Windows-only "JetBrainsMono NF" specific to the DEVCOM build.
 */ -}}
 {
     "profiles": [
@@ -23,7 +26,7 @@
             "name": "Dotfiles",
             "commandline": "pwsh.exe -NoLogo",
             "font": {
-                "face": "JetBrainsMono NF",
+                "face": "JetBrainsMono Nerd Font",
                 "size": {{ if eq .deployment.profile "work" }}14{{ else }}13{{ end }}
             }
         }

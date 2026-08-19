@@ -1,0 +1,112 @@
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
+# Installs JetBrainsMono Nerd Font per-user on Windows, no elevation required
+# for anyone - runs on every apply (plain `run_after_` prefix), no-ops once
+# the installed version matches the latest available. Windows counterpart of
+# the `jetbrains-mono-nerd-font` packages.yaml entry, which is `winget: skip`
+# here on purpose.
+#
+# WHY not the winget package (DEVCOM.JetBrainsMonoNerdFont): its manifest is
+# a WiX MSI with NO per-user Scope option at all (confirmed live 2026-08-19,
+# checked the actual winget-pkgs manifest) - unlike git/Total Commander,
+# which install unprivileged for a genuine Standard-User account (Inno
+# Setup's PrivilegesRequired=none / winget's "highestAvailable" model only
+# asks admin-GROUP-MEMBER accounts whether to use their admin rights - a
+# real Standard User is never prompted at all, confirmed via git-for-
+# windows/build-extra's own install.iss source and Inno Setup's documented
+# behavior), this MSI would just fail outright without elevation. So this
+# installs directly from the upstream ryanoasis/nerd-fonts GitHub release
+# instead - the same upstream project Homebrew's cask (used for Ghostty on
+# macOS) repackages - into the per-user font location that's existed since
+# Windows 10 1809 (%LOCALAPPDATA%\Microsoft\Windows\Fonts +
+# HKCU\...\CurrentVersion\Fonts), with no elevation prompt for anyone,
+# admin or not.
+#
+# Deliberately the plain "JetBrainsMonoNerdFont-*" variant from the zip (not
+# "...Mono-*"/"...Propo-*"/"JetBrainsMonoNL..."), matching what
+# dot_config/private_ghostty/common.conf.tmpl already uses on macOS/Linux
+# (font-family = "JetBrainsMono Nerd Font") - confirmed by inspecting the
+# font's own name table (nameID 16, "typographic family") that this exact
+# variant registers as that exact family name, so Windows Terminal's
+# font.face can now match Ghostty's name instead of the old Windows-only
+# "JetBrainsMono NF" (that was specific to the DEVCOM WiX build being
+# replaced here - see AppData/.../Fragments/dotfiles/profile.json.tmpl).
+
+$ErrorActionPreference = "Stop"
+
+$fontsDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+$stateDir = Join-Path $env:LOCALAPPDATA "dotfiles"
+$versionFile = Join-Path $stateDir "jetbrains-mono-nerd-font.version"
+
+New-Item -ItemType Directory -Path $fontsDir -Force | Out-Null
+New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+
+$latestTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest").tag_name
+
+$installedVersion = $null
+if (Test-Path $versionFile) {
+    $installedVersion = Get-Content $versionFile -Raw
+}
+
+if ($installedVersion -eq $latestTag) {
+    Write-Host "OK: JetBrainsMono Nerd Font already up to date ($latestTag)" -ForegroundColor Green
+    return
+}
+
+Write-Host "-> Installing JetBrainsMono Nerd Font $latestTag (per-user, no elevation)" -ForegroundColor Blue
+
+$zipUrl = "https://github.com/ryanoasis/nerd-fonts/releases/download/$latestTag/JetBrainsMono.zip"
+$zipPath = Join-Path $env:TEMP "dotfiles-jetbrains-mono-nerd-font.zip"
+$extractDir = Join-Path $env:TEMP "dotfiles-jetbrains-mono-nerd-font-extract"
+
+Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
+if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
+Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+
+# Excludes "...Mono-*"/"...Propo-*" (different family, not what Ghostty
+# uses) and "JetBrainsMonoNL..." (no-ligatures variant) - only the plain
+# "JetBrainsMonoNerdFont-<Style>.ttf" files match this pattern.
+$fontFiles = Get-ChildItem $extractDir -Filter "*.ttf" | Where-Object { $_.Name -match '^JetBrainsMonoNerdFont-[A-Za-z]+\.ttf$' }
+if (-not $fontFiles) {
+    throw "No matching JetBrainsMonoNerdFont-*.ttf files found in $zipUrl - archive layout may have changed, check manually."
+}
+
+Add-Type -Name FontInstall -Namespace DotfilesBootstrap -MemberDefinition @'
+[DllImport("gdi32.dll", CharSet = CharSet.Auto)]
+public static extern int AddFontResourceEx(string lpFileName, uint fl, IntPtr pdv);
+[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+'@
+
+$FR_PRIVATE = 0x10
+$HWND_BROADCAST = [IntPtr]0xffff
+$WM_FONTCHANGE = 0x001D
+
+foreach ($file in $fontFiles) {
+    $destPath = Join-Path $fontsDir $file.Name
+    Copy-Item $file.FullName $destPath -Force
+
+    # Registry value NAME is just a human-readable label for the Fonts
+    # control panel / uninstall bookkeeping - the family/style apps actually
+    # use comes from the font file's own name table, not this string. Only
+    # needs to be unique per file and end in "(TrueType)".
+    $style = $file.BaseName -replace '^JetBrainsMonoNerdFont-?', ''
+    if (-not $style) { $style = "Regular" }
+    $styleSpaced = ($style -creplace '(?<!^)(?=[A-Z])', ' ')
+    $regName = "JetBrainsMono Nerd Font $styleSpaced (TrueType)"
+
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $file.Name -PropertyType String -Force | Out-Null
+    [DotfilesBootstrap.FontInstall]::AddFontResourceEx($destPath, $FR_PRIVATE, [IntPtr]::Zero) | Out-Null
+}
+
+# Lets already-running apps (if any) pick up the new font without a log-off -
+# newly-started processes see it via the registry key/folder regardless.
+$broadcastResult = [UIntPtr]::Zero
+[DotfilesBootstrap.FontInstall]::SendMessageTimeout($HWND_BROADCAST, $WM_FONTCHANGE, [UIntPtr]::Zero, [IntPtr]::Zero, 0, 5000, [ref]$broadcastResult) | Out-Null
+
+Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+
+Set-Content -Path $versionFile -Value $latestTag -NoNewline
+
+Write-Host "OK: JetBrainsMono Nerd Font $latestTag installed ($($fontFiles.Count) files, per-user, no elevation)" -ForegroundColor Green
+{{- end -}}

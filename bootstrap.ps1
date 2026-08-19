@@ -233,11 +233,21 @@ Env vars (same names as bootstrap.sh, for consistency):
     # called again after each install so this same script session can use the
     # newly-installed tool immediately, without opening a new shell.
     #
-    # Git.Git explicitly gets --scope user: its winget manifest defaults to a
-    # machine-wide install, which triggers a UAC prompt - confirmed live
-    # 2026-08-18. Standing rule for this repo is to prefer user scope on
-    # Windows wherever a tool supports it (a target machine may have no admin
-    # rights at all, e.g. a locked-down server) - see CONCEPT_ROADMAP.md.
+    # Git.Git explicitly gets --scope user, per this repo's standing
+    # preference for user scope on Windows wherever supported (a target
+    # machine may have no admin rights at all, e.g. a locked-down server) -
+    # see CONCEPT_ROADMAP.md. UPDATE (2026-08-19, verified against the actual
+    # git-for-windows/build-extra install.iss source): the UAC prompt seen on
+    # test VMs is expected and harmless, not a real limitation for a genuine
+    # no-admin machine. Git's Inno Setup installer uses
+    # `PrivilegesRequired=none`, which Inno Setup's own documented behavior
+    # only turns into a UAC prompt for accounts that ARE members of the
+    # local Administrators group (asking if they want to use those rights,
+    # which they can decline) - a genuine Standard User account is never
+    # prompted at all and gets a silent per-user install. Every WinLab test
+    # account used in this repo's testing so far is a local admin (confirmed
+    # separately for the sudo/elevation research), which is why this always
+    # prompts here - not because --scope user doesn't work.
     # chezmoi's package is already scope-less/portable (no prompt observed),
     # so it's left as-is rather than risking an unsupported --scope flag.
 
