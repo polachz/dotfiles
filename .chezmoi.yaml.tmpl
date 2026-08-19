@@ -72,6 +72,29 @@
   {{- $virt_type = (output "systemd-detect-virt" | trim) -}}
 {{- end -}}
 
+{{/*
+  Windows-only: can this account actually elevate via UAC at all? NOT the same as "is this
+  process currently elevated" (WindowsPrincipal.IsInRole is unreliable for that check anyway —
+  UAC's split token means a non-elevated admin's own token often reports false) — this queries
+  real local-Administrators-group membership by well-known SID (S-1-5-32-544, not the localized
+  group name, which differs on non-English Windows). Recomputed fresh every run, not
+  prompted/cached, matching the virt-detection pattern above — it's live system state, not a
+  deployment identity choice like profile/role/gui.
+
+  WHY this matters: some Windows installers (e.g. Total Commander's winget package) hard-require
+  elevation for EVERYONE, admin or not — confirmed live 2026-08-19, a genuine Standard User gets
+  an actual credential-entry UAC prompt (not the simple "allow?" a local admin sees), which would
+  hang a scripted bootstrap forever. Others (git, per PrivilegesRequired=none — see bootstrap.ps1)
+  degrade gracefully for Standard Users and don't need this at all. Consumed by
+  run_onchange_install-packages.ps1.tmpl to skip packages.yaml entries flagged
+  `requires_elevation: true` when this is false, rather than getting stuck.
+*/}}
+{{- $can_elevate := true -}}
+{{- if eq .chezmoi.os "windows" -}}
+  {{- $canElevateCheck := "try { $g = Get-LocalGroup -SID 'S-1-5-32-544' -ErrorAction Stop; $m = Get-LocalGroupMember -Group $g -ErrorAction Stop; $me = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value; if ($m | Where-Object { $_.SID.Value -eq $me }) { Write-Output 'true' } else { Write-Output 'false' } } catch { Write-Output 'false' }" -}}
+  {{- $can_elevate = eq (output "powershell" "-NoProfile" "-NonInteractive" "-Command" $canElevateCheck | trim) "true" -}}
+{{- end -}}
+
 {{- $osid := .chezmoi.os -}}
 {{- if hasKey .chezmoi.osRelease "id" -}}
   {{- $osid = printf "%s-%s" .chezmoi.os .chezmoi.osRelease.id -}}
@@ -90,6 +113,7 @@ data:
     profile: {{ $profile | quote }}
     role: {{ $role | quote }}
     has_gui: {{ $has_gui }}
+    can_elevate: {{ $can_elevate }}
     osid: {{ $osid | quote }}
 {{- if eq $virt_type "oracle" }}
     vm: true

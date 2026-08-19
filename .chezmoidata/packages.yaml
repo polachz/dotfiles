@@ -75,6 +75,16 @@ packages:
     - name: totalcmd
       roles: [workstation]
       requires_gui: true
+      # Ghisler.TotalCommander's installer hard-requires elevation for
+      # EVERYONE, admin or not (confirmed live 2026-08-19 — a genuine
+      # Standard User gets a real credential-entry UAC prompt, not the
+      # simple "allow?" a local admin sees, and would hang a scripted
+      # bootstrap forever waiting for admin credentials that don't exist).
+      # Unlike git (PrivilegesRequired=none, degrades gracefully — see
+      # bootstrap.ps1), there's no graceful-degrade path here, so this is
+      # skipped outright (see run_onchange_install-packages.ps1.tmpl) when
+      # deployment.can_elevate is false, instead of getting stuck.
+      requires_elevation: true
       dnf: skip
       apt: skip
       brew: skip
