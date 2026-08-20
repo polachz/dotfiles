@@ -1,8 +1,18 @@
 # Shared interactive PowerShell function library — mirrors
 # dot_bashrc.d/80-functions-common.sh's role for bash/zsh.
+#
+# Every function here uses `function global:<name>`, not plain `function
+# <name>` — confirmed live 2026-08-20: `ch update`'s auto-reload
+# (`. $PROFILE`, see dot_bashrc.d/chezmoi-aliases's comment) dot-sources
+# from INSIDE the `ch` function's own local scope, and PowerShell places a
+# dot-sourced script's functions into "the scope from which the dot
+# sourcing command was run" — `ch`'s local scope, discarded the moment `ch`
+# returns. Without `global:`, a function picked up that way never actually
+# reaches the interactive session, even though the reload itself reports
+# success. Same fix applied to 50-aliases-generated.ps1.tmpl.
 
 # Create a directory (and any missing parents) and cd into it in one step.
-function mkcd {
+function global:mkcd {
     param([Parameter(Mandatory)][string]$Path)
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
     Set-Location -Path $Path
@@ -18,18 +28,18 @@ function mkcd {
 # is manually restarted (real pain point hit live 2026-08-20, after several
 # rounds of "ch update" not showing fixes until PowerShell was killed and
 # reopened).
-function ch {
+function global:ch {
     chezmoi @args
     if ($args[0] -eq 'update' -and $LASTEXITCODE -eq 0) {
         . $PROFILE
     }
 }
-function chd { chezmoi cd @args }
+function global:chd { chezmoi cd @args }
 
 # Shell config directory shortcut — same alias name as bash/zsh/fish's `brc`,
 # points at PowerShell's own dotfiles fragment directory (user's explicit
 # 2026-08-18 request: universal alias name, per-shell target).
-function brc { Set-Location "$HOME/Documents/PowerShell/dotfiles.d" }
+function global:brc { Set-Location "$HOME/Documents/PowerShell/dotfiles.d" }
 
 # --- Extra convenience functions (2026-08-18) ---
 # Cross-shell ports of dot_bashrc.d/85-functions-extra.sh / the matching
@@ -40,7 +50,7 @@ function brc { Set-Location "$HOME/Documents/PowerShell/dotfiles.d" }
 # with Windows 10 1803+/Win11, libarchive-based like macOS's bsdtar)
 # auto-detects gzip/bzip2/xz the same way — verified for macOS/Linux in the
 # bash/fish versions, same underlying tar implementation family.
-function unpack {
+function global:unpack {
     param([Parameter(Mandatory)][string]$Path)
     if (-not (Test-Path $Path -PathType Leaf)) {
         Write-Error "unpack: '$Path' is not a valid file"
@@ -56,14 +66,14 @@ function unpack {
 }
 
 # Copy a file/dir to a timestamped .bak sibling.
-function backup {
+function global:backup {
     param([Parameter(Mandatory)][string]$Path)
     Copy-Item -Recurse -Path $Path -Destination "$Path.bak-$(Get-Date -Format yyyyMMdd-HHmmss)"
 }
 
 # Serve the current directory over HTTP. Checks both python3 and python —
 # a Windows Python install commonly only puts `python` on PATH.
-function serve {
+function global:serve {
     param([int]$Port = 8000)
     $py = Get-Command python3 -ErrorAction SilentlyContinue
     if (-not $py) { $py = Get-Command python -ErrorAction SilentlyContinue }
@@ -73,7 +83,7 @@ function serve {
 
 # Quick weather report via wttr.in. curl.exe explicitly — PowerShell aliases
 # bare `curl` to Invoke-WebRequest, which doesn't understand `-s`.
-function weather {
+function global:weather {
     param([string]$Location = "")
     curl.exe -s "wttr.in/$Location"
 }
@@ -81,7 +91,7 @@ function weather {
 # git clone then cd into the resulting directory. Splitting on '/' rather
 # than System.IO.Path methods avoids any URL-vs-filesystem-path parsing
 # edge cases (double slashes in "https://", etc.).
-function gclone {
+function global:gclone {
     param([Parameter(Mandatory)][string]$Url)
     $dir = ($Url.TrimEnd('/') -split '/')[-1] -replace '\.git$', ''
     git clone $Url
@@ -89,12 +99,12 @@ function gclone {
 }
 
 # Print $PATH one entry per line.
-function pathlist {
+function global:pathlist {
     $env:Path -split ';'
 }
 
 # cd up N directories (default 1).
-function up {
+function global:up {
     param([int]$Levels = 1)
     $target = (Get-Location).Path
     for ($i = 0; $i -lt $Levels; $i++) { $target = Split-Path $target -Parent }
@@ -102,7 +112,7 @@ function up {
 }
 
 # Find and kill whatever process listens on a TCP port.
-function killport {
+function global:killport {
     param([Parameter(Mandatory)][int]$Port)
     $conns = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
     if (-not $conns) {
@@ -114,7 +124,7 @@ function killport {
 
 # Pretty-print JSON — native ConvertFrom-Json/ConvertTo-Json, no jq needed
 # on Windows (jq is a workstation-only package on dnf/apt/brew only).
-function json {
+function global:json {
     param([string]$Path)
     if ($Path) {
         Get-Content $Path -Raw | ConvertFrom-Json | ConvertTo-Json -Depth 10
@@ -125,7 +135,7 @@ function json {
 
 # Delete local git branches already merged into the default branch — same
 # detection/safety-net logic as the bash/fish versions.
-function gclean {
+function global:gclean {
     $defaultBranch = git symbolic-ref refs/remotes/origin/HEAD 2>$null
     if ($defaultBranch) { $defaultBranch = $defaultBranch -replace '^refs/remotes/origin/', '' } else { $defaultBranch = 'main' }
     git branch --merged $defaultBranch |
@@ -137,7 +147,7 @@ function gclean {
 # Creates a new git branch and pushes it to the remote with tracking set up
 # in one step — same base-branch detection/safety-net logic as the
 # bash/fish versions.
-function gnb {
+function global:gnb {
     param([string]$Name, [string]$Base)
     if (-not $Name) {
         Write-Host "usage: gnb <branch-name> [base-branch|@]" -ForegroundColor Yellow
@@ -156,7 +166,7 @@ function gnb {
 }
 
 # Quick cheatsheet lookup via cheat.sh.
-function cheat {
+function global:cheat {
     param([string]$Topic)
     curl.exe -s "cheat.sh/$Topic"
 }
@@ -167,12 +177,12 @@ function cheat {
 # the real tool the moment it's installed, no re-apply needed. See
 # dot_bashrc.d/85-functions-extra.sh for the bash/zsh equivalent. User's
 # call, 2026-08-20.
-function ghi {
+function global:ghi {
     param([string]$Pattern)
     Get-History | Out-String -Stream | Select-String $Pattern
 }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    function gh {
+    function global:gh {
         param([string]$Pattern)
         Get-History | Out-String -Stream | Select-String $Pattern
     }
@@ -192,16 +202,20 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 # function in this profile-loaded file is invokable by bare name with no
 # such caveat — same reason gclean/gnb/ch/json etc. are functions here too.
 #
-# IMPORTANT — write target: this edits the evault in your DEVELOPMENT repo
-# (where you 'git commit'), NOT chezmoi's managed source-path
-# ($HOME\.local\share\chezmoi) — chezmoi would overwrite the latter on the
-# next 'chezmoi update'.
+# IMPORTANT — write target: defaults to editing directly in chezmoi's OWN
+# source-path ($HOME\.local\share\chezmoi) — that IS a real git repo
+# (chezmoi init clones it there), so `chd` (chezmoi cd) + a normal git
+# commit/push works from it like any other repo. Simplified 2026-08-20 (was:
+# "never use chezmoi's source-path, keep a second dev-repo clone") — see the
+# bash edit-evault.tmpl's header for the full reasoning. A second, separate
+# clone is still supported via -Repo/$env:DOTFILES_REPO for anyone who wants
+# one, just not required anymore.
 #
 # No tmpfs equivalent on Windows (unlike /dev/shm on Linux/macOS) —
 # plaintext briefly touches $env:TEMP while editing; overwritten with
 # random bytes before deletion as a best-effort wipe (no shred.exe
 # equivalent bundled with Windows).
-function edit-evault {
+function global:edit-evault {
     param(
         # NOT $Profile — shadows the built-in $PROFILE automatic variable;
         # see bootstrap.ps1's identical guard (and its comment) for why.
@@ -218,12 +232,13 @@ function edit-evault {
     }
 
     if (-not $Repo) { $Repo = $env:DOTFILES_REPO }
+    if (-not $Repo -and (Get-Command chezmoi -ErrorAction SilentlyContinue)) {
+        $Repo = chezmoi source-path 2>$null
+        if ($Repo) { Write-Host "Using chezmoi source-path: $Repo" -ForegroundColor Blue }
+    }
     if (-not $Repo) {
-        Write-Host "No -Repo and `$env:DOTFILES_REPO not set." -ForegroundColor Yellow
-        Write-Host "Note: do NOT use chezmoi's source-path ($HOME\.local\share\chezmoi)." -ForegroundColor Yellow
-        Write-Host "      That is chezmoi's working copy — your edits would get reset." -ForegroundColor Yellow
-        Write-Host "      Use your DEVELOPMENT repo where you 'git commit'." -ForegroundColor Yellow
-        $Repo = Read-Host "Enter dotfiles development repo path"
+        Write-Host "No -Repo, `$env:DOTFILES_REPO, or chezmoi source-path found." -ForegroundColor Yellow
+        $Repo = Read-Host "Enter dotfiles repo path"
     }
 
     if (-not (Test-Path $Repo -PathType Container)) {
@@ -235,19 +250,7 @@ function edit-evault {
         return
     }
     if (-not (Test-Path (Join-Path $Repo ".git"))) {
-        Write-Host "Repo path has no .git\ — sure this is your dev repo? Continuing anyway." -ForegroundColor Yellow
-    }
-
-    if (Get-Command chezmoi -ErrorAction SilentlyContinue) {
-        $chezmoiState = chezmoi source-path 2>$null
-        if ($chezmoiState) {
-            $repoResolved = (Resolve-Path $Repo -ErrorAction SilentlyContinue).Path
-            $stateResolved = (Resolve-Path $chezmoiState -ErrorAction SilentlyContinue).Path
-            if ($repoResolved -and $stateResolved -and $repoResolved -eq $stateResolved) {
-                Write-Host "Refusing to edit: target '$Repo' is chezmoi's managed source-path. Use your dev repo instead." -ForegroundColor Red
-                return
-            }
-        }
+        Write-Host "Repo path has no .git\ — sure this is the right repo? Continuing anyway." -ForegroundColor Yellow
     }
 
     $evault = Join-Path $Repo "secrets\$DotfilesProfile\evault"

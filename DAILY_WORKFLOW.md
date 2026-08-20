@@ -8,20 +8,81 @@ For first-time setup or key chain generation, see
 [`ENCRYPTION_SETUP.md`](./ENCRYPTION_SETUP.md). For the README overview,
 see [`README.md`](./README.md).
 
-## The two-repo mental model
+## The repo model (simplified 2026-08-20 — was "two-repo")
 
-This repo lives on disk in **two places** simultaneously, and confusing
-them is the source of most workflow bugs:
+This repo lives on disk in **two roles**, and confusing them is the source
+of most workflow bugs:
 
 | Path | Role | Edit here? |
 |------|------|-----------|
-| `~/Devel/dotfiles/` | **Dev repo** — where you edit, commit, push | ✅ YES |
-| `~/.local/share/chezmoi/` | **Managed source** — chezmoi's working copy, pulled from GitHub | ❌ NO |
+| `~/.local/share/chezmoi/` (`chezmoi source-path`, `chd`) | **Source** — a real git repo (chezmoi clones it there), where you edit, commit, push | ✅ YES |
 | `~/` (HOME) | **Deploy target** — rendered files (`~/.gitconfig`, `~/.bashrc.d/...`) | ❌ NO |
 
-Golden rule: **edit in dev repo, push to GitHub, `chezmoi update` on each
-machine.** Editing the managed source or the rendered HOME files
-short-circuits the flow and leads to silent drift.
+Golden rule: **edit in the source repo (`chd` to get there), push to
+GitHub, `chezmoi update` on each machine.** Editing the rendered HOME files
+directly short-circuits the flow and leads to silent drift.
+
+**History — why this used to be "two repos" (`~/Devel/dotfiles/` as a
+separate dev clone, distinct from `~/.local/share/chezmoi/`):** the
+original concern was that a `chezmoi init -Reinit`/`purge` could destroy
+uncommitted work sitting in the managed source. In practice that's a rare,
+explicit, deliberate maintenance operation — not something day-to-day
+`chezmoi update`/`apply` triggers — and ordinary `git pull` already refuses
+to silently clobber local changes it can't cleanly merge. Real friction
+this caused outweighed that theoretical margin: every machine needed its
+own second clone just to run `edit-evault`/`edit-aliases-core`, which is
+exactly what surfaced this on a fresh Windows machine and prompted the
+simplification. A separate clone is still supported (`--repo`/
+`$DOTFILES_REPO` for `edit-evault`/`edit-aliases-core`, or just `git clone`
+anywhere and `chezmoi init --apply --source <path>` pointed at it) for
+anyone who wants the extra margin — just not required by default anymore.
+
+## Advanced: working from a separate clone
+
+Opt-in, not the default (see above) — reach for this when you specifically
+want isolation: testing a risky WIP branch without touching your real
+source-path, keeping the extra safety margin against `chezmoi init
+-Reinit`/`purge`, or working on something unrelated in parallel without it
+showing up in your live `chezmoi diff`.
+
+**Set one up** — a plain `git clone` is enough if you only need it for
+`edit-evault`/`edit-aliases-core`:
+
+```bash
+git clone https://github.com/<you>/dotfiles.git ~/side-dotfiles
+```
+
+If you also want `chezmoi diff`/`apply`/`execute-template` to work against
+it directly (not just editing), initialize it as a second, independent
+chezmoi setup instead — `-S`/`--source` is a global chezmoi flag, valid on
+`init` too:
+
+```bash
+chezmoi init --apply --source ~/side-dotfiles https://github.com/<you>/dotfiles.git
+```
+
+**Use it:**
+
+```bash
+# edit-evault / edit-aliases-core: point at it explicitly
+edit-evault personal --repo ~/side-dotfiles
+# or once per shell:
+export DOTFILES_REPO=~/side-dotfiles
+
+# chezmoi commands: -S targets any source directory, not just the default
+chezmoi -S ~/side-dotfiles diff
+chezmoi -S ~/side-dotfiles apply
+chezmoi -S ~/side-dotfiles execute-template < some.tmpl
+```
+
+**Warning:** `chezmoi -S ~/side-dotfiles apply` writes to the same real
+HOME as your default source-path — there's only one `~/.bashrc.d/`, etc.
+A later plain `chezmoi update` (no `-S`, using the default source-path)
+will revert HOME to whatever the default source has, discarding whatever
+the side clone applied. Fine for quick throwaway iteration, not for
+anything you want to keep — commit and push from the side clone into the
+default source-path's history before relying on `chezmoi update` to carry
+it forward permanently.
 
 ---
 
@@ -30,7 +91,7 @@ short-circuits the flow and leads to silent drift.
 ### S1. Change a managed file (e.g. add an alias in `.chezmoidata/aliases/common/misc.yaml`)
 
 ```bash
-cd ~/Devel/dotfiles
+chd  # cd's into chezmoi's source-path (the repo)
 $EDITOR .chezmoidata/aliases/common/misc.yaml
 git add -p && git commit -m "aliases: add 'gst' shortcut"
 git push
@@ -44,8 +105,11 @@ chezmoi update -v
   directly in HOME → it's a *generated* file, re-rendered from the YAML on
   every apply; a direct edit is drift that the next `chezmoi apply`
   overwrites (interactively prompts, or silently in non-interactive runs).
-- Editing in `~/.local/share/chezmoi/` → next `chezmoi update` either
-  loses the change (autostash drop) or fails with merge conflict.
+- Forgetting to commit before `chezmoi update` on another machine → if the
+  incoming pull touches the same lines, `git pull` refuses rather than
+  clobbering you (safe, just needs manual resolution — see S7); if it
+  doesn't conflict, it merges silently, which can be confusing later. Commit
+  (or at least `git stash`) before pulling.
 
 **Verify:**
 ```bash
@@ -65,9 +129,9 @@ sets this up, runs before file application in the same apply) — missing key fa
 
 ```bash
 # Decrypt → edit → re-encrypt (with the helper)
-edit-evault personal --repo ~/Devel/dotfiles
+edit-evault personal
 
-cd ~/Devel/dotfiles
+chd
 git diff secrets/personal/evault    # encrypted blob diff (nonces change)
 git add secrets/personal/evault
 git commit -m "evault: update personal <field>"
@@ -86,7 +150,7 @@ for the pattern.
 **Windows (added 2026-08-20):** the bash `edit-evault` script itself isn't reachable there (no
 bash, no `~/.local/bin`-equivalent on PATH) — use the `edit-evault` PowerShell **function**
 instead (`Documents/PowerShell/dotfiles.d/80-functions.ps1`), same usage
-(`edit-evault work -Repo C:\Sources\dotfiles`). One real difference: no tmpfs equivalent on
+(`edit-evault work`). One real difference: no tmpfs equivalent on
 Windows, so plaintext briefly touches `$env:TEMP` (best-effort overwrite-then-delete instead of
 `shred`, no `shred.exe` on Windows) — same residual-plaintext caveat as bash's own `/tmp`
 fallback path when `/dev/shm` is unavailable.
@@ -106,7 +170,7 @@ fallback path when `/dev/shm` is unavailable.
 
 **Verify:**
 ```bash
-chezmoi execute-template --source ~/Devel/dotfiles \
+chezmoi execute-template \
   '{{ includeTemplate "evault-field" (dict "profile" "personal" "path" "git.email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}'
 # → prints the new email, actually decrypted (NOT `{{ (include .ejson_vault | fromJson).git.email }}`
 #   — that would only parse the evault's JSON *structure* and return the still-encrypted
@@ -132,12 +196,12 @@ chezmoi-owned location instead (`~/.bashrc.d/`, `~/.zshrc.d/`,
 `~/.ssh/conf.d/`, `~/.config/git/`), with a small idempotent
 `run_after_ensure-*` script appending just a sourcing/include line.
 
-`chezmoi add` writes to `~/.local/share/chezmoi/` (the managed source).
-You must then **propagate to the dev repo** so it gets committed:
+`chezmoi add` writes directly into `~/.local/share/chezmoi/` — which, since
+the 2026-08-20 simplification (see "The repo model" above), **is** the repo
+you commit from. Nothing to propagate:
 
 ```bash
-cp ~/.local/share/chezmoi/dot_nanorc ~/Devel/dotfiles/
-cd ~/Devel/dotfiles
+chd
 git add dot_nanorc
 git commit -m "nanorc: add config"
 git push
@@ -155,11 +219,11 @@ git push
 | `symlink_dot_foo` | `~/.foo` → symlink target | |
 
 **Common mistakes:**
-- Adding a file directly into the dev repo without the `dot_` prefix —
-  chezmoi will ignore it (won't render to HOME).
+- Adding a file without the `dot_` prefix — chezmoi will ignore it (won't
+  render to HOME).
 - Adding a secret without `--encrypt`.
-- Forgetting to copy from managed source into dev repo → next
-  `chezmoi update` resets the source dir and your addition is lost.
+- Forgetting to `git add`/commit the new source file → it sits there
+  uncommitted; a later `chezmoi update` pull could conflict with it.
 
 **Verify:**
 ```bash
@@ -180,11 +244,11 @@ Three modes, very different blast radius — pick deliberately:
 Recommended for "stop managing, also wipe from HOME":
 
 ```bash
+chd
 chezmoi forget ~/.foo                       # remove from source
-echo '.foo' >> ~/Devel/dotfiles/.chezmoiremove
+echo '.foo' >> .chezmoiremove
 # .chezmoiremove patterns get rm'd from HOME on next apply
 
-cd ~/Devel/dotfiles
 git add -A
 git commit -m "stop managing .foo"
 git push
@@ -315,24 +379,20 @@ diff review, so you can't see what's about to land in HOME.
 execute in `--dry-run`, but template rendering does — so template
 errors surface, but side effects of scripts don't.
 
-**Important — chezmoi reads from managed source, not dev repo.** So
-`chezmoi diff` in the dev repo shows nothing useful until you `git push`
-+ `chezmoi update`. Three ways to test locally:
+Since the 2026-08-20 simplification, `chezmoi diff`/`apply` run **directly
+against the repo you edit in** (no separate dev repo to push/pull through
+first) — edit, then just `chezmoi diff`:
 
 ```bash
 # Render one template, no writes
 chezmoi execute-template < dot_bashrc.d/05-env-generated.sh.tmpl
 
-# Diff against the dev repo instead of managed source
-chezmoi -S ~/Devel/dotfiles diff
-
-# Apply from dev repo (use sparingly — see warning below)
-chezmoi -S ~/Devel/dotfiles apply
+chezmoi diff                     # already shows your uncommitted edits
 ```
 
-**Warning on `-S <dev-repo>` apply:** after applying from dev repo, a
-regular `chezmoi update` reverts you to whatever is in the public repo.
-Fine for quick iteration, dangerous for permanent state.
+If you keep a separate side clone for isolated testing (see "Advanced:
+working from a separate clone" below), that's when `-S <path>` matters —
+it's not needed for the default single-repo workflow.
 
 ### S10. Add a new alias
 
@@ -368,7 +428,7 @@ No template changes needed — `dot_bashrc.d/50-aliases-generated.sh.tmpl` and
 automatically.
 
 ```bash
-cd ~/Devel/dotfiles
+chd
 $EDITOR .chezmoidata/aliases/common/misc.yaml
 chezmoi execute-template < dot_bashrc.d/50-aliases-generated.sh.tmpl | grep <alias-name>   # verify before committing
 git add -p && git commit -m "aliases: add <name>" && git push
@@ -523,24 +583,27 @@ the target format.
 - **Prevention:** use `chezmoi edit ~/.foo` (opens the source file, not
   HOME); run `chezmoi verify` periodically (systemd timer).
 
-### E2. Edit in `~/.local/share/chezmoi/` instead of dev repo
+### E2. Uncommitted changes when `chezmoi update` pulls
 
-- **Symptom:** Changes live in managed source but dev repo doesn't know.
-  Next `chezmoi update` either drops the change (autostash pop conflict)
-  or overwrites it on rebase.
+- **Symptom:** you edited files in the repo (via `chd`) but haven't
+  committed, then run `chezmoi update` on the same machine (or it pulls a
+  conflicting upstream change).
+- **What actually happens:** `chezmoi update` does a plain `git pull`
+  first — if the incoming commits touch the same lines as your
+  uncommitted edit, git refuses the pull outright (safe, standard git
+  behavior, not chezmoi-specific). If they don't overlap, it merges
+  silently, combining your WIP with the pull — not data loss, but can be
+  confusing to untangle later if you forgot you had WIP there.
 - **Fix:**
   ```bash
-  cd ~/.local/share/chezmoi
-  git status                          # what's there
-  # If commited: git push, then git pull in dev repo
-  # If uncommitted: cp to dev repo, commit there, reset managed:
-  cp <file> ~/Devel/dotfiles/<file>
-  cd ~/.local/share/chezmoi
-  git reset --hard origin/main
+  chd
+  git status                # see what's uncommitted
+  git stash                 # or commit it — either unblocks the pull
+  chezmoi update -v
+  git stash pop              # if you stashed
   ```
-- **Prevention:** discipline — edit only in dev repo. Optionally add a
-  pre-commit hook in `~/.local/share/chezmoi/.git/hooks/pre-commit`
-  that exits 1 ("commit only from dev repo").
+- **Prevention:** commit (or at least `git status`/`stash`) before
+  `chezmoi update`, same discipline as any git repo with local WIP.
 
 ### E3. Concurrent edits on multiple machines
 
@@ -593,7 +656,7 @@ the target format.
 - **Root cause:** template calls `(include .ejson_vault | fromJson).fieldX`
   but `fieldX` doesn't exist.
 - **Fix:**
-  - Add the field: `edit-evault <profile> --repo ~/Devel/dotfiles`
+  - Add the field: `edit-evault <profile>`
   - Or make template defensive: `{{ with .field }}{{ . }}{{ else }}default{{ end }}`
 - **Prevention:** `chezmoi execute-template` in a pre-commit hook.
 
@@ -775,20 +838,20 @@ chezmoi apply -v --keep-going            # continue past errors to see all
 If a script ran but state was not updated (rare): manually
 `chezmoi state delete --bucket=scriptState --key=<hash>` and re-apply.
 
-### R3. Dev repo has commits not yet on GitHub
+### R3. Local commits not yet on GitHub
 
 ```bash
-cd ~/Devel/dotfiles
+chd
 git status                # "ahead of origin/main by N"
 git log origin/main..HEAD # what's local
 git push
-# Then on machines: chezmoi update
+# Then on other machines: chezmoi update
 ```
 
-**Opposite (public ahead, dev behind):**
+**Opposite (GitHub ahead, local behind):**
 
 ```bash
-cd ~/Devel/dotfiles
+chd
 git stash                 # if you have local changes
 git pull --rebase
 git stash pop
@@ -848,8 +911,7 @@ Run weekly (or wire into a systemd timer):
 ```bash
 chezmoi doctor                                 # toolchain (age, git, ejson)
 chezmoi verify; echo "verify=$?"               # HOME drift
-chezmoi git -- status --porcelain              # managed clone clean?
-git -C ~/Devel/dotfiles status --porcelain   # dev clone clean?
+chezmoi git -- status --porcelain              # repo clean?
 chezmoi data | jq .deployment.profile          # right profile?
 chezmoi managed | wc -l                        # sanity baseline (should be stable)
 ```
@@ -879,9 +941,8 @@ chezmoi apply -v                   # apply pending source changes
 chezmoi verify                     # any HOME drift?
 
 # Editing
-edit-evault <profile> --repo ~/Devel/dotfiles
-$EDITOR ~/Devel/dotfiles/<source-file>
-git -C ~/Devel/dotfiles {add,commit,push}
+edit-evault <profile>
+chd && $EDITOR <source-file> && git add <file> && git commit && git push
 
 # Debugging
 chezmoi doctor                     # toolchain health

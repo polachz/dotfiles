@@ -10,16 +10,25 @@
 # /tmp with 0600 perms + shred on shutdown if /dev/shm is unavailable.
 #
 # IMPORTANT — write target:
-#   This script edits the evault in your DEVELOPMENT repo (where you
-#   `git commit`), NOT in chezmoi's managed source-path
-#   (~/.local/share/chezmoi). Chezmoi would overwrite the latter on the
-#   next `chezmoi update`. After editing, commit + push from the dev
-#   repo; the changes propagate to other machines via `chezmoi update`.
+#   This edits the evault directly in chezmoi's OWN source-path
+#   (~/.local/share/chezmoi by default) unless told otherwise — that IS a
+#   real git repo (chezmoi init clones it there), so `chezmoi cd` (the `chd`
+#   alias/function) plus a normal `git commit`/`push` works from it exactly
+#   like any other repo. Simplified 2026-08-20 (was: "never use chezmoi's
+#   source-path, always keep a second, separate dev-repo clone") — the
+#   theoretical risk that motivated the split (a `chezmoi init -Reinit`/
+#   `purge` destroying uncommitted WIP there) is a rare, explicit,
+#   deliberate maintenance operation, not something day-to-day `chezmoi
+#   update` can trigger; ordinary `git pull` already refuses to clobber
+#   local changes it can't cleanly merge. A second clone (still supported
+#   via --repo/$DOTFILES_REPO for anyone who wants one) is opt-in now, not
+#   required just to edit secrets.
 #
-# Resolution order for the dev repo path (first match wins):
+# Resolution order for the repo path (first match wins):
 #   1. --repo <path>             explicit, always wins
 #   2. $DOTFILES_REPO env var
-#   3. Interactive prompt        last resort
+#   3. chezmoi source-path       the default — works with zero setup
+#   4. Interactive prompt        last resort, only if chezmoi itself is missing
 
 # {{ template "scripts-library" }}
 
@@ -36,10 +45,9 @@ Arguments:
   personal | work      Which profile's evault to edit
 
 Options:
-  --repo <path>        Dotfiles DEVELOPMENT repo path (where you 'git commit').
-                       Falls back to \$DOTFILES_REPO env var, then prompts.
-                       Do NOT use chezmoi's source-path — that's a managed
-                       working copy and gets overwritten by 'chezmoi update'.
+  --repo <path>        Repo path to edit in. Falls back to \$DOTFILES_REPO env
+                       var, then chezmoi's own source-path (the default —
+                       works with zero setup), then an interactive prompt.
   -h, --help           Show this message
 EOF
 }
@@ -80,26 +88,17 @@ if [ -n "${EXPLICIT_REPO}" ]; then
 elif [ -n "${DOTFILES_REPO:-}" ]; then
     REPO="${DOTFILES_REPO}"
     log_info "Using \$DOTFILES_REPO: ${REPO}"
+elif command -v chezmoi >/dev/null 2>&1 && REPO=$(chezmoi source-path 2>/dev/null) && [ -n "${REPO}" ]; then
+    log_info "Using chezmoi source-path: ${REPO}"
 else
-    log_warn "No --repo and \$DOTFILES_REPO not set."
-    log_warn "Note: do NOT use chezmoi's source-path (~/.local/share/chezmoi)."
-    log_warn "      That is chezmoi's working copy — your edits would get reset."
-    log_warn "      Use your DEVELOPMENT repo where you 'git commit'."
-    printf "Enter dotfiles development repo path: "
+    log_warn "No --repo, \$DOTFILES_REPO, or chezmoi source-path found."
+    printf "Enter dotfiles repo path: "
     read -r REPO
 fi
 
 [ -d "${REPO}" ] || error "Repo path does not exist: ${REPO}"
 [ -f "${REPO}/.chezmoi.yaml.tmpl" ] || error "Not a dotfiles repo (missing .chezmoi.yaml.tmpl): ${REPO}"
-[ -d "${REPO}/.git" ] || log_warn "Repo path has no .git/ — sure this is your dev repo? Continuing anyway."
-
-# Safety check — refuse to write into chezmoi-managed state
-if command -v chezmoi >/dev/null 2>&1; then
-    CHEZMOI_STATE=$(chezmoi source-path 2>/dev/null || true)
-    if [ -n "${CHEZMOI_STATE}" ] && [ "$(realpath "${REPO}" 2>/dev/null)" = "$(realpath "${CHEZMOI_STATE}" 2>/dev/null)" ]; then
-        error "Refusing to edit: target '${REPO}' is chezmoi's managed source-path. Use your dev repo instead."
-    fi
-fi
+[ -d "${REPO}/.git" ] || log_warn "Repo path has no .git/ — sure this is the right repo? Continuing anyway."
 
 EVAULT="${REPO}/secrets/${PROFILE}/evault"
 [ -f "${EVAULT}" ] || error "Evault not found at ${EVAULT}"

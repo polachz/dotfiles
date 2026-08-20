@@ -22,20 +22,19 @@ For most cases, use the helper script that does Steps 1-7 automatically:
 # Generate keys in CWD only (then copy to repo manually)
 ./helpers/setup-encryption.sh personal
 
-# Generate + auto-deploy to the dotfiles dev repo (recommended)
-./helpers/setup-encryption.sh personal --deploy --repo ~/Devel/dotfiles
-
-# Or set DOTFILES_REPO once per shell and omit --repo
-export DOTFILES_REPO=~/Devel/dotfiles
+# Generate + auto-deploy (defaults to chezmoi's own source-path — a real
+# git repo, works with zero setup on an already-bootstrapped machine)
 ./helpers/setup-encryption.sh work --deploy
+
+# Or point at a separate clone instead (one-off, or export DOTFILES_REPO
+# once per shell to make it the default — see DAILY_WORKFLOW.md's
+# "Advanced: working from a separate clone")
+./helpers/setup-encryption.sh personal --deploy --repo ~/side-dotfiles
 ```
 
-**Critical**: `--deploy` writes to your **development repo** (where you
-`git commit`), not to chezmoi's managed source-path
-(`~/.local/share/chezmoi/`). The script refuses to deploy into the
-managed copy — chezmoi would overwrite your edits on the next
-`chezmoi update`. Use the dev repo path, push from there, and other
-machines pick up the change via `chezmoi update`.
+**Critical**: `--deploy` writes into the repo (by default chezmoi's own
+source-path), then push from there — other machines pick up the change via
+`chezmoi update`.
 
 The script prompts once for the Age passphrase (and once for verify),
 generates Age + EJSON key pairs, runs the round-trip test inside the
@@ -320,7 +319,7 @@ Script body:
 set -uo pipefail
 
 PROFILE="${1:?Usage: $0 personal|work}"
-DOTFILES="${DOTFILES:-$HOME/Devel/dotfiles}"
+DOTFILES="${DOTFILES:-$(chezmoi source-path 2>/dev/null || echo "$HOME/Devel/dotfiles")}"
 WORK="/tmp/verify-encryption-${PROFILE}"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -462,21 +461,18 @@ find /dev/shm -maxdepth 2 \( -name 'edit-evault-*' -o -name 'setup-encryption-*'
 Use the `edit-evault` helper to add or change fields:
 
 ```bash
-# Decrypts into tmpfs, opens $EDITOR, re-encrypts on save
-edit-evault personal --repo ~/Devel/dotfiles
-
-# Or with the env var (set once per shell)
-export DOTFILES_REPO=~/Devel/dotfiles
+# Decrypts into tmpfs, opens $EDITOR, re-encrypts on save. Defaults to
+# chezmoi's own source-path — works with zero setup.
 edit-evault personal
 ```
 
-**Critical** — `edit-evault` writes to your **dev repo** (the one you
-`git push` from), not to chezmoi's managed source-path
-(`~/.local/share/chezmoi/`). If you pass `--repo ~/.local/share/chezmoi`,
-the script refuses. After editing, propagate the change:
+**Writes into the repo** (by default chezmoi's own source-path, a real git
+repo — `--repo`/`$DOTFILES_REPO` to use a separate clone instead, see
+DAILY_WORKFLOW.md's "Advanced: working from a separate clone"). After
+editing, push it:
 
 ```bash
-cd ~/Devel/dotfiles
+chd
 git diff secrets/personal/evault       # encrypted blob diff
 git add secrets/personal/evault
 git commit -m 'evault: add ssh.signing_key for personal'
@@ -551,15 +547,15 @@ If a setup run was interrupted mid-stream and one of the four blobs is
 missing or won't round-trip:
 
 ```bash
-# Remove the broken blobs from the dev repo
-cd ~/Devel/dotfiles
+# Remove the broken blobs from the repo
+REPO="$(chezmoi source-path)"
+cd "${REPO}"
 rm age_key_<profile>.age ejson_key_<profile>.age secrets/<profile>/evault
 git add -A
 
 # Re-run setup from scratch (use a fresh CWD)
 mkdir /tmp/setup-redo && cd /tmp/setup-redo
-~/Devel/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
-    --repo ~/Devel/dotfiles
+"${REPO}/helpers/setup-encryption.sh" <profile> --deploy
 
 # Clean up CWD output
 shred -u /tmp/setup-redo/* && rmdir /tmp/setup-redo
@@ -623,21 +619,23 @@ changes. Evault content remains bit-identical. **Cheapest rotation.**
 on it).
 
 ```bash
+REPO="$(chezmoi source-path)"
+
 # 1. Pick a new passphrase, save to password manager FIRST
 # 2. Re-wrap the existing Age key with the new passphrase
 chezmoi age encrypt --passphrase \
-    --output ~/Devel/dotfiles/age_key_<profile>.age \
+    --output "${REPO}/age_key_<profile>.age" \
     ~/.config/chezmoi/age_<profile>.key
 # → enter NEW passphrase twice (encrypt prompt + confirm)
 
 # 3. Round-trip verify (avoid silent failure)
 chezmoi age decrypt --passphrase --output /tmp/rt.key \
-    ~/Devel/dotfiles/age_key_<profile>.age
+    "${REPO}/age_key_<profile>.age"
 diff /tmp/rt.key ~/.config/chezmoi/age_<profile>.key && echo OK
 shred -u /tmp/rt.key
 
 # 4. Commit and push
-cd ~/Devel/dotfiles
+cd "${REPO}"
 git add age_key_<profile>.age
 git commit -m 'rotate: <profile> Age passphrase'
 git push
@@ -664,6 +662,8 @@ recipient because it was encrypted to the old Age public key.
 (`~/.config/chezmoi/age_<profile>.key` + `~/.config/chezmoi/keys/<ejson_pub>`).
 
 ```bash
+REPO="$(chezmoi source-path)"
+
 # Workspace on tmpfs — plaintext keys live here briefly
 WORK=/dev/shm/rekey-age-<profile>-$$
 mkdir -p "${WORK}" && chmod 700 "${WORK}"
@@ -671,7 +671,7 @@ cd "${WORK}"
 trap 'find "${WORK}" -type f -exec shred -u {} \; ; rmdir "${WORK}"' EXIT INT TERM
 
 EJSON_PUB=$(grep '"_public_key"' \
-    ~/Devel/dotfiles/secrets/<profile>/evault \
+    "${REPO}/secrets/<profile>/evault" \
     | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
 
 # 1. Generate new Age key pair
@@ -698,18 +698,18 @@ diff rt.age new_age.key && echo "Age wrap OK"
 mv new_age.key ~/.config/chezmoi/age_<profile>.key
 chmod 600 ~/.config/chezmoi/age_<profile>.key
 
-# 7. Copy new blobs to dev repo
+# 7. Copy new blobs into the repo
 cp age_key_<profile>.age ejson_key_<profile>.age \
-   ~/Devel/dotfiles/
+   "${REPO}/"
 
 # 8. Update .chezmoi.yaml.tmpl with new Age recipient
 sed -i 's|"<OLD_AGE_PUB>"|"'"${NEW_AGE_PUB}"'"|' \
-    ~/Devel/dotfiles/.chezmoi.yaml.tmpl
+    "${REPO}/.chezmoi.yaml.tmpl"
 # Verify the sed worked:
-grep "age_recipient_<profile>" ~/Devel/dotfiles/.chezmoi.yaml.tmpl
+grep "age_recipient_<profile>" "${REPO}/.chezmoi.yaml.tmpl"
 
 # 9. Commit and push
-cd ~/Devel/dotfiles
+cd "${REPO}"
 git add age_key_<profile>.age ejson_key_<profile>.age .chezmoi.yaml.tmpl
 git commit -m 'rotate: <profile> Age key pair'
 git push
@@ -740,7 +740,7 @@ mkdir -p "${WORK}" && chmod 700 "${WORK}"
 cd "${WORK}"
 trap 'find "${WORK}" -type f -exec shred -u {} \; ; rmdir "${WORK}"' EXIT INT TERM
 
-REPO=~/Devel/dotfiles
+REPO="$(chezmoi source-path)"
 OLD_EJSON_PUB=$(grep '"_public_key"' "${REPO}/secrets/<profile>/evault" \
     | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
 
@@ -831,13 +831,15 @@ Alternative single-pass approach using `setup-encryption.sh` (loses the
 evault content unless you capture it first):
 
 ```bash
+REPO="$(chezmoi source-path)"
+
 # 1. Capture evault content to tmpfs
 WORK=/dev/shm/full-rekey-<profile>-$$
 mkdir -p "${WORK}" && chmod 700 "${WORK}"
 trap 'find "${WORK}" -type f -exec shred -u {} \; ; rmdir "${WORK}"' EXIT INT TERM
 
 ejson -keydir ~/.config/chezmoi/keys decrypt \
-    ~/Devel/dotfiles/secrets/<profile>/evault \
+    "${REPO}/secrets/<profile>/evault" \
     > "${WORK}/evault_plain.json"
 
 # 2. Hand-edit .chezmoi.yaml.tmpl: restore both placeholders
@@ -845,13 +847,12 @@ ejson -keydir ~/.config/chezmoi/keys decrypt \
 #    REPLACE_WITH_<PROFILE>_EJSON_PUBLIC_KEY
 
 # 3. Remove old blobs from repo
-cd ~/Devel/dotfiles
+cd "${REPO}"
 rm age_key_<profile>.age ejson_key_<profile>.age secrets/<profile>/evault
 
 # 4. Run setup-encryption with new passphrase (saved to password manager FIRST)
 cd "${WORK}"
-~/Devel/dotfiles/helpers/setup-encryption.sh <profile> --deploy \
-    --repo ~/Devel/dotfiles
+"${REPO}/helpers/setup-encryption.sh" <profile> --deploy
 # → produces a SKELETON evault (just git.user/git.email) — we'll overwrite next
 
 # 5. On this machine: chezmoi apply will install the new EJSON private key
@@ -860,17 +861,17 @@ chezmoi apply
 
 # 6. Restore the captured evault content with the new EJSON key
 NEW_EJSON_PUB=$(grep '"_public_key"' \
-    ~/Devel/dotfiles/secrets/<profile>/evault \
+    "${REPO}/secrets/<profile>/evault" \
     | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
 
 # Rewrite the captured plaintext with the new _public_key, then encrypt
 jq --arg pub "${NEW_EJSON_PUB}" \
    '. + {_public_key: $pub}' "${WORK}/evault_plain.json" \
-   > ~/Devel/dotfiles/secrets/<profile>/evault
-ejson encrypt ~/Devel/dotfiles/secrets/<profile>/evault
+   > "${REPO}/secrets/<profile>/evault"
+ejson encrypt "${REPO}/secrets/<profile>/evault"
 
 # 7. Commit the restored evault
-cd ~/Devel/dotfiles
+cd "${REPO}"
 git add secrets/<profile>/evault
 git commit -m 'rotate: <profile> evault re-sealed under new EJSON key'
 git push

@@ -5,8 +5,11 @@
 > jiného Claude Code účtu/stroje. Pokud pracuješ na jiném stroji/účtu (např. na private profilu,
 > odděleně od work profilu), **měl bys mít tenhle soubor k dispozici přes git** — je commitnutý
 > v tomto repu vedle `README.md`, `ENCRYPTION_SETUP.md`, `DAILY_WORKFLOW.md`, `ALIASES.md`, takže
-> je dostupný odkudkoliv přes `git clone`/`chezmoi update`. Repo samotné je `~/Devel/dotfiles`
-> (dev repo, ne chezmoi source-path — viz "Two-repo mental model" v `DAILY_WORKFLOW.md`).
+> je dostupný odkudkoliv přes `git clone`/`chezmoi update`. Na tomhle konkrétním Macu je repo
+> historicky oddělený klon (`~/Devel/dotfiles`), ne totožný s `chezmoi source-path` — od
+> zjednodušení 2026-08-20 (viz "The repo model" v `DAILY_WORKFLOW.md`) už to ale není povinný
+> vzor, jen jedna z podporovaných variant (viz `DAILY_WORKFLOW.md`'s "Advanced: working from a
+> separate clone").
 
 ## Kontext
 

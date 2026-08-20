@@ -413,9 +413,10 @@ chezmoi update
 ```
 
 Alias/env changes are **data-only** — edit the YAML in
-`.chezmoidata/{aliases,env}/`, then `chezmoi apply` (from the dev repo, or
-`chezmoi update` after pushing). There's no dedicated `edit-aliases` command
-yet (see `CONCEPT_ROADMAP.md` §3.5 — designed, not built).
+`.chezmoidata/{aliases,env}/` directly, or use `edit-aliases-core
+aliases/common/<file>.yaml` (validates + regenerates `ALIASES.md`
+automatically — see `CONCEPT_ROADMAP.md` §3.5), then `chezmoi apply`/
+`chezmoi update`.
 
 For the complete, theme-grouped list of every alias, environment variable,
 and function — universal and personal — see [`ALIASES.md`](./ALIASES.md).
@@ -499,24 +500,24 @@ is not available to extract the key.
 
 ### Editing an evault
 
-Use the `edit-evault` helper installed at `~/.local/bin/edit-evault`:
+Use the `edit-evault` helper installed at `~/.local/bin/edit-evault` (a
+PowerShell function of the same name on Windows):
 
 ```bash
-# With --repo flag (one-off)
-edit-evault personal --repo ~/Devel/dotfiles
-
-# Or set DOTFILES_REPO once per shell
-export DOTFILES_REPO=~/Devel/dotfiles
 edit-evault personal
 edit-evault work
+
+# Point at a different repo instead of the default (one-off, or
+# export DOTFILES_REPO once per shell to make it the default)
+edit-evault personal --repo ~/Devel/dotfiles
 ```
 
 The script decrypts into `/dev/shm` (tmpfs, never on disk), opens
 `$EDITOR` (defaults to `nano`), then re-encrypts and writes back to the
-**development repo** (where you `git commit`). It refuses to write into
-chezmoi's managed source-path (`~/.local/share/chezmoi/`) — those edits
-would be reset by `chezmoi update`. Cleanup is automatic — even on
-Ctrl-C the plaintext is shredded.
+repo — by default chezmoi's own source-path (a real git repo, `chd`/
+`chezmoi cd` drops you into it to commit/push), or `--repo`/
+`$DOTFILES_REPO` if you keep a separate clone. Cleanup is automatic — even
+on Ctrl-C the plaintext is shredded.
 
 If you skip editing (close editor without changes), no re-encrypt happens
 and git stays clean. After a real edit, the file is modified in place:

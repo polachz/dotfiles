@@ -37,6 +37,17 @@
   named "..", triggering "this item has children, remove them all?" on
   every apply. `Remove-Alias -Name` takes the name as a plain string
   parameter, never parsed as a path, so dots are just dots.
+
+  MUST be `function global:<name>`, NOT plain `function <name>` — confirmed
+  live 2026-08-20: `ch update`'s auto-reload (`. $PROFILE`, see
+  dot_bashrc.d/chezmoi-aliases's comment for the full story) dot-sources
+  from INSIDE the `ch` function's own local scope, and PowerShell places a
+  dot-sourced script's functions into "the scope from which the dot
+  sourcing command was run" — i.e. `ch`'s local scope, discarded the moment
+  `ch` returns. A plain `function foo {}` picked up that way never actually
+  reaches the interactive session; `function global:foo {}` pins it to the
+  global scope regardless of how deeply nested the dot-source call was.
+  Same fix applied to 80-functions.ps1's hand-written functions.
 */ -}}
 {{- range $cat, $entries := .aliases.common.categories }}
 # {{ $cat }}
@@ -47,9 +58,9 @@
 {{- if hasKey . "pipes_stdin" }}{{- if .pipes_stdin }}{{ $prefix = "$input | " }}{{- end }}{{- end }}
 Remove-Alias -Name '{{ .name }}' -Force -ErrorAction SilentlyContinue
 {{- if contains "$args" $cmd }}
-function {{ .name }} { {{ $prefix }}{{ $cmd }} }  # {{ .description }}
+function global:{{ .name }} { {{ $prefix }}{{ $cmd }} }  # {{ .description }}
 {{- else }}
-function {{ .name }} { {{ $prefix }}{{ $cmd }} @args }  # {{ .description }}
+function global:{{ .name }} { {{ $prefix }}{{ $cmd }} @args }  # {{ .description }}
 {{- end }}
 {{- end }}
 {{- end }}
