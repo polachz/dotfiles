@@ -152,3 +152,16 @@ ejson:
 diff:
   exclude:
     - scripts
+{{- if eq .chezmoi.os "windows" }}
+{{/*
+  Without this, `chezmoi cd` (the `chd` function/alias) falls back to an
+  OS-specific default on Windows — confirmed live 2026-08-20: that's
+  cmd.exe, not the user's actual shell (pwsh), landing you in a completely
+  different shell with none of this repo's functions/aliases/prompt. `$SHELL`
+  detection (chezmoi's other fallback) doesn't exist as a concept on Windows
+  at all, unlike Linux/macOS where it already picks the right shell without
+  this override.
+*/}}
+cd:
+  command: pwsh
+{{- end }}
