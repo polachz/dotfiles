@@ -11,8 +11,7 @@
 # user's explicit feedback 2026-08-20). Consolidated into ONE script per
 # tool instead, deciding at chezmoi TEMPLATE render time which of the two
 # paths to even include in the rendered script. See the other half of
-# this `{{ if .deployment.can_elevate }}` for the portable/no-elevation
-# path.
+# this can_elevate template branch for the portable/no-elevation path.
 
 $ErrorActionPreference = "Stop"
 
@@ -27,10 +26,10 @@ if ($installed) {
 # Installs 7-Zip per-user, no elevation - this account can't elevate at
 # all (not a member of the local Administrators group). Runs on every
 # apply (plain `run_after_` prefix), no-ops once the installed version
-# matches the latest available. See the other half of this
-# `{{ if .deployment.can_elevate }}` for the normal winget-install path
-# used when this account CAN elevate, and the note there about why this
-# is one consolidated script instead of two.
+# matches the latest available. See the other half of this can_elevate
+# template branch for the normal winget-install path used when this
+# account CAN elevate, and the note there about why this is one
+# consolidated script instead of two.
 #
 # WHY this fallback exists at all: 7zip.7zip's winget manifest has ONLY
 # Scope: machine (no per-user option at all) plus ElevationRequirement:

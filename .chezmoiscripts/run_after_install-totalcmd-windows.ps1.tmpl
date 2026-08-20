@@ -13,8 +13,8 @@
 # instead, deciding at chezmoi TEMPLATE render time (not PowerShell
 # runtime) which of the two paths to even include in the rendered script,
 # so there's exactly one, immediately-explained action in the log either
-# way. See the other half of this `{{ if .deployment.can_elevate }}` for
-# the portable/no-elevation path, and CONCEPT_ROADMAP.md for the full
+# way. See the other half of this can_elevate template branch for the
+# portable/no-elevation path, and CONCEPT_ROADMAP.md for the full
 # elevation investigation (Ghisler.TotalCommander's installer forces
 # elevation for everyone via its own code, not just its manifest).
 
@@ -32,9 +32,9 @@ if ($installed) {
 # elevate at all (not a member of the local Administrators group). Runs on
 # every apply (plain `run_after_` prefix), no-ops once the installed
 # version matches the latest available. See the other half of this
-# `{{ if .deployment.can_elevate }}` for the normal winget-install path
-# used when this account CAN elevate, and the note there about why this
-# is one consolidated script instead of two.
+# can_elevate template branch for the normal winget-install path used
+# when this account CAN elevate, and the note there about why this is
+# one consolidated script instead of two.
 #
 # WHY this fallback exists at all: Ghisler.TotalCommander's INSTALLER (an
 # InstallShield self-extracting bootstrapper) forces elevation for EVERYONE
