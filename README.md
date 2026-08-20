@@ -348,7 +348,6 @@ edit anyway).
 | `find-file` | Recursive file finder by glob pattern |
 | `simple-server` | Python3 HTTP server (default port 8888) |
 | `imxcon` | Serial terminal wrapper for `/dev/ttyUSB{N}` (uses `tio`) |
-| `qnx_components` | QNX package manager: list, diff, install QNX components |
 | `oldkernelkill.sh` | Fedora: removes old kernel packages via `dnf` |
 
 ### System packages
