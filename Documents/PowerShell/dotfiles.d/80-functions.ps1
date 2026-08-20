@@ -11,7 +11,19 @@ function mkcd {
 # Chezmoi shortcuts — mirrors dot_bashrc.d/chezmoi-aliases (bash/zsh). No
 # `history -a`-style flush needed: PowerShell's history isn't lost the same
 # way on a chezmoi-triggered restart.
-function ch { chezmoi @args }
+#
+# `ch update` specifically auto-reloads afterward (re-sources $PROFILE,
+# same mechanism as the `reload` alias) — otherwise newly added/changed
+# functions/aliases from the pulled commits aren't visible until the shell
+# is manually restarted (real pain point hit live 2026-08-20, after several
+# rounds of "ch update" not showing fixes until PowerShell was killed and
+# reopened).
+function ch {
+    chezmoi @args
+    if ($args[0] -eq 'update' -and $LASTEXITCODE -eq 0) {
+        . $PROFILE
+    }
+}
 function chd { chezmoi cd @args }
 
 # Shell config directory shortcut — same alias name as bash/zsh/fish's `brc`,
@@ -163,5 +175,164 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     function gh {
         param([string]$Pattern)
         Get-History | Out-String -Stream | Select-String $Pattern
+    }
+}
+
+# Decrypt, edit, and re-encrypt an EJSON evault in one step — PowerShell
+# port of private_dot_local/bin/executable_edit-evault.tmpl (the
+# bash/zsh/fish version, which has the full design rationale in its header
+# comment; this mirrors it as closely as PowerShell allows). Added
+# 2026-08-20 — Windows previously had no way to do this at all (that bash
+# script isn't reachable there, see ALIASES.md's `ali` entry).
+#
+# A FUNCTION here, not a standalone $HOME\bin\edit-evault.ps1 script like
+# ejson/7-Zip's installers — PowerShell only auto-invokes a bare `.ps1` by
+# name if `.PS1` is in $env:PATHEXT, which it isn't by default (deliberate
+# Windows security default, would need `.\edit-evault.ps1` otherwise), so a
+# function in this profile-loaded file is invokable by bare name with no
+# such caveat — same reason gclean/gnb/ch/json etc. are functions here too.
+#
+# IMPORTANT — write target: this edits the evault in your DEVELOPMENT repo
+# (where you 'git commit'), NOT chezmoi's managed source-path
+# ($HOME\.local\share\chezmoi) — chezmoi would overwrite the latter on the
+# next 'chezmoi update'.
+#
+# No tmpfs equivalent on Windows (unlike /dev/shm on Linux/macOS) —
+# plaintext briefly touches $env:TEMP while editing; overwritten with
+# random bytes before deletion as a best-effort wipe (no shred.exe
+# equivalent bundled with Windows).
+function edit-evault {
+    param(
+        # NOT $Profile — shadows the built-in $PROFILE automatic variable;
+        # see bootstrap.ps1's identical guard (and its comment) for why.
+        [Parameter(Position = 0)]
+        [Alias("Profile")]
+        [ValidateSet("personal", "work")]
+        [string]$DotfilesProfile,
+        [string]$Repo
+    )
+
+    if (-not $DotfilesProfile) {
+        Write-Host "Usage: edit-evault <personal|work> [-Repo <path>]" -ForegroundColor Yellow
+        return
+    }
+
+    if (-not $Repo) { $Repo = $env:DOTFILES_REPO }
+    if (-not $Repo) {
+        Write-Host "No -Repo and `$env:DOTFILES_REPO not set." -ForegroundColor Yellow
+        Write-Host "Note: do NOT use chezmoi's source-path ($HOME\.local\share\chezmoi)." -ForegroundColor Yellow
+        Write-Host "      That is chezmoi's working copy — your edits would get reset." -ForegroundColor Yellow
+        Write-Host "      Use your DEVELOPMENT repo where you 'git commit'." -ForegroundColor Yellow
+        $Repo = Read-Host "Enter dotfiles development repo path"
+    }
+
+    if (-not (Test-Path $Repo -PathType Container)) {
+        Write-Host "Repo path does not exist: $Repo" -ForegroundColor Red
+        return
+    }
+    if (-not (Test-Path (Join-Path $Repo ".chezmoi.yaml.tmpl"))) {
+        Write-Host "Not a dotfiles repo (missing .chezmoi.yaml.tmpl): $Repo" -ForegroundColor Red
+        return
+    }
+    if (-not (Test-Path (Join-Path $Repo ".git"))) {
+        Write-Host "Repo path has no .git\ — sure this is your dev repo? Continuing anyway." -ForegroundColor Yellow
+    }
+
+    if (Get-Command chezmoi -ErrorAction SilentlyContinue) {
+        $chezmoiState = chezmoi source-path 2>$null
+        if ($chezmoiState) {
+            $repoResolved = (Resolve-Path $Repo -ErrorAction SilentlyContinue).Path
+            $stateResolved = (Resolve-Path $chezmoiState -ErrorAction SilentlyContinue).Path
+            if ($repoResolved -and $stateResolved -and $repoResolved -eq $stateResolved) {
+                Write-Host "Refusing to edit: target '$Repo' is chezmoi's managed source-path. Use your dev repo instead." -ForegroundColor Red
+                return
+            }
+        }
+    }
+
+    $evault = Join-Path $Repo "secrets\$DotfilesProfile\evault"
+    if (-not (Test-Path $evault)) {
+        Write-Host "Evault not found at $evault" -ForegroundColor Red
+        return
+    }
+
+    $ejsonPub = (Get-Content $evault -Raw | ConvertFrom-Json)._public_key
+    $profileUpper = $DotfilesProfile.ToUpper()
+    if (-not $ejsonPub -or $ejsonPub -eq "REPLACE_WITH_${profileUpper}_EJSON_PUBLIC_KEY") {
+        Write-Host "Evault has no real _public_key — run ENCRYPTION_SETUP.md first" -ForegroundColor Red
+        return
+    }
+
+    $keysDir = Join-Path $HOME ".config\chezmoi\keys"
+    $keyFile = Join-Path $keysDir $ejsonPub
+    if (-not (Test-Path $keyFile)) {
+        Write-Host "EJSON private key missing at $keyFile" -ForegroundColor Red
+        Write-Host "Run 'chezmoi apply' first to unlock the key chain." -ForegroundColor Red
+        return
+    }
+
+    Write-Host "No tmpfs on Windows — plaintext will briefly touch $env:TEMP" -ForegroundColor Yellow
+    $work = Join-Path $env:TEMP "edit-evault-$DotfilesProfile-$PID"
+    New-Item -ItemType Directory -Path $work -Force | Out-Null
+    $tmpFile = Join-Path $work "evault.json"
+
+    try {
+        Write-Host "-> Decrypting $DotfilesProfile evault into $work..." -ForegroundColor Blue
+        & ejson -keydir $keysDir decrypt $evault > $tmpFile
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ejson decrypt failed" -ForegroundColor Red
+            return
+        }
+
+        $editorCmd = if ($env:EDITOR) { $env:EDITOR } else { "nano" }
+        $hashBefore = (Get-FileHash -Algorithm SHA256 -Path $tmpFile).Hash
+
+        while ($true) {
+            Write-Host "-> Opening $editorCmd..." -ForegroundColor Blue
+            & $editorCmd $tmpFile
+
+            $hashAfter = (Get-FileHash -Algorithm SHA256 -Path $tmpFile).Hash
+            if ($hashBefore -eq $hashAfter) {
+                Write-Host "OK: No changes — skipping re-encrypt." -ForegroundColor Green
+                return
+            }
+
+            $validJson = $true
+            try { Get-Content $tmpFile -Raw | ConvertFrom-Json | Out-Null } catch { $validJson = $false }
+            if ($validJson) { break }
+
+            Write-Host "Edited file is not valid JSON." -ForegroundColor Red
+            $retry = Read-Host "Re-open $editorCmd to fix it? [Y/n]"
+            if ($retry -match '^[Nn]') {
+                Write-Host "Plaintext is still at $tmpFile; copy your work somewhere before exit" -ForegroundColor Red
+                return
+            }
+        }
+
+        Write-Host "-> Re-encrypting evault into $Repo..." -ForegroundColor Blue
+        Copy-Item $tmpFile $evault -Force
+        & ejson encrypt $evault
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ejson encrypt failed — evault may be in a broken state" -ForegroundColor Red
+            return
+        }
+
+        Write-Host "OK: $DotfilesProfile evault updated and re-encrypted in dev repo." -ForegroundColor Green
+        Write-Host "Next steps:" -ForegroundColor Blue
+        Write-Host "  cd $Repo"
+        Write-Host "  git add secrets/$DotfilesProfile/evault; git commit -m 'evault: update $DotfilesProfile'"
+        Write-Host "  git push"
+        Write-Host "  # On other machines: chezmoi update  (pulls + applies)"
+    } finally {
+        if (Test-Path $tmpFile) {
+            $len = (Get-Item $tmpFile).Length
+            if ($len -gt 0) {
+                $randomBytes = New-Object byte[] $len
+                (New-Object Random).NextBytes($randomBytes)
+                [System.IO.File]::WriteAllBytes($tmpFile, $randomBytes)
+            }
+            Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
+        }
+        Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
     }
 }

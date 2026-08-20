@@ -83,6 +83,14 @@ changing an existing one) does need one new `includeTemplate "evault-field" (dic
 whichever `.tmpl` file wants it — see `dot_config/private_git/work/hosts/github.gitconfig.tmpl`
 for the pattern.
 
+**Windows (added 2026-08-20):** the bash `edit-evault` script itself isn't reachable there (no
+bash, no `~/.local/bin`-equivalent on PATH) — use the `edit-evault` PowerShell **function**
+instead (`Documents/PowerShell/dotfiles.d/80-functions.ps1`), same usage
+(`edit-evault work -Repo C:\Sources\dotfiles`). One real difference: no tmpfs equivalent on
+Windows, so plaintext briefly touches `$env:TEMP` (best-effort overwrite-then-delete instead of
+`shred`, no `shred.exe` on Windows) — same residual-plaintext caveat as bash's own `/tmp`
+fallback path when `/dev/shm` is unavailable.
+
 **Common mistakes:**
 - Manual `ejson decrypt > /tmp/evault.json`, edit, forget to shred
   `/tmp/evault.json` → plaintext on disk. (`edit-evault` avoids this — tmpfs-first, shreds on

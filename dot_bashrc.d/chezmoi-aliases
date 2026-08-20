@@ -9,7 +9,21 @@
 # machine) and was already documented as a redundant leftover from before
 # `.deployment.profile` existed as real chezmoi template data.
 
-# Invoke chezmoi (flush history first to avoid losing it during chezmoi-triggered shell restart)
-alias ch='history -a && chezmoi'
+# Invoke chezmoi (flush history first to avoid losing it during
+# chezmoi-triggered shell restart). `ch update` specifically auto-reloads
+# the shell afterward (same `exec $SHELL -l` the `reload` alias uses) —
+# otherwise newly added/changed functions/aliases from the pulled commits
+# aren't visible until the shell is manually restarted (user's real pain
+# point, 2026-08-20). A plain `alias` can't express that conditional, so
+# `ch` is a function now; `chd` needs no such logic and stays an alias.
+function ch {
+  history -a
+  chezmoi "$@"
+  local status=$?
+  if [ "$1" = "update" ] && [ "$status" -eq 0 ]; then
+    exec "$SHELL" -l
+  fi
+  return "$status"
+}
 # Switch to chezmoi source directory
 alias chd='history -a && chezmoi cd'
