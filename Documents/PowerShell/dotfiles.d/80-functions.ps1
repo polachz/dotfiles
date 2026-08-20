@@ -287,7 +287,33 @@ function global:edit-evault {
             return
         }
 
+        # $env:EDITOR defaults to "nano" (.chezmoidata/env/common/editor.yaml,
+        # universal across OSes) - on Windows that's Git for Windows' bundled
+        # nano.exe (Git\usr\bin\nano.exe), which git itself can invoke for
+        # commit messages (it spawns editors through its own internal sh.exe,
+        # whose PATH includes usr\bin) but a plain PowerShell session can't
+        # resolve directly - usr\bin isn't added to the system/user PATH.
+        # Confirmed live 2026-08-20: bare `& nano` failed "term not
+        # recognized" even though `git commit` opened it fine moments
+        # earlier. Falls back to deriving usr\bin from git.exe's own
+        # location if the bare name doesn't resolve.
         $editorCmd = if ($env:EDITOR) { $env:EDITOR } else { "nano" }
+        if (-not (Get-Command $editorCmd -ErrorAction SilentlyContinue)) {
+            $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+            if ($gitCmd) {
+                $gitRoot = Split-Path (Split-Path $gitCmd.Source -Parent) -Parent
+                $bundledEditor = Join-Path $gitRoot "usr\bin\$editorCmd.exe"
+                if (Test-Path $bundledEditor) {
+                    $editorCmd = $bundledEditor
+                    Write-Host "Using Git for Windows' bundled $editorCmd" -ForegroundColor Blue
+                }
+            }
+        }
+        if (-not (Get-Command $editorCmd -ErrorAction SilentlyContinue)) {
+            Write-Host "'$editorCmd' not found on PATH (and no Git-bundled copy found either)." -ForegroundColor Red
+            Write-Host "Set `$env:EDITOR to a real editor command, or install Git for Windows (bundles nano)." -ForegroundColor Red
+            return
+        }
         $hashBefore = (Get-FileHash -Algorithm SHA256 -Path $tmpFile).Hash
 
         while ($true) {
