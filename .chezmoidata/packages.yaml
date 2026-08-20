@@ -83,42 +83,15 @@ packages:
       apt: skip
       brew: skip
       winget: Microsoft.WindowsTerminal # install only; settings.json config is a follow-up task
-    - name: totalcmd
-      roles: [workstation]
-      requires_gui: true
-      dnf: skip
-      apt: skip
-      brew: skip
-      # Real winget install ONLY when this account can actually elevate (proper Program
-      # Files install, uninstaller registration, etc.) — Ghisler.TotalCommander's
-      # INSTALLER hard-requires elevation for everyone via its own application code
-      # (confirmed live 2026-08-19: neither its highestAvailable manifest semantics nor
-      # __COMPAT_LAYER=RunAsInvoker suppress it for a genuine Standard User). When
-      # deployment.can_elevate is false, this entry is skipped (see
-      # run_onchange_install-packages.ps1.tmpl) and
-      # run_after_install-totalcmd-windows.ps1.tmpl installs the portable, no-elevation
-      # fallback instead (gated on can_elevate being false there too, so exactly one of
-      # the two ever runs) — see that file for the full rationale.
-      requires_elevation: true
-      winget: Ghisler.TotalCommander
-    - name: 7zip
-      roles: [workstation]
-      requires_gui: true
-      dnf: skip # p7zip already covers this on Linux, no separate 7-Zip package needed here
-      apt: skip
-      brew: skip # macOS has no comparable shell-integration need; keg-only formula exists but out of scope
-      # 7zip.7zip's manifest has ONLY `Scope: machine` (no user-scope option at
-      # all, confirmed live 2026-08-19) plus `ElevationRequirement:
-      # elevatesSelf` — same situation as Total Commander. When
-      # deployment.can_elevate is false, this entry is skipped (see
-      # run_onchange_install-packages.ps1.tmpl) and
-      # run_after_install-7zip-windows.ps1.tmpl installs a portable,
-      # no-elevation fallback instead (GUI file manager + console tool, no
-      # Explorer right-click integration — that part is inherently
-      # HKLM/machine-wide either way) — see that file for the full
-      # rationale, same pattern as totalcmd's fallback.
-      requires_elevation: true
-      winget: 7zip.7zip
+  # totalcmd and 7zip are deliberately NOT here (removed 2026-08-20) — both need an
+  # if-can-elevate/else-portable-fallback decision (see
+  # run_after_install-totalcmd-windows.ps1.tmpl / run_after_install-7zip-windows.ps1.tmpl),
+  # and splitting that decision from its outcome across this generic loop (a bare "SKIP"
+  # here) and a separately-timed run_after_ script (the actual fallback install, with no
+  # visible link between the two log lines) was confusing — user's explicit feedback.
+  # Consolidated into one dedicated script per tool instead, each deciding at chezmoi
+  # TEMPLATE render time which path to even include, so there's exactly one clear,
+  # self-explained action in the log either way.
   # Generalizes the previous top-level virtualbox/vmware keys under the same roles-like
   # principle: vm_types filters on .deployment.vm_type instead of a dedicated category per type.
   vm_guest_tools:

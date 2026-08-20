@@ -8,11 +8,20 @@
 # outer os guard wrapping the whole file) so chezmoi skips executing it there too — see
 # CONCEPT_ROADMAP.md §7.
 
+{{- /*
+  No requires_elevation handling here (removed 2026-08-20) - any tool needing an
+  if-can-elevate/else-portable-fallback decision gets its own dedicated run_after_ script
+  instead (see run_after_install-totalcmd-windows.ps1.tmpl / run_after_install-7zip-windows.ps1.tmpl
+  for the current examples), deciding the whole thing at chezmoi template render time. Splitting
+  that decision from its outcome across this generic loop (a bare "SKIP" here) and a
+  separately-timed script (the actual fallback, no visible link between the two log lines) was
+  confusing - user's explicit feedback. Keep new elevation-sensitive Windows tools out of this
+  loop for the same reason, not just totalcmd/7zip.
+*/ -}}
 {{- $role := .deployment.role }}
 {{- $hasGui := .deployment.has_gui }}
 {{- $vmType := .deployment.vm_type }}
 {{- $profile := .deployment.profile }}
-{{- $canElevate := .deployment.can_elevate }}
 {{- $allTools := concat .packages.common (index .packages $profile) .packages.workstation_tools .packages.vm_guest_tools }}
 
 $packages = @(
@@ -21,10 +30,6 @@ $packages = @(
   {{- if hasKey . "roles" }}{{ if not (has $role .roles) }}{{ $include = false }}{{ end }}{{ end }}
   {{- if and $include (hasKey . "requires_gui") .requires_gui }}{{ if not $hasGui }}{{ $include = false }}{{ end }}{{ end }}
   {{- if and $include (hasKey . "vm_types") }}{{ if not (has $vmType .vm_types) }}{{ $include = false }}{{ end }}{{ end }}
-  {{- if and $include (hasKey . "requires_elevation") .requires_elevation (not $canElevate) }}
-    {{- $include = false }}
-Write-Host "SKIP: {{ .name }} requires elevation, and this account can't elevate (not a member of the local Administrators group)" -ForegroundColor Yellow
-  {{- end }}
   {{- if $include }}
     {{- $installCmd := includeTemplate "render-winget-install" . | trim }}
     {{- if ne $installCmd "skip" }}

@@ -1,15 +1,36 @@
-{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui (not .deployment.can_elevate) -}}
-# Fallback-only: installs 7-Zip per-user on Windows, no elevation required,
-# for accounts that CAN'T elevate at all - runs on every apply (plain
-# `run_after_` prefix), no-ops once the installed version matches the
-# latest available. When this account CAN elevate, packages.yaml's own
-# `7zip` entry (winget: 7zip.7zip, requires_elevation: true) handles it
-# instead via the normal winget install - a real Program Files install
-# with Explorer right-click shell integration, which this fallback
-# deliberately doesn't attempt to replicate (shell integration is
-# inherently HKLM/machine-wide - see packages.yaml's `7zip` comment). Both
-# are gated so exactly one ever runs, same pattern as
-# run_after_install-totalcmd-windows.ps1.tmpl.
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
+{{- if .deployment.can_elevate -}}
+# Installs 7-Zip via winget (this account can elevate - real Program Files
+# install with Explorer right-click shell integration). Runs on every
+# apply (plain `run_after_` prefix), no-ops once already installed.
+#
+# NOT in packages.yaml's generic loop on purpose - see
+# run_after_install-totalcmd-windows.ps1.tmpl's comment for why (the
+# winget-vs-portable decision and its outcome used to be split across two
+# separately-timed scripts with no visible link between them - confusing,
+# user's explicit feedback 2026-08-20). Consolidated into ONE script per
+# tool instead, deciding at chezmoi TEMPLATE render time which of the two
+# paths to even include in the rendered script. See the other half of
+# this `{{ if .deployment.can_elevate }}` for the portable/no-elevation
+# path.
+
+$ErrorActionPreference = "Stop"
+
+$installed = winget list --id 7zip.7zip -e --source winget --accept-source-agreements 2>$null | Select-String -SimpleMatch "7zip.7zip"
+if ($installed) {
+    Write-Host "OK: 7-Zip already installed" -ForegroundColor Green
+} else {
+    Write-Host "-> Installing 7-Zip via winget" -ForegroundColor Blue
+    winget install -e --id 7zip.7zip --source winget --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
+}
+{{- else -}}
+# Installs 7-Zip per-user, no elevation - this account can't elevate at
+# all (not a member of the local Administrators group). Runs on every
+# apply (plain `run_after_` prefix), no-ops once the installed version
+# matches the latest available. See the other half of this
+# `{{ if .deployment.can_elevate }}` for the normal winget-install path
+# used when this account CAN elevate, and the note there about why this
+# is one consolidated script instead of two.
 #
 # WHY this fallback exists at all: 7zip.7zip's winget manifest has ONLY
 # Scope: machine (no per-user option at all) plus ElevationRequirement:
@@ -40,6 +61,8 @@ $stateDir = Join-Path $env:LOCALAPPDATA "dotfiles"
 $versionFile = Join-Path $stateDir "7zip.version"
 
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+
+Write-Host "-> This account can't elevate (not a member of the local Administrators group) - installing 7-Zip via portable, no-elevation fallback" -ForegroundColor Blue
 
 function New-SevenZipShortcuts($exePath, $workDir) {
     $wshShell = New-Object -ComObject WScript.Shell
@@ -140,4 +163,5 @@ Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
 Set-Content -Path $versionFile -Value $latestTag -NoNewline
 
 Write-Host "OK: 7-Zip $latestTag installed to $installDir (per-user, no elevation, on PATH, no Explorer integration)" -ForegroundColor Green
+{{- end -}}
 {{- end -}}
