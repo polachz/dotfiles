@@ -1,0 +1,9 @@
+{{- if eq .chezmoi.os "windows" -}}
+# Ensures C:\Sources exists — idempotent, runs on every apply (plain `run_`
+# prefix). This is the source-code working directory the `d` alias
+# (.chezmoidata/aliases/common/nav.yaml, CONCEPT_ROADMAP.md §3.6) cd's into —
+# a different path than Linux/macOS's ~/Devel (see the .sh.tmpl counterpart
+# of this script), confirmed by the user directly, not guessed.
+
+New-Item -ItemType Directory -Path "C:\Sources" -Force | Out-Null
+{{- end -}}
