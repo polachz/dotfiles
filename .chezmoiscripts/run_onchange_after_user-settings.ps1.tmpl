@@ -1,0 +1,26 @@
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") -}}
+# Switch chezmoi source repo from https to ssh so future pushes work
+# without a browser-based GitHub Credential Manager prompt - Windows
+# counterpart of run_onchange_after_user-settings.sh.tmpl's identical
+# Linux/macOS logic (workstation-only, a server never pushes back to the
+# dotfiles repo). Confirmed live 2026-08-20: without this, `git push` from
+# chezmoi's source-path (still on the https remote chezmoi's built-in git
+# clones with) pops up Git Credential Manager's "Sign in to GitHub"
+# browser dialog instead of using the SSH agent (Bitwarden) already set up.
+$gitLocalDir = "{{ joinPath .chezmoi.sourceDir ".git" }}"
+$gitRepoUrl = git --git-dir="$gitLocalDir" remote get-url origin
+
+if ($gitRepoUrl -notmatch '^git') {
+    Write-Host "-> Changing chezmoi source remote repo access from https to ssh" -ForegroundColor Blue
+    # Split on the FIRST "/" only (github.com/user/repo.git -> github.com : user/repo.git),
+    # same as the bash version's `${var/\//:}` single-replace - a naive -replace '/', ':'
+    # would wrongly colon-ify every slash in the path, not just the host separator.
+    $withoutScheme = $gitRepoUrl -replace '^https://', ''
+    $parts = $withoutScheme -split '/', 2
+    $newRepoUrl = "git@$($parts[0]):$($parts[1])"
+    git --git-dir="$gitLocalDir" remote set-url origin $newRepoUrl
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Change remote repo url from https to ssh failed!" -ForegroundColor Red
+    }
+}
+{{- end -}}
