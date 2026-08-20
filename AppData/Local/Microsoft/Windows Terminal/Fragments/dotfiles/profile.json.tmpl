@@ -39,7 +39,13 @@
   Terminal needs here even though it means the family name no longer matches Ghostty's exactly
   (same situation as the old DEVCOM build's Windows-only "JetBrainsMono NF").
 */ -}}
-{{- $fontSize := ternary 14 13 (eq .deployment.profile "work") -}}
+{{- /*
+  Flat 12 for both profiles (changed 2026-08-20, user's explicit call) - the previous
+  work=14/personal=13 split felt too large on Windows and had no equivalent on
+  dot_config/private_ghostty/common.conf.tmpl (flat 13 there, no profile split at all) -
+  inconsistent for no real reason. Bump this single number later if 12 turns out too small.
+*/ -}}
+{{- $fontSize := 12 -}}
 {
     "profiles": [
         {
