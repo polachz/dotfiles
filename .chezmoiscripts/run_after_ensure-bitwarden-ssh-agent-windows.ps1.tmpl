@@ -1,0 +1,53 @@
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
+# Configures git + the Windows OpenSSH agent service so Bitwarden's SSH
+# agent (packages.yaml's `bitwarden` — roles: [workstation], requires_gui,
+# same condition gating this whole script) can actually be used for
+# git/ssh auth. Runs on every apply (plain `run_` prefix), both halves
+# idempotent. Mirrors dot_bashrc.d/10-bitwarden-ssh-agent.sh's intent for
+# Linux/macOS, but Windows needs real configuration, not just an env var.
+
+# WHY core.sshCommand: confirmed live 2026-08-20 — Git for Windows bundles
+# its OWN ssh.exe (MSYS/Cygwin build, Git\usr\bin\ssh.exe), used by default
+# regardless of PATH order. That build only understands Unix-socket-style
+# SSH_AUTH_SOCK, not the Windows named pipe (\\.\pipe\openssh-ssh-agent)
+# Bitwarden's agent uses — so `git clone`/`push` silently never even asked
+# the agent for a key, tried only the (nonexistent) default ~/.ssh/id_rsa,
+# and failed "Permission denied (publickey)" even with the right key
+# loaded in the agent (`ssh-add -L` showed it fine). Pointing git at the
+# NATIVE Windows OpenSSH client (which checks that named pipe with no
+# extra config) fixes it. No elevation needed — plain per-user git config.
+$ErrorActionPreference = "Stop"
+$nativeSsh = "C:\Windows\System32\OpenSSH\ssh.exe"
+if (Test-Path $nativeSsh) {
+    git config --global core.sshCommand ($nativeSsh -replace '\\', '/')
+    Write-Host "OK: git core.sshCommand points at the native Windows OpenSSH client" -ForegroundColor Green
+} else {
+    Write-Host "SKIP: $nativeSsh not found - the Windows OpenSSH Client optional feature isn't installed, git will keep using its bundled ssh.exe" -ForegroundColor Yellow
+}
+
+# WHY disabling the built-in ssh-agent service: it claims the same named
+# pipe Bitwarden's SSH agent needs (confirmed via bitwarden.com/help/
+# ssh-agent) — whichever one grabs the pipe first wins, and the built-in
+# one starts empty (no keys) and stays that way unless something
+# explicitly ssh-add's to it. Disabling a Windows SERVICE needs elevation —
+# a genuine Standard User can't do this (SERVICE_CHANGE_CONFIG isn't a
+# Standard User privilege), and unlike totalcmd/7zip there's no portable
+# no-elevation workaround for a service — so this only runs on the
+# can-elevate branch; the other branch just tells the user what to do
+# manually (see .deployment.can_elevate's own doc comment in
+# .chezmoi.yaml.tmpl for how that fact is computed).
+{{- if .deployment.can_elevate }}
+$sshAgentSvc = Get-Service -Name ssh-agent -ErrorAction SilentlyContinue
+if (-not $sshAgentSvc) {
+    Write-Host "OK: no built-in ssh-agent service found (OpenSSH Client feature not installed) - nothing to disable" -ForegroundColor Green
+} elseif ($sshAgentSvc.StartType -eq "Disabled") {
+    Write-Host "OK: Windows built-in ssh-agent service already disabled" -ForegroundColor Green
+} else {
+    Stop-Service -Name ssh-agent -Force -ErrorAction SilentlyContinue
+    Set-Service -Name ssh-agent -StartupType Disabled
+    Write-Host "OK: Windows built-in ssh-agent service stopped and disabled (Bitwarden's SSH agent needs the named pipe it was holding)" -ForegroundColor Green
+}
+{{- else }}
+Write-Host "MANUAL ACTION: this account can't elevate, so the built-in Windows ssh-agent service can't be disabled automatically - if Bitwarden's SSH agent doesn't work, an admin needs to run: Stop-Service ssh-agent; Set-Service ssh-agent -StartupType Disabled" -ForegroundColor Yellow
+{{- end }}
+{{- end -}}
