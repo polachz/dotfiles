@@ -141,6 +141,30 @@ function gclean {
   done
 }
 
+# Creates a new git branch and pushes it to the remote with tracking set up
+# in one step. Base branch: $2 if given ("@" means the current branch, same
+# shorthand git itself uses for HEAD), otherwise the repo's actual default
+# branch (same origin/HEAD detection as gclean above), falling back to
+# "main". Falls back to "origin/$base" if $base doesn't resolve locally
+# (e.g. a shallow/sparse clone with no local tracking branch for it yet).
+function gnb {
+  local name="$1"
+  local base="$2"
+  if [ -z "$name" ]; then
+    echo "usage: gnb <branch-name> [base-branch|@]" >&2
+    return 1
+  fi
+  if [ -z "$base" ]; then
+    base=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+    [ -z "$base" ] && base="main"
+  elif [ "$base" = "@" ]; then
+    base="HEAD"
+  fi
+  git rev-parse --verify --quiet "$base" >/dev/null || base="origin/$base"
+  git switch -c "$name" "$base" || return 1
+  git push -u origin "$name"
+}
+
 # Quick cheatsheet lookup via cheat.sh.
 function cheat {
   curl -s "cheat.sh/$1"

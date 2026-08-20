@@ -203,6 +203,7 @@ so each is hand-written once per shell: bash/zsh share
 | `killport <port>` | Find and kill whatever process is listening on a TCP port | Genuine macOS/Linux tool split (not just a flag difference): macOS's `fuser` is the POSIX file/mount-point variant with no network-port awareness at all (verified live) — macOS uses `lsof`, Linux uses `fuser -k <port>/tcp`. Windows uses `Get-NetTCPConnection`/`Stop-Process`. |
 | `json [file]` | Pretty-print JSON, piped or from a file argument | Unix via `jq` (new workstation-only package, see `packages.yaml` — deliberately not server, and not `python3 -m json.tool`, an untracked dependency). Windows needs no extra tool — native `ConvertFrom-Json`/`ConvertTo-Json`. |
 | `gclean` | Delete local git branches already merged into the repo's default branch | Detects the default branch from `origin/HEAD`, falls back to `main`; the current branch and `main`/`master` are always excluded as an extra safety net regardless of what detection returns. |
+| `gnb <name> [base\|@]` | Create a new git branch and push it upstream (`-u origin`) in one step | Base branch: explicit `[base]` arg, `@` for the current branch (git's own HEAD shorthand), or (default) the repo's actual default branch — same `origin/HEAD` detection as `gclean`, falls back to `main`. Falls back to `origin/<base>` if `<base>` has no local tracking branch yet. |
 | `cheat <topic>` | Quick cheatsheet lookup via `curl cheat.sh/<topic>` | |
 
 Deliberately **not yet implemented**: a random string/password generator —

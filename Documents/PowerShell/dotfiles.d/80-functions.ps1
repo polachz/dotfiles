@@ -122,6 +122,27 @@ function gclean {
         ForEach-Object { git branch -d $_ }
 }
 
+# Creates a new git branch and pushes it to the remote with tracking set up
+# in one step — same base-branch detection/safety-net logic as the
+# bash/fish versions.
+function gnb {
+    param([string]$Name, [string]$Base)
+    if (-not $Name) {
+        Write-Host "usage: gnb <branch-name> [base-branch|@]" -ForegroundColor Yellow
+        return
+    }
+    if (-not $Base) {
+        $Base = git symbolic-ref refs/remotes/origin/HEAD 2>$null
+        if ($Base) { $Base = $Base -replace '^refs/remotes/origin/', '' } else { $Base = 'main' }
+    } elseif ($Base -eq '@') {
+        $Base = 'HEAD'
+    }
+    git rev-parse --verify --quiet $Base *>$null
+    if ($LASTEXITCODE -ne 0) { $Base = "origin/$Base" }
+    git switch -c $Name $Base
+    if ($LASTEXITCODE -eq 0) { git push -u origin $Name }
+}
+
 # Quick cheatsheet lookup via cheat.sh.
 function cheat {
     param([string]$Topic)
