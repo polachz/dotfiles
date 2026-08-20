@@ -169,3 +169,14 @@ function gnb {
 function cheat {
   curl -s "cheat.sh/$1"
 }
+
+# Search shell history for a pattern. `ghi` always works; `gh` is only
+# defined when the real GitHub CLI (`gh`) isn't on PATH — checked fresh on
+# every new shell (not just once at chezmoi apply time), so it stops
+# shadowing the real tool the moment it's installed, no re-apply needed.
+# User's call, 2026-08-20: keep the short `gh` name for as long as nothing
+# else claims it, fall back to `ghi` once something does.
+alias ghi='history | grep'
+if ! command -v gh >/dev/null 2>&1; then
+  alias gh='history | grep'
+fi

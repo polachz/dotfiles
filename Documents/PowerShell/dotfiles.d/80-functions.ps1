@@ -148,3 +148,20 @@ function cheat {
     param([string]$Topic)
     curl.exe -s "cheat.sh/$Topic"
 }
+
+# Search shell history for a pattern. `ghi` always works; `gh` is only
+# defined when the real GitHub CLI (`gh.exe`) isn't on PATH — checked fresh
+# every time this profile loads (a new pwsh session), so it stops shadowing
+# the real tool the moment it's installed, no re-apply needed. See
+# dot_bashrc.d/85-functions-extra.sh for the bash/zsh equivalent. User's
+# call, 2026-08-20.
+function ghi {
+    param([string]$Pattern)
+    Get-History | Out-String -Stream | Select-String $Pattern
+}
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    function gh {
+        param([string]$Pattern)
+        Get-History | Out-String -Stream | Select-String $Pattern
+    }
+}
