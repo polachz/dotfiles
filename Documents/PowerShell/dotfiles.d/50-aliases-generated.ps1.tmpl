@@ -24,10 +24,19 @@
   ALIAS wins over a function of the same name, unlike bash/zsh/fish where a
   function/alias always wins over a PATH binary. Confirmed live 2026-08-20:
   `gcm` silently ran PowerShell's own built-in `Get-Command` alias instead
-  of this file's `function gcm {...}` (git commit -m). `Remove-Item
-  Alias:<name>` before each function definition clears any built-in of the
-  same name so the function actually wins — a no-op (`-ErrorAction
+  of this file's `function gcm {...}` (git commit -m). `Remove-Alias -Name
+  <name>` before each function definition clears any built-in of the same
+  name so the function actually wins — a no-op (`-ErrorAction
   SilentlyContinue`) for the (common) case where no such built-in exists.
+
+  MUST be `Remove-Alias -Name`, NOT `Remove-Item "Alias:<name>"` (what
+  shipped first, live-broken 2026-08-20) — the `Alias:` PSDrive path syntax
+  parses `.`/`..` as relative-path navigation, so our OWN nav aliases
+  (`..`, `...`, `....`, `.....`) resolved to `Alias:\` (the drive ROOT,
+  containing every alias in the session) instead of an alias literally
+  named "..", triggering "this item has children, remove them all?" on
+  every apply. `Remove-Alias -Name` takes the name as a plain string
+  parameter, never parsed as a path, so dots are just dots.
 */ -}}
 {{- range $cat, $entries := .aliases.common.categories }}
 # {{ $cat }}
@@ -36,7 +45,7 @@
 {{- if ne $cmd "skip" }}
 {{- $prefix := "" }}
 {{- if hasKey . "pipes_stdin" }}{{- if .pipes_stdin }}{{ $prefix = "$input | " }}{{- end }}{{- end }}
-if (Test-Path "Alias:{{ .name }}") { Remove-Item "Alias:{{ .name }}" -Force }
+Remove-Alias -Name '{{ .name }}' -Force -ErrorAction SilentlyContinue
 {{- if contains "$args" $cmd }}
 function {{ .name }} { {{ $prefix }}{{ $cmd }} }  # {{ .description }}
 {{- else }}
