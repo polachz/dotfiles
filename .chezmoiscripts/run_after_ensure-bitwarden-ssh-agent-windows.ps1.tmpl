@@ -1,29 +1,19 @@
 {{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
-# Configures git + the Windows OpenSSH agent service so Bitwarden's SSH
-# agent (packages.yaml's `bitwarden` — roles: [workstation], requires_gui,
-# same condition gating this whole script) can actually be used for
-# git/ssh auth. Runs on every apply (plain `run_` prefix), both halves
-# idempotent. Mirrors dot_bashrc.d/10-bitwarden-ssh-agent.sh's intent for
-# Linux/macOS, but Windows needs real configuration, not just an env var.
-
-# WHY core.sshCommand: confirmed live 2026-08-20 — Git for Windows bundles
-# its OWN ssh.exe (MSYS/Cygwin build, Git\usr\bin\ssh.exe), used by default
-# regardless of PATH order. That build only understands Unix-socket-style
-# SSH_AUTH_SOCK, not the Windows named pipe (\\.\pipe\openssh-ssh-agent)
-# Bitwarden's agent uses — so `git clone`/`push` silently never even asked
-# the agent for a key, tried only the (nonexistent) default ~/.ssh/id_rsa,
-# and failed "Permission denied (publickey)" even with the right key
-# loaded in the agent (`ssh-add -L` showed it fine). Pointing git at the
-# NATIVE Windows OpenSSH client (which checks that named pipe with no
-# extra config) fixes it. No elevation needed — plain per-user git config.
-$ErrorActionPreference = "Stop"
-$nativeSsh = "C:\Windows\System32\OpenSSH\ssh.exe"
-if (Test-Path $nativeSsh) {
-    git config --global core.sshCommand ($nativeSsh -replace '\\', '/')
-    Write-Host "OK: git core.sshCommand points at the native Windows OpenSSH client" -ForegroundColor Green
-} else {
-    Write-Host "SKIP: $nativeSsh not found - the Windows OpenSSH Client optional feature isn't installed, git will keep using its bundled ssh.exe" -ForegroundColor Yellow
-}
+# Disables the Windows built-in ssh-agent service so Bitwarden's SSH agent
+# (packages.yaml's `bitwarden` — roles: [workstation], requires_gui, same
+# condition gating this whole script) can actually claim its named pipe.
+# Runs on every apply (plain `run_` prefix), idempotent. Mirrors
+# dot_bashrc.d/10-bitwarden-ssh-agent.sh's intent for Linux/macOS, but
+# Windows needs a real service change, not just an env var.
+#
+# The other half of this fix — pointing git at the native Windows OpenSSH
+# client instead of Git for Windows' bundled MSYS ssh.exe, which can't talk
+# to that named pipe at all — lives in
+# dot_config/private_git/common.gitconfig.tmpl instead: it's plain gitconfig
+# CONTENT (a `[core] sshCommand` value), so it belongs in the fragment tree
+# like every other git setting in this repo, not as a `git config` call
+# poked directly into the real ~/.gitconfig from a script (moved there
+# 2026-08-20, was originally here).
 
 # WHY disabling the built-in ssh-agent service: it claims the same named
 # pipe Bitwarden's SSH agent needs (confirmed via bitwarden.com/help/

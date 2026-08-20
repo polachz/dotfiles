@@ -1,3 +1,24 @@
-# Universal git config, shared across personal and work — nothing here yet
-# (no OS/profile-independent setting identified in the real ~/.gitconfig
-# during migration, see CONCEPT_ROADMAP.md §2.3).
+# Universal git config, shared across personal and work.
+{{ if eq .chezmoi.os "windows" -}}
+# Git for Windows bundles its OWN ssh.exe (MSYS/Cygwin build), used by
+# default regardless of PATH order. That build only understands
+# Unix-socket-style SSH_AUTH_SOCK, not the Windows named pipe
+# (\\.\pipe\openssh-ssh-agent) that Windows-native SSH agents (Bitwarden,
+# the built-in OpenSSH agent service, ...) use — so git silently never
+# even asks such an agent for a key, tries only the default ~/.ssh/id_rsa,
+# and fails "Permission denied (publickey)" even with the right key loaded
+# in the agent. Pointing git at the native Windows OpenSSH client (which
+# checks that named pipe with no extra config) fixes it — confirmed live
+# 2026-08-20. Applies to any Windows machine using an agent-based key, not
+# just Bitwarden — see run_after_ensure-bitwarden-ssh-agent-windows.ps1.tmpl
+# for the Bitwarden-specific half of that fix (disabling the conflicting
+# built-in ssh-agent service, which can't be expressed as gitconfig content).
+#
+# Guarded by `stat` (not just assumed present) — the Windows OpenSSH
+# Client is a default-installed optional feature on Windows 10 1803+/11,
+# but isn't guaranteed on a minimal/Server Core install.
+{{ if stat "C:/Windows/System32/OpenSSH/ssh.exe" -}}
+[core]
+    sshCommand = C:/Windows/System32/OpenSSH/ssh.exe
+{{ end -}}
+{{ end -}}
