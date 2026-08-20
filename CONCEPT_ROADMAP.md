@@ -66,15 +66,41 @@ starship** (viz sekce "Pořadí implementace").
   souboru) — kde není přítomný, zůstane viditelný klasický prompt ze stejných dotfiles.
 - Stejný **common/personal/work vzor** se má použít obecně na libovolný config, ne jen na shell:
   git config, ssh config, editor config, Ghostty, starship.
-- Nová osa **role** (`workstation` vs. `server`), ortogonální k `profile` — server patří pod
-  stejnou identitu/klíče jako personal nebo work, role mění jen instalované balíčky a širší
-  konfiguraci/chování. Precedens už v repu: `vm_type` (virtualbox/vmware) v `packages.yaml`.
-- **Nový fakt o stroji: `has_gui`** (bool), ortogonální k `role` i `profile` — workstation role
-  může být GUI (Mac s Ghosttym) i headless (minimalistický Linux dev stroj bez GUI, uživatel má
-  reálně takový). Aliasy/env proměnné/fish/starship jsou vždy relevantní bez ohledu na GUI (čistě
-  shell-úrovňové, fungují přes SSH/konzoli stejně jako v GUI terminálu) — jen GUI-závislé věci
-  (Ghostty) se mají podmínit `has_gui`, viz sekce 6/7. Zjišťuje se jednou při `chezmoi init`
-  (`promptBoolOnce`, stejný vzor jako volba profilu — jen lokální chezmoi config, nikdy v gitu).
+- **Role × has_gui — dvě nezávislé osy o stroji, ne jedna odvozená z druhé (ujasněno 2026-08-20).**
+  - **`role`** (`workstation` vs. `server`) popisuje **ÚČEL** stroje — je to místo, kde uživatel
+    interaktivně pracuje/vyvíjí (`workstation`), nebo infrastruktura, co jen běží a slouží
+    (`server` — homelab VM, CI runner, cokoliv bez uživatele u klávesnice)? Ortogonální k
+    `profile` (personal/work) — server patří pod stejnou identitu/klíče jako kterýkoliv jiný
+    stroj, role mění jen instalované balíčky a širší konfiguraci/chování. Precedens už v repu:
+    `vm_type` (virtualbox/vmware) v `packages.yaml`.
+  - **`has_gui`** (bool) popisuje **TECHNICKÝ FAKT** — existuje na stroji reálně display/desktop
+    session? Nic víc.
+  - **Obě osy jsou nezávislé — `role` NENÍ zkratka pro "má GUI".** Rychlý test, ověřený na
+    reálných uživatelových příkladech: Windows Server 2025 s nainstalovaným Desktop Experience je
+    `server`+`has_gui: true`; AlmaLinux server je v 99 % případů `server`+`has_gui: false`;
+    uživatelův headless dev stroj (SSH z VS Code, žádný monitor) je `workstation`+`has_gui: false`
+    — je to interaktivní vývojový stroj, jen bez fyzického displeje. Font pro glyfy v terminálu
+    v takovém případě patří na KLIENTA (stroj, odkud se připojuje), ne na tenhle headless box —
+    `requires_gui: true` položky (viz sekce 7) se tam správně neinstalují.
+  - Aliasy/env proměnné/fish/starship jsou vždy relevantní bez ohledu na GUI (čistě
+    shell-úrovňové, fungují přes SSH/konzoli stejně jako v GUI terminálu) — jen GUI-závislé věci
+    (Ghostty, Bitwarden desktop, Windows Terminal, Nerd Font) se podmiňují `has_gui`, viz sekce
+    6/7. Zjišťuje se jednou při `chezmoi init` (`promptBoolOnce`, stejný vzor jako volba profilu —
+    jen lokální chezmoi config, nikdy v gitu) — jen na Linuxu, macOS/Windows defaultují na `true`
+    bez ptaní (headless Mac/Windows box není scénář, který tenhle projekt řeší při každém běhu).
+  - **`role=server` dnes reálně dostává jen `powershell7` + `vm_guest_tools`** (viz `packages.yaml`)
+    — vědomý minimalismus, ne nedodělek. Rozšiřovat až podle potřeby reálného serveru (uživatel
+    potvrdil, že homelab/vlastní servery reálně plánuje, zatím jen `role=server` teoreticky
+    existuje bez živého nasazení).
+  - **Cílený audit (2026-08-20)** — co je na `role=server`/headless stroji nadbytečné nebo přímo
+    škodlivé mimo `packages.yaml`'s `roles:`/`requires_gui:` gating (ten je v pořádku): Bitwarden
+    SSH-agent export bezpodmínečně přepisoval `SSH_AUTH_SOCK` i tam, kde Bitwarden vůbec neběží
+    (opraveno — kontrola, že je appka nainstalovaná, ne že socket zrovna existuje, viz
+    `dot_bashrc.d/10-bitwarden-ssh-agent.sh` a ekvivalenty); `json` shell funkce volala `jq` bez
+    kontroly existence (opraveno — guard s čitelnou hláškou, `dot_bashrc.d/85-functions-extra.sh`);
+    SSH `TERM=xterm-256color` override pro Ghostty (§2.4) se vynucoval i na strojích bez Ghostty
+    (opraveno — `.chezmoiignore.tmpl` teď `.ssh/conf.d/90-common.conf` maskuje stejnou podmínkou
+    jako `.config/ghostty`).
 - **Serverové prostředí**: většina Proxmox homelab VM, 1-2 externí na Oracle Cloud (přístup ke
   službám zvenčí). Všechny se zatím provisionují nabootováním do základního stavu a pokračováním
   přes SSH — **ne zero-touch**. Pro tuhle fázi: server bootstrap = SSH-driven/interaktivní, stejný

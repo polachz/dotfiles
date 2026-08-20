@@ -53,6 +53,15 @@ age_key_work.age
 {{ end }}
 
 {{/*
+  SSH client-side TERM fix for Ghostty (private_90-common.conf, see CONCEPT_ROADMAP.md §2.4) is
+  only useful on a machine that actually runs Ghostty locally — same has_gui/OS gating as Ghostty
+  itself above.
+*/}}
+{{ if or (not .deployment.has_gui) (eq .chezmoi.os "windows") }}
+.ssh/conf.d/90-common.conf
+{{ end }}
+
+{{/*
   PowerShell 7 config — Windows-only (see CONCEPT_ROADMAP.md §3.3). Ignoring
   the whole Documents dir (not just Documents/PowerShell) matters on macOS:
   ~/Documents is TCC-protected, and chezmoi would still try to mkdir/chmod the

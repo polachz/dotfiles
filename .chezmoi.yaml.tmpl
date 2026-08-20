@@ -85,9 +85,11 @@
   elevation for EVERYONE, admin or not — confirmed live 2026-08-19, a genuine Standard User gets
   an actual credential-entry UAC prompt (not the simple "allow?" a local admin sees), which would
   hang a scripted bootstrap forever. Others (git, per PrivilegesRequired=none — see bootstrap.ps1)
-  degrade gracefully for Standard Users and don't need this at all. Consumed by
-  run_onchange_install-packages.ps1.tmpl to skip packages.yaml entries flagged
-  `requires_elevation: true` when this is false, rather than getting stuck.
+  degrade gracefully for Standard Users and don't need this at all. Consumed directly (template
+  render time, not packages.yaml) by run_after_install-totalcmd-windows.ps1.tmpl and
+  run_after_install-7zip-windows.ps1.tmpl, each choosing between a winget-install branch and a
+  portable no-elevation fallback branch — see those files for why (2026-08-20 consolidation, see
+  CONCEPT_ROADMAP.md §7).
 */}}
 {{- $can_elevate := true -}}
 {{- if eq .chezmoi.os "windows" -}}

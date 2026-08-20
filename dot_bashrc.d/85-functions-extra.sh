@@ -118,6 +118,10 @@ function killport {
 # (`json file.json`) — jq itself falls back to stdin when given zero file
 # args, no branching needed here.
 function json {
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "json: jq not installed (jq is a workstation-only package, see packages.yaml)" >&2
+    return 1
+  fi
   jq . "$@"
 }
 
