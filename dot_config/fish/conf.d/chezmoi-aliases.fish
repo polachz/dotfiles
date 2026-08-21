@@ -19,4 +19,11 @@ function ch --description 'Invoke chezmoi, auto-reload the shell after a success
     end
     return $ch_status
 end
-abbr -a -- chd 'chezmoi cd'
+# Plain `cd`, NOT `chezmoi cd` — that's chezmoi's own subcommand, a
+# separate process that can't change ITS PARENT shell's directory (no
+# process can), so it launches a whole new nested shell instead. Repeated
+# `chd` without remembering to `exit` each one stacks up nested shells
+# (confirmed live 2026-08-20). `chezmoi source-path` is a plain query (just
+# prints the path), so `cd`-ing to its output in the current shell avoids
+# nesting entirely.
+abbr -a -- chd 'cd (chezmoi source-path)'

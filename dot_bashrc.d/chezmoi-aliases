@@ -25,5 +25,14 @@ function ch {
   fi
   return "$status"
 }
-# Switch to chezmoi source directory
-alias chd='history -a && chezmoi cd'
+# Switch to chezmoi source directory — plain `cd`, NOT `chezmoi cd`.
+# `chezmoi cd` is chezmoi's own subcommand, a separate process — it can't
+# change ITS PARENT shell's directory (no process can), so chezmoi solves
+# that by launching a whole new nested shell already sitting there. Fine
+# once, but repeated `chd` calls without remembering to `exit` each one
+# stack up nested shells (confirmed live 2026-08-20 — "shells in shells in
+# shells"). `chezmoi source-path` is a plain query (just prints the path,
+# no shell-spawning side effect), so capturing it ourselves and `cd`-ing in
+# the CURRENT shell avoids nesting entirely — same principle as why
+# edit-evault/gclean/etc. are functions here instead of external scripts.
+alias chd='history -a && cd "$(chezmoi source-path)"'

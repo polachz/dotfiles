@@ -33,6 +33,7 @@ regardless of `kind`.
 | `g` | `git` | `git` | `git` | abbr | Git |
 | `gcm` | `git commit -m` | `git commit -m` | `git commit -m` | abbr | Commit with message |
 | `gcam` | `git commit -am` | `git commit -am` | `git commit -am` | abbr | Commit all tracked changes with message (does not stage new untracked files, unlike git add .) |
+| `gcms` | `git commit -s -m` | `git commit -s -m` | `git commit -s -m` | abbr | Commit with message, signed off (-s / Signed-off-by trailer) |
 | `gp` | `git push` | `git push` | `git push` | abbr | Push |
 | `gst` | `git status` | `git status` | `git status` | abbr | Status |
 | `gam` | `git add -u` | `git add -u` | `git add -u` | abbr | Stage modified + deleted files |

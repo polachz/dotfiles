@@ -34,7 +34,16 @@ function global:ch {
         . $PROFILE
     }
 }
-function global:chd { chezmoi cd @args }
+# Plain Set-Location, NOT `chezmoi cd` — that's chezmoi's own subcommand, a
+# separate process that can't change ITS PARENT shell's directory (no
+# process can), so it launches a whole new nested shell instead (the
+# cd.command: pwsh setting in .chezmoi.yaml.tmpl only fixes WHICH shell it
+# nests into, not the nesting itself). Repeated `chd` without remembering
+# to exit each one stacks up nested shells (confirmed live 2026-08-20).
+# `chezmoi source-path` is a plain query (just prints the path), so
+# Set-Location-ing to its output in the current session avoids nesting
+# entirely.
+function global:chd { Set-Location (chezmoi source-path) }
 
 # Shell config directory shortcut — same alias name as bash/zsh/fish's `brc`,
 # points at PowerShell's own dotfiles fragment directory (user's explicit

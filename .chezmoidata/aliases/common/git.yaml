@@ -16,6 +16,14 @@ aliases:
         - name: gcam
           command: git commit -am
           description: Commit all tracked changes with message (does not stage new untracked files, unlike git add .)
+        - name: gcms
+          # `-s` (signoff) before `-m`, not after — `-m` always consumes the
+          # very next token as the message, so a trailing `@args`-appended
+          # `-s` (e.g. typing `gcm -s "msg"`) would be swallowed as the
+          # message text instead of being read as a flag. Baking `-s` in
+          # before `-m` avoids that trap entirely.
+          command: git commit -s -m
+          description: Commit with message, signed off (-s / Signed-off-by trailer)
         - name: gp
           command: git push
           description: Push
