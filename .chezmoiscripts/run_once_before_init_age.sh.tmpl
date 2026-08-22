@@ -70,8 +70,22 @@ if [ ! -f "${age_key_file}" ]; then
     # lab VM in seconds until manually killed, same class of bug as the earlier
     # PowerShell `ping` self-recursion finding). Fail fast with a clear message
     # instead of silently maxing out a CPU core.
+    #
+    # Confirmed live 2026-08-22: stdin(0) is NOT a tty even in a genuinely
+    # interactive SSH session, because the whole bootstrap.sh was invoked as
+    # `curl ... | sh -s -- ...` — stdin of the resulting `sh` process (and
+    # everything it execs, including chezmoi and this nested script) is the
+    # curl pipe, not the terminal, regardless of the outer session. `/dev/tty`
+    # is unaffected by this — it always refers to the process's actual
+    # controlling terminal, independent of what's plumbed into fd 0 — so
+    # reattach to it first when stdin isn't already a tty; only fail if that
+    # ALSO doesn't exist (a genuinely non-interactive context with no
+    # controlling terminal at all, e.g. real CI/cron).
+    if [ ! -t 0 ] && [ -r /dev/tty ]; then
+        exec < /dev/tty
+    fi
     if [ ! -t 0 ]; then
-        error "No controlling terminal available to prompt for the ${profile} Age passphrase (stdin is not a tty). Run this interactively, e.g. via a real SSH session, not a non-interactive exec/automation context."
+        error "No controlling terminal available to prompt for the ${profile} Age passphrase (stdin is not a tty, and /dev/tty is unavailable). Run this interactively, e.g. via a real SSH session, not a non-interactive exec/automation context."
     fi
     log_info "Paste the ${profile} Age passphrase from your password manager when prompted."
     attempt=0
