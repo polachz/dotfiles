@@ -314,14 +314,23 @@ fi
 
 # ───── Install chezmoi ───────────────────────────────────────────────────────
 
-chezmoi_github_url=""
+# Always set, regardless of whether chezmoi itself needs installing — see the
+# `chezmoi init` invocation below for why. Confirmed live 2026-08-22: this
+# used to be set ONLY in the "chezmoi needs installing" branch, so a re-run
+# on a machine where chezmoi was already present (e.g. retrying after an
+# earlier failed attempt, or an empty ~/.local/share/chezmoi left over from
+# one) passed no repo URL at all to `chezmoi init` — which, per chezmoi's own
+# docs, just does a bare `git init` with nothing to clone when no URL is
+# given. Exits 0, looks like success, but leaves an empty .git dir and no
+# config — confirmed live on a fresh Fedora VM (`bootstrap.sh --apply` after
+# chezmoi was already installed did exactly this, silently).
+chezmoi_github_url="https://github.com/${GITHUB_USERNAME}/dotfiles.git"
 
 if command -v "chezmoi" > /dev/null 2>&1; then
     log_info "Chezmoi already installed. Dry run will be provided."
     CHZ_BOOTSTRAP_DRY_RUN="1"
     chezmoi="chezmoi"
 else
-    chezmoi_github_url="https://github.com/${GITHUB_USERNAME}/dotfiles.git"
     if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
         log_task "Installing Chezmoi via Homebrew..."
         HOMEBREW_NO_ASK=1 brew install chezmoi
@@ -419,17 +428,27 @@ fi
 
 set -- init
 
+# --branch and the repo URL used to be appended ONLY in the "neither force-
+# apply nor dry-run" fallback branch below — confirmed live 2026-08-22 this
+# made `--apply`/`-a` (and plain CHZ_BOOTSTRAP_DRY_RUN) run a bare
+# `chezmoi init --apply` with NO repo url at all, silently doing nothing
+# (see chezmoi_github_url's own comment above). Both need it just as much as
+# the default path, so it's unconditional now, computed once before the
+# apply/dry-run mode branch.
+if [ -n "${CHZ_BOOTSTRAP_BRANCH-}" ]; then
+    log_info "Using branch: ${CHZ_BOOTSTRAP_BRANCH}"
+    set -- "$@" --branch "${CHZ_BOOTSTRAP_BRANCH}"
+fi
+
 if [ -n "${bootstrap_force_apply-}" ]; then
     set -- "$@" --apply
 elif [ -n "${CHZ_BOOTSTRAP_DRY_RUN-}" ]; then
     set -- "$@" --dry-run
 else
-    if [ -n "${CHZ_BOOTSTRAP_BRANCH-}" ]; then
-        log_info "Using branch: ${CHZ_BOOTSTRAP_BRANCH}"
-        set -- "$@" --branch "${CHZ_BOOTSTRAP_BRANCH}"
-    fi
-    set -- "$@" --apply "${chezmoi_github_url}"
+    set -- "$@" --apply
 fi
+
+set -- "$@" "${chezmoi_github_url}"
 
 if [ -n "${bootstrap_chezmoi_debug-}" ]; then
     set -- "$@" --debug
