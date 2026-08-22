@@ -111,7 +111,7 @@ EJSON_PUB=$(grep '"_public_key"' "${EVAULT}" | sed 's/.*"_public_key": *"\([^"]*
 # testing: "bad substitution").
 PROFILE_UPPER=$(echo "${PROFILE}" | tr '[:lower:]' '[:upper:]')
 if [ -z "${EJSON_PUB}" ] || [ "${EJSON_PUB}" = "REPLACE_WITH_${PROFILE_UPPER}_EJSON_PUBLIC_KEY" ]; then
-    error "Evault has no real _public_key — run ENCRYPTION_SETUP.md first"
+    error "Evault has no real _public_key — run docs/ENCRYPTION_SETUP.md first"
 fi
 
 KEY_DIR="${HOME}/.config/chezmoi/keys"

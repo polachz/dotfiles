@@ -6,12 +6,33 @@ physically cannot decrypt work secrets, and vice versa. One data model drives
 **three shells** (bash, zsh, fish) plus terminal (Ghostty) and prompt
 (Oh My Posh) configuration.
 
-`bootstrap.sh` is a self-contained installer — needs only `curl` or `wget`,
-downloads chezmoi automatically, and walks you through profile selection.
+## Documentation
 
-See [`CONCEPT_ROADMAP.md`](./CONCEPT_ROADMAP.md) for the full design
-rationale, every empirically-verified gotcha, and what's still not built.
-This README covers day-one usage.
+| Doc | Read this when... |
+|---|---|
+| This file | First-time setup, what gets installed, day-to-day quick reference |
+| [`docs/DAILY_WORKFLOW.md`](docs/DAILY_WORKFLOW.md) | Doing anything day-to-day: changing a file, adding an alias, syncing machines, recovering from a broken state |
+| [`docs/ALIASES.md`](docs/ALIASES.md) | Looking up (or adding) an alias, environment variable, or shell function |
+| [`docs/ENCRYPTION_SETUP.md`](docs/ENCRYPTION_SETUP.md) | Setting up encryption on a new profile, or rotating/recovering keys |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | You need the "why" behind a design decision |
+
+## Quick start — bootstrap
+
+**macOS / Linux** (needs only `curl` or `wget` — downloads chezmoi
+automatically and walks you through profile selection):
+
+```bash
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/polachz/dotfiles/main/bootstrap.sh)"
+```
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/polachz/dotfiles/main/bootstrap.ps1 | iex
+```
+
+See "Installation" below for prerequisites, profile/role/GUI flags, and
+Windows-specific notes.
 
 ---
 
@@ -21,7 +42,7 @@ This README covers day-one usage.
 |---|---|
 | macOS (Apple Silicon) | Primary — real work-profile machine |
 | Fedora / RHEL (dnf) | Primary |
-| Debian / Ubuntu (apt) | Partial (see [`CONCEPT_ROADMAP.md`](./CONCEPT_ROADMAP.md) §2.1 for a known `~/.bashrc.d` auto-sourcing gap, self-healed) |
+| Debian / Ubuntu (apt) | Partial (see [`docs/ARCHITECTURE.md` § Never-own-rc-files](docs/ARCHITECTURE.md#4-never-own-rc-files) for a known `~/.bashrc.d` auto-sourcing gap, self-healed) |
 | WSL2 (Windows Subsystem for Linux) | Supported (includes Windows SSH agent relay) |
 | Native Windows / PowerShell | Supported via `bootstrap.ps1`, except git identity (see below — no EJSON binary for Windows yet) |
 
@@ -129,7 +150,7 @@ EJSON support is built (tracked in [`CONCEPT_ROADMAP.md`](./CONCEPT_ROADMAP.md))
 | Axis | Values | Meaning |
 |---|---|---|
 | **Profile** | `personal` / `work` | Identity — separate Age/EJSON keys, separate secrets, separate git/SSH identity. Cryptographically isolated. |
-| **Role** | `workstation` / `server` | Orthogonal to profile — same identity/keys, different package selection. Every tool in `.chezmoidata/packages.yaml` declares which role(s) it installs on (default: both) — see `CONCEPT_ROADMAP.md` §7. |
+| **Role** | `workstation` / `server` | Orthogonal to profile — same identity/keys, different package selection. Every tool in `.chezmoidata/packages.yaml` declares which role(s) it installs on (default: both) — see [`docs/ARCHITECTURE.md` § Package/tool installation model](docs/ARCHITECTURE.md#10-packagetool-installation-model). |
 | **has_gui** | `true` / `false` | Orthogonal to role — a workstation can be headless. Gates GUI-only config/packages — Ghostty in `.chezmoiignore.tmpl`, plus any package with `requires_gui: true` (Bitwarden, Windows Terminal, Total Commander). Shell-level config (aliases, env, prompt, Oh My Posh) deploys regardless. |
 
 Each profile has:
@@ -292,8 +313,9 @@ override.
   as Ghostty above) without ever touching the user's real, MSIX-packaged,
   JSONC `settings.json`. Purely additive (own fixed GUID, never an
   `"updates"` reference) — no conflict with existing profiles possible.
-  Setting it as the default profile is out of scope (see CONCEPT_ROADMAP.md
-  §7) — pick it manually from the profile dropdown.
+  Setting it as the default profile is out of scope (see
+  [`docs/ARCHITECTURE.md` § Terminal, prompt, and editor](docs/ARCHITECTURE.md#9-terminal-prompt-and-editor))
+  — pick it manually from the profile dropdown.
 
 ### SSH config (`~/.ssh/conf.d/`)
 
@@ -322,7 +344,8 @@ directly into `$HOME\.ssh\config` instead, inside a managed
 | `{personal,work}/common.gitconfig.tmpl` | per-profile | `[user]` name/email (fallback identity) — **sourced from the profile's EJSON evault** (`git.user`/`git.email`), not plaintext |
 | `{personal,work}/hosts/github.gitconfig.tmpl` | per-profile | Per-host override for GitHub remotes (`includeIf hasconfig:remote.*.url:...`) — `[user] email` from the evault's `git.github_email` (GitHub "keep my email private" noreply address) |
 
-**First real use of the evault-secret-injection mechanism** (CONCEPT_ROADMAP.md §4.2) — these
+**First real use of the evault-secret-injection mechanism** (see
+[`docs/ARCHITECTURE.md` § Git configuration](docs/ARCHITECTURE.md#5-git-configuration)) — these
 four files are `.tmpl` and call `.chezmoitemplates/evault-field`, which shells out to `ejson
 decrypt` at apply-time. This means **git identity now requires an already-unlocked EJSON key**
 for that profile (`run_once_before_init_age.sh.tmpl` sets this up, runs before file application
@@ -358,10 +381,11 @@ per-manager (`dnf`/`apt`/`brew`/`winget`) name overrides, a `roles` filter
 optional `copr` (dnf) install step. `dnf`/`apt`/`brew` default to the tool's
 `name` when omitted; `winget` always needs an explicit ID (string or a map
 for extra flags like `installer_type`/`scope`); `skip` means that manager
-doesn't have it — see `CONCEPT_ROADMAP.md` §7 for the full field reference.
-Installed via `run_onchange_install-packages.sh.tmpl` (dnf/apt/brew, bash) or
-`run_onchange_install-packages.ps1.tmpl` (winget, PowerShell — bash has no
-default interpreter on Windows, see §7).
+doesn't have it — see [`docs/ARCHITECTURE.md` § Package/tool installation
+model](docs/ARCHITECTURE.md#10-packagetool-installation-model) for the full
+field reference. Installed via `run_onchange_install-packages.sh.tmpl`
+(dnf/apt/brew, bash) or `run_onchange_install-packages.ps1.tmpl` (winget,
+PowerShell — bash has no default interpreter on Windows, see that section).
 
 - **Common** (workstation only): `git`
 - **Workstation tools**: `oh-my-posh` (dnf/brew/winget — no default apt repo
@@ -414,17 +438,15 @@ chezmoi update
 
 Alias/env changes are **data-only** — edit the YAML in
 `.chezmoidata/{aliases,env}/` directly, or use `edit-aliases-core
-aliases/common/<file>.yaml` (validates + regenerates `ALIASES.md`
-automatically — see `CONCEPT_ROADMAP.md` §3.5), then `chezmoi apply`/
-`chezmoi update`.
+aliases/common/<file>.yaml` (validates + regenerates `docs/ALIASES.md`
+automatically), then `chezmoi apply`/`chezmoi update`.
 
 For the complete, theme-grouped list of every alias, environment variable,
-and function — universal and personal — see [`ALIASES.md`](./ALIASES.md).
+and function — universal and personal — see [`docs/ALIASES.md`](docs/ALIASES.md).
 
 For comprehensive operator guidance — daily workflow scenarios, edge
-cases, recovery patterns, the two-repo (dev vs. managed source) mental
-model, and security risks specific to the commit/push flow — see
-[`DAILY_WORKFLOW.md`](./DAILY_WORKFLOW.md).
+cases, recovery patterns, the repo model, and security risks specific to the
+commit/push flow — see [`docs/DAILY_WORKFLOW.md`](docs/DAILY_WORKFLOW.md).
 
 ---
 
@@ -464,12 +486,11 @@ starting from a single prerequisite — the Age passphrase file:
 Everything after the first step is handled automatically by
 `run_once_before_init_age.sh.tmpl` during `chezmoi apply`.
 
-**Not yet wired up**: no template actually pulls a value out of the evault
-yet via `ejsonValue`/`output "ejson" "decrypt"` — the unlock chain above
-works end-to-end, but the env-variable secret-injection consumer
-(`CONCEPT_ROADMAP.md` §4.2) hasn't been built. `git.user`/`git.email` today
-come from a plain, unencrypted fragment (`~/.config/git/work/common.gitconfig`),
-not the evault.
+**Partially wired up**: git identity (`git.user`/`git.email`/`git.github_email`,
+see "Git config" above) is the first real consumer, pulling values out of the
+evault via `.chezmoitemplates/evault-field` at apply time. The equivalent
+mechanism for plain environment variables (`secret: true`/`evault_key`
+fields in `.chezmoidata/env/`) is designed but not implemented yet.
 
 ### Encrypted files in the repo
 
@@ -540,7 +561,7 @@ mv evault_dec secrets/<profile>/evault
 
 ### Generating new keys for a profile (clean slate)
 
-See [`ENCRYPTION_SETUP.md`](./ENCRYPTION_SETUP.md) for the full step-by-step
+See [`docs/ENCRYPTION_SETUP.md`](docs/ENCRYPTION_SETUP.md) for the full step-by-step
 guide — covers key generation for a fresh profile, encryption of the Age +
 EJSON chain, populating the evault, and a verification script that
 exercises the entire decrypt chain end-to-end (including cross-profile
@@ -552,7 +573,7 @@ The chain has three independent layers and each can be rotated
 separately. The evault content only depends on the EJSON key — rotating
 the passphrase or just the Age key pair does **not** require re-sealing
 the evault. See
-[`ENCRYPTION_SETUP.md` → Rotating keys](./ENCRYPTION_SETUP.md#rotating-keys)
+[`docs/ENCRYPTION_SETUP.md` → Rotating keys](docs/ENCRYPTION_SETUP.md#rotating-keys)
 for the scenario table and the four flows (A: passphrase only, B: Age
 key only, C: EJSON key with evault re-seal, D: full re-key).
 
@@ -562,7 +583,12 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 
 ```
 .
-├── CONCEPT_ROADMAP.md               # Authoritative design doc — read this for the "why"
+├── docs/
+│   ├── ARCHITECTURE.md              # Design rationale — read this for the "why"
+│   ├── DAILY_WORKFLOW.md            # Operator runbook — day-to-day scenarios, recovery
+│   ├── ENCRYPTION_SETUP.md          # Key generation, verification, rotation
+│   └── ALIASES.md                   # Generated alias/env/function reference
+├── CONCEPT_ROADMAP.md               # Working notes for the ongoing rework — not final documentation
 ├── bootstrap.sh                     # Self-contained installer (curl/wget entry point, macOS/Linux)
 ├── bootstrap.ps1                    # Self-contained installer (Windows, PowerShell)
 ├── .chezmoi.yaml.tmpl               # Chezmoi config template (profile/role/has_gui, crypto vars)

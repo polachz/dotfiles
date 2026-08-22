@@ -1,14 +1,23 @@
 # Dotfiles v2 — implementační plán (chezmoi + Age + EJSON, multi-OS, multi-shell)
 
+> **Status a účel tohoto souboru (přidáno při restrukturalizaci dokumentace):** tohle je
+> **pracovní deník reworku**, ne finální dokumentace — mixuje aktuální design s chronologickým
+> logem nálezů/oprav/korekcí napříč sezeními, a to schválně (viz poznámka pro agenta níže).
+> Trvale platný obsah (architektura, datové modely, rozhodnutí a jejich zdůvodnění) se průběžně
+> destiluje do [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — anglicky, bezdatumově, jen
+> aktuální stav. **Tenhle soubor proto NENÍ součástí uživatelské dokumentace** (není v
+> `README.md`'s dokumentačním rozcestníku) a **zanikne, jakmile bude rework (včetně budoucího
+> apt/Debian-Ubuntu a WSL2 kola) prohlášen za dokončený** — historické položky z průběhu reworku
+> nebudou v tu chvíli k ničemu.
+>
 > **Poznámka pro implementujícího agenta:** tento dokument je navržený jako samostatný a úplný —
 > nepředpokládá žádný přístup k historii konverzace, ve které vznikl, ani k paměti (`memory`)
 > jiného Claude Code účtu/stroje. Pokud pracuješ na jiném stroji/účtu (např. na private profilu,
 > odděleně od work profilu), **měl bys mít tenhle soubor k dispozici přes git** — je commitnutý
-> v tomto repu vedle `README.md`, `ENCRYPTION_SETUP.md`, `DAILY_WORKFLOW.md`, `ALIASES.md`, takže
-> je dostupný odkudkoliv přes `git clone`/`chezmoi update`. Na tomhle konkrétním Macu je repo
-> historicky oddělený klon (`~/Devel/dotfiles`), ne totožný s `chezmoi source-path` — od
-> zjednodušení 2026-08-20 (viz "The repo model" v `DAILY_WORKFLOW.md`) už to ale není povinný
-> vzor, jen jedna z podporovaných variant (viz `DAILY_WORKFLOW.md`'s "Advanced: working from a
+> v tomto repu vedle `README.md` a `docs/{ARCHITECTURE,ENCRYPTION_SETUP,DAILY_WORKFLOW,ALIASES}.md`,
+> takže je dostupný odkudkoliv přes `git clone`/`chezmoi update`. Repo model (jeden repo,
+> `~/.local/share/chezmoi` je přímo to, co edituješ/commitueš) je popsaný v `docs/DAILY_WORKFLOW.md`
+> — samostatný dev klon je podporovaná, ne povinná varianta (viz jeho "Advanced: working from a
 > separate clone").
 
 ## Kontext

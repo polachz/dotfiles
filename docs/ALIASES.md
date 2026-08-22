@@ -1,6 +1,8 @@
 # Aliases, environment variables & functions reference
 
-**Partially auto-generated** (`CONCEPT_ROADMAP.md` §3.4). The blocks between
+**Partially auto-generated** (see [`ARCHITECTURE.md` § Alias & environment
+variable data model](./ARCHITECTURE.md#7-alias--environment-variable-data-model)).
+The blocks between
 `<!-- GENERATED:... -->` markers are generated straight from
 `.chezmoidata/aliases/` and `.chezmoidata/env/` — regenerate with
 `edit-aliases-core` (no args = regen-only mode; give it a YAML file path to
@@ -16,7 +18,7 @@ is still hand-maintained.
 
 Aliases and env vars are defined once in YAML and rendered per-shell
 (bash, zsh, fish) at `chezmoi apply` time — see
-[`README.md` → Shells: shared data, per-shell rendering](./README.md#shells-shared-data-per-shell-rendering).
+[`../README.md` → Shells: shared data, per-shell rendering](../README.md#shells-shared-data-per-shell-rendering).
 `kind: abbr` (fish default) expands visibly on space keypress; bash/zsh have
 no `abbr` equivalent, so every entry renders as a plain `alias` there
 regardless of `kind`.
@@ -159,7 +161,8 @@ native history mechanism): `HISTSIZE`, `HISTFILESIZE`, `HISTCONTROL`,
 
 ## Shared interactive functions (`dot_bashrc.d/80-functions-common.sh`)
 
-Sourced by both bash and zsh (see `CONCEPT_ROADMAP.md` §3.8.1 for the 3-tier
+Sourced by both bash and zsh (see [`ARCHITECTURE.md` § Shared function/script
+library](./ARCHITECTURE.md#8-shared-functionscript-library--three-layers) for the 3-tier
 library model and why `export -f` — used by the old, now-removed functions
 below — is broken in zsh). `mkcd` is also implemented separately for fish
 (`dot_config/fish/functions/mkcd.fish`) and PowerShell

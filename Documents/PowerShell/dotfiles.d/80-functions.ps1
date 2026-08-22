@@ -271,7 +271,7 @@ function global:edit-evault {
     $ejsonPub = (Get-Content $evault -Raw | ConvertFrom-Json)._public_key
     $profileUpper = $DotfilesProfile.ToUpper()
     if (-not $ejsonPub -or $ejsonPub -eq "REPLACE_WITH_${profileUpper}_EJSON_PUBLIC_KEY") {
-        Write-Host "Evault has no real _public_key — run ENCRYPTION_SETUP.md first" -ForegroundColor Red
+        Write-Host "Evault has no real _public_key — run docs/ENCRYPTION_SETUP.md first" -ForegroundColor Red
         return
     }
 

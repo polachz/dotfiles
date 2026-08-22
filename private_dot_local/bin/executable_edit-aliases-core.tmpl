@@ -89,7 +89,7 @@ fi
 [ -f "${REPO}/.chezmoi.yaml.tmpl" ] || error "Not a dotfiles repo (missing .chezmoi.yaml.tmpl): ${REPO}"
 [ -d "${REPO}/.git" ] || log_warn "Repo path has no .git/ — sure this is the right repo? Continuing anyway."
 
-ALIASES_MD="${REPO}/ALIASES.md"
+ALIASES_MD="${REPO}/docs/ALIASES.md"
 [ -f "${ALIASES_MD}" ] || error "ALIASES.md not found at ${ALIASES_MD}"
 
 for marker in aliases-doc-aliases aliases-doc-env; do
@@ -171,9 +171,9 @@ log_ok "ALIASES.md regenerated."
 log_info "Next steps:"
 log_info "  cd ${REPO}"
 if [ -n "${YAML_PATH}" ]; then
-    log_info "  git add .chezmoidata/${YAML_PATH} ALIASES.md && git commit -m 'aliases: update ${YAML_PATH}'"
+    log_info "  git add .chezmoidata/${YAML_PATH} docs/ALIASES.md && git commit -m 'aliases: update ${YAML_PATH}'"
 else
-    log_info "  git add ALIASES.md && git commit -m 'aliases: regenerate ALIASES.md'"
+    log_info "  git add docs/ALIASES.md && git commit -m 'aliases: regenerate ALIASES.md'"
 fi
 log_info "  git push"
 log_info "  # On other machines: chezmoi update  (pulls + applies)"

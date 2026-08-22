@@ -6,9 +6,10 @@ patterns.
 
 For first-time setup or key chain generation, see
 [`ENCRYPTION_SETUP.md`](./ENCRYPTION_SETUP.md). For the README overview,
-see [`README.md`](./README.md).
+see [`../README.md`](../README.md). For the design rationale behind these
+mechanisms, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
-## The repo model (simplified 2026-08-20 — was "two-repo")
+## The repo model
 
 This repo lives on disk in **two roles**, and confusing them is the source
 of most workflow bugs:
@@ -22,20 +23,11 @@ Golden rule: **edit in the source repo (`chd` to get there), push to
 GitHub, `chezmoi update` on each machine.** Editing the rendered HOME files
 directly short-circuits the flow and leads to silent drift.
 
-**History — why this used to be "two repos" (`~/Devel/dotfiles/` as a
-separate dev clone, distinct from `~/.local/share/chezmoi/`):** the
-original concern was that a `chezmoi init -Reinit`/`purge` could destroy
-uncommitted work sitting in the managed source. In practice that's a rare,
-explicit, deliberate maintenance operation — not something day-to-day
-`chezmoi update`/`apply` triggers — and ordinary `git pull` already refuses
-to silently clobber local changes it can't cleanly merge. Real friction
-this caused outweighed that theoretical margin: every machine needed its
-own second clone just to run `edit-evault`/`edit-aliases-core`, which is
-exactly what surfaced this on a fresh Windows machine and prompted the
-simplification. A separate clone is still supported (`--repo`/
-`$DOTFILES_REPO` for `edit-evault`/`edit-aliases-core`, or just `git clone`
-anywhere and `chezmoi init --apply --source <path>` pointed at it) for
-anyone who wants the extra margin — just not required by default anymore.
+A separate clone (`--repo`/`$DOTFILES_REPO` for `edit-evault`/
+`edit-aliases-core`, or a plain `git clone` plus
+`chezmoi init --apply --source <path>`) is supported for anyone who wants
+extra isolation from `chezmoi init -Reinit`/`purge`, but is not required by
+default — see "Advanced: working from a separate clone" below.
 
 ## Advanced: working from a separate clone
 
@@ -189,16 +181,17 @@ chezmoi add --encrypt ~/.ssh/id_ed25519 # encrypted (Age)
 
 **Do NOT `chezmoi add` a full rc-like file that already has real content**
 (`~/.bashrc`, `~/.zshrc`, `~/.ssh/config`, `~/.gitconfig`) — this repo
-deliberately never lets chezmoi own those outright (see `CONCEPT_ROADMAP.md`
-§2.1/§2.3/§2.4/§3.3 — a full-file `add`/template would silently overwrite
-whatever else lives in them). Their content lives in a dedicated,
+deliberately never lets chezmoi own those outright (see
+[`ARCHITECTURE.md` § Never-own-rc-files](./ARCHITECTURE.md#4-never-own-rc-files) —
+a full-file `add`/template would silently overwrite whatever else lives in
+them). Their content lives in a dedicated,
 chezmoi-owned location instead (`~/.bashrc.d/`, `~/.zshrc.d/`,
 `~/.ssh/conf.d/`, `~/.config/git/`), with a small idempotent
 `run_after_ensure-*` script appending just a sourcing/include line.
 
-`chezmoi add` writes directly into `~/.local/share/chezmoi/` — which, since
-the 2026-08-20 simplification (see "The repo model" above), **is** the repo
-you commit from. Nothing to propagate:
+`chezmoi add` writes directly into `~/.local/share/chezmoi/` — which, per
+"The repo model" above, **is** the repo you commit from. Nothing to
+propagate:
 
 ```bash
 chd
@@ -349,7 +342,7 @@ Treat one machine as "edit primary" by convention.
 
 ### S8. Bootstrap a new machine
 
-See [`README.md`](./README.md#bootstrap-options) for full details. Short
+See [`../README.md`](../README.md#bootstrap-options) for full details. Short
 version:
 
 ```bash
@@ -379,9 +372,9 @@ diff review, so you can't see what's about to land in HOME.
 execute in `--dry-run`, but template rendering does — so template
 errors surface, but side effects of scripts don't.
 
-Since the 2026-08-20 simplification, `chezmoi diff`/`apply` run **directly
-against the repo you edit in** (no separate dev repo to push/pull through
-first) — edit, then just `chezmoi diff`:
+`chezmoi diff`/`apply` run **directly against the repo you edit in** (no
+separate dev repo to push/pull through first) — edit, then just
+`chezmoi diff`:
 
 ```bash
 # Render one template, no writes
@@ -435,8 +428,11 @@ git add -p && git commit -m "aliases: add <name>" && git push
 # Other machines: chezmoi update
 ```
 
-Then update [`ALIASES.md`](./ALIASES.md) by hand — not yet auto-generated
-(`CONCEPT_ROADMAP.md` §3.4).
+[`ALIASES.md`](./ALIASES.md)'s alias/env tables regenerate automatically
+from this YAML (see [`ARCHITECTURE.md` § Alias & environment variable data
+model](./ARCHITECTURE.md#7-alias--environment-variable-data-model)) — run
+`edit-aliases-core` (no args) to regenerate, or just `chezmoi apply` to
+render the alias itself; commit both.
 
 ### S11. Add a new environment variable
 
@@ -460,9 +456,10 @@ only bash/zsh's `$'...'` recognizes `\E`, `printf` (which the fish renderer
 uses) does not.
 
 Secret values pulled from the evault (`secret: true` / `evault_key` fields)
-are designed but **not implemented yet** — see
-[`README.md` → Encryption](./README.md#encryption) and `CONCEPT_ROADMAP.md`
-§4.2.
+are designed but **not implemented yet** for env vars — see
+[`../README.md` → Encryption](../README.md#encryption) and, for the one
+mechanism that does exist today (git identity), [`ARCHITECTURE.md` § Git
+configuration](./ARCHITECTURE.md#5-git-configuration).
 
 ### S12. Add a new managed config file
 
@@ -489,9 +486,10 @@ other tools might also write to** (`.bashrc`, `.zshrc`, `.gitconfig`,
 `.ssh/config`, and by extension anything similar you add later): **never**
 let chezmoi own the whole file — use the `run_after_ensure-*-sourcing.sh.tmpl`
 idempotent-append pattern (S13) instead of a static/templated full-file
-replacement. This is not a style preference — see `CONCEPT_ROADMAP.md`
-§2.1/§3.3 for the real incident (a full-file `~/.zshrc` template would have
-silently destroyed genuinely load-bearing content already on the machine).
+replacement. This is not a style preference — see [`ARCHITECTURE.md` §
+Never-own-rc-files](./ARCHITECTURE.md#4-never-own-rc-files): a full-file
+template would silently destroy genuinely load-bearing content already on
+the machine.
 
 ### S13. The common/personal/work split, and include composition — reference
 
@@ -520,23 +518,23 @@ file. A `run_after_ensure-*` script — idempotent, checks with `grep`,
 appends only if missing — adds ONE small block (a `source`/`Include`/
 `[include]` line) to the real file. Everything else lives in a dedicated,
 fully chezmoi-owned subdirectory (`~/.bashrc.d/`, `~/.zshrc.d/`,
-`~/.ssh/conf.d/`, `~/.config/git/`). See `CONCEPT_ROADMAP.md`
-§2.1/§2.3/§2.4/§3.3 for the specific incidents that established this rule,
-and for the git/SSH-specific `includeIf`/`Include`-inside-a-non-matching-block
+`~/.ssh/conf.d/`, `~/.config/git/`). See [`ARCHITECTURE.md` §§ Never-own-rc-files,
+Git configuration, SSH configuration](./ARCHITECTURE.md#4-never-own-rc-files)
+for the git/SSH-specific `includeIf`/`Include`-inside-a-non-matching-block
 gotchas that made even the append scripts themselves non-trivial.
 
 **4. Beyond profile — role and has_gui, and what's actually wired up today.**
 Three independent facts are resolved at `chezmoi init` time and available in
 every template as `.deployment.profile` / `.deployment.role` /
-`.deployment.has_gui` (see `README.md` → Profiles, role, and GUI). **All
-three now gate something on disk** (as of the `CONCEPT_ROADMAP.md` §7
-packages-model rework, 2026-08-07):
+`.deployment.has_gui` (see [`../README.md` → Profiles, role, and
+GUI](../README.md#profiles-role-and-gui---three-independent-axes)). **All
+three gate something on disk:**
 
 | Fact | Consumed where today | Granularity |
 |---|---|---|
 | `profile` (personal/work) | Everywhere — see the scope-split table above | Full: shell config, secrets, git, SSH, Ghostty |
 | `has_gui` (true/false) | The Ghostty block in `.chezmoiignore.tmpl`, and the `requires_gui` filter in `.chezmoidata/packages.yaml` (via `run_onchange_install-packages.sh.tmpl`/`.ps1.tmpl`) | GUI-only tools (Ghostty, Bitwarden, Windows Terminal, Total Commander) skip on headless machines |
-| `role` (workstation/server) | The `roles` filter in `.chezmoidata/packages.yaml` — every tool entry declares which role(s) it installs on (default: both) | First real consumer — see `CONCEPT_ROADMAP.md` §7 |
+| `role` (workstation/server) | The `roles` filter in `.chezmoidata/packages.yaml` — every tool entry declares which role(s) it installs on (default: both) | See [`ARCHITECTURE.md` § Package/tool installation model](./ARCHITECTURE.md#10-packagetool-installation-model) |
 
 **Recipe for adding role-based (or any other new-fact-based) granularity**,
 following the exact pattern already used for `has_gui`/Ghostty — add a
