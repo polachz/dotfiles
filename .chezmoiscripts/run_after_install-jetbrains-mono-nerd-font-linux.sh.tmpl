@@ -1,0 +1,86 @@
+{{- if and (eq .chezmoi.os "linux") (eq .deployment.role "workstation") .deployment.has_gui -}}
+#!/usr/bin/env bash
+# Installs JetBrainsMono Nerd Font per-user on Linux, straight from the
+# upstream ryanoasis/nerd-fonts GitHub release — no dnf/apt package exists
+# yet (see packages.yaml's `jetbrains-mono-nerd-font` entry, dnf/apt: skip).
+# Runs on every apply (plain `run_after_` prefix), no-ops once the installed
+# version matches the latest available. Linux counterpart of
+# run_after_install-jetbrains-mono-nerd-font-windows.ps1.tmpl.
+#
+# Uses the PLAIN "JetBrainsMonoNerdFont-*.ttf" variant, NOT the "...Mono"
+# variant the Windows script needs — matching dot_config/private_ghostty/
+# common.conf.tmpl's `font-family = "JetBrainsMono Nerd Font"` (already used
+# on macOS via the brew cask). Windows Terminal specifically filters its
+# font picker on the isFixedPitch OS/2 flag (the plain variant has it unset,
+# see the Windows script's comment for the full story) — fontconfig/Ghostty
+# on Linux don't do that filtering, so the plain variant renders correctly
+# here, confirmed live 2026-08-22 on a real XFCE session.
+#
+# Per-user (~/.local/share/fonts, XDG standard, auto-discovered by
+# fontconfig) — no root needed, unlike a dnf-packaged font would be.
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+fonts_dir="${HOME}/.local/share/fonts"
+state_dir="${HOME}/.local/share/dotfiles"
+version_file="${state_dir}/jetbrains-mono-nerd-font.version"
+
+mkdir -p "${fonts_dir}" "${state_dir}"
+
+# GitHub's unauthenticated API rate limit (60/hour per source IP) is a real
+# risk here, confirmed live 2026-08-19 during heavy same-day testing on the
+# Windows counterpart — this tool is optional, so a transient network/
+# rate-limit failure skips it with a clear warning (retried next apply)
+# instead of aborting the WHOLE chezmoi apply, matching the pattern
+# run_after_install-bitwarden-desktop-linux.sh.tmpl already uses.
+latest_tag=$(curl -fsSL https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest 2>/dev/null \
+    | grep -o '"tag_name": *"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')
+if [ -z "${latest_tag}" ]; then
+    log_yellow "SKIP: could not resolve latest JetBrainsMono Nerd Font release — will retry next apply"
+    exit 0
+fi
+
+installed_version=""
+if [ -f "${version_file}" ]; then
+    installed_version=$(cat "${version_file}")
+fi
+
+if [ "${installed_version}" = "${latest_tag}" ]; then
+    log_task "JetBrainsMono Nerd Font already up to date (${latest_tag})"
+    exit 0
+fi
+
+log_task "Installing JetBrainsMono Nerd Font ${latest_tag}"
+
+zip_url="https://github.com/ryanoasis/nerd-fonts/releases/download/${latest_tag}/JetBrainsMono.zip"
+tmp_zip="$(mktemp -t dotfiles-jetbrains-mono-nerd-font.XXXXXX.zip)"
+extract_dir="$(mktemp -d -t dotfiles-jetbrains-mono-nerd-font-extract.XXXXXX)"
+trap 'rm -f "${tmp_zip}"; rm -rf "${extract_dir}"' EXIT
+
+curl -fsSL -o "${tmp_zip}" "${zip_url}"
+unzip -oq "${tmp_zip}" -d "${extract_dir}"
+
+# Only the plain "JetBrainsMonoNerdFont-<Style>.ttf" variant — excludes
+# "...Propo-*" (not monospace) and "JetBrainsMonoNLNerdFont-*" (no-ligatures
+# variant), same exclusion logic as the Windows script's "...Mono-*" filter.
+font_count=0
+for f in "${extract_dir}"/JetBrainsMonoNerdFont-*.ttf; do
+    [ -f "${f}" ] || continue
+    cp -f "${f}" "${fonts_dir}/"
+    font_count=$((font_count + 1))
+done
+
+if [ "${font_count}" -eq 0 ]; then
+    log_yellow "SKIP: no matching JetBrainsMonoNerdFont-*.ttf files found in ${zip_url} — archive layout may have changed, check manually"
+    exit 0
+fi
+
+fc-cache -f "${fonts_dir}" >/dev/null 2>&1
+
+echo "${latest_tag}" > "${version_file}"
+
+log_task "JetBrainsMono Nerd Font ${latest_tag} installed (${font_count} files, per-user, no root)"
+{{- end -}}

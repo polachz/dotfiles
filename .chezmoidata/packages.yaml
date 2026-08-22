@@ -65,8 +65,14 @@ packages:
     - name: jetbrains-mono-nerd-font
       roles: [workstation]
       requires_gui: true
-      dnf: skip # not verified yet — needs per-distro nerd-fonts packaging check
-      apt: skip # not verified yet — needs per-distro nerd-fonts packaging check
+      # dnf/apt: skip — no per-distro nerd-fonts packaging exists (checked live
+      # 2026-08-22). Installed instead by
+      # run_after_install-jetbrains-mono-nerd-font-linux.sh.tmpl, straight
+      # from the upstream ryanoasis/nerd-fonts GitHub release, per-user, no
+      # root needed — see that file for the full rationale (mirrors the
+      # Windows script's approach, minus the registry/isFixedPitch dance).
+      dnf: skip
+      apt: skip
       brew: font-jetbrains-mono-nerd-font # cask, brew auto-detects (verified live 2026-08-14)
       # winget: skip — DEVCOM.JetBrainsMonoNerdFont's manifest is a WiX MSI with NO
       # per-user Scope option at all (confirmed live 2026-08-19), so it always requires
