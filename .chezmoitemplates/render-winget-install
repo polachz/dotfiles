@@ -1,0 +1,35 @@
+{{- /* Renders a full `winget install ...` command line for one packages.yaml tool entry */ -}}
+{{- /* (see CONCEPT_ROADMAP.md §7). Expects the tool entry dict itself as input (needs .name and */ -}}
+{{- /* optionally .winget, either a bare ID string or a map with "id" plus any of the optional */ -}}
+{{- /* fields below). Returns the literal "skip" if .winget is absent or "skip", otherwise the */ -}}
+{{- /* full winget invocation with global unattended flags always included. */ -}}
+{{- $entry := . -}}
+{{- if not (hasKey $entry "winget") -}}
+skip
+{{- else if and (not (kindIs "map" $entry.winget)) (eq $entry.winget "skip") -}}
+skip
+{{- else -}}
+  {{- $w := $entry.winget -}}
+  {{- $isMap := kindIs "map" $w -}}
+  {{- $id := $w -}}
+  {{- $source := "winget" -}}
+  {{- $extra := "" -}}
+  {{- if $isMap -}}
+    {{- $id = $w.id -}}
+    {{- if hasKey $w "source" }}{{ $source = $w.source }}{{ end -}}
+    {{- if hasKey $w "version" }}{{ $extra = printf "%s --version %s" $extra ($w.version | quote) }}{{ end -}}
+    {{- if hasKey $w "scope" }}{{ $extra = printf "%s --scope %s" $extra $w.scope }}{{ end -}}
+    {{- if hasKey $w "architecture" }}{{ $extra = printf "%s --architecture %s" $extra $w.architecture }}{{ end -}}
+    {{- if hasKey $w "installer_type" }}{{ $extra = printf "%s --installer-type %s" $extra $w.installer_type }}{{ end -}}
+    {{- if hasKey $w "locale" }}{{ $extra = printf "%s --locale %s" $extra $w.locale }}{{ end -}}
+    {{- if hasKey $w "location" }}{{ $extra = printf "%s --location %s" $extra ($w.location | quote) }}{{ end -}}
+    {{- if hasKey $w "custom" }}{{ $extra = printf "%s --custom %s" $extra ($w.custom | quote) }}{{ end -}}
+    {{- if hasKey $w "override" }}{{ $extra = printf "%s --override %s" $extra ($w.override | quote) }}{{ end -}}
+    {{- if and (hasKey $w "force") $w.force }}{{ $extra = printf "%s --force" $extra }}{{ end -}}
+    {{- if and (hasKey $w "ignore_security_hash") $w.ignore_security_hash }}{{ $extra = printf "%s --ignore-security-hash" $extra }}{{ end -}}
+    {{- if and (hasKey $w "skip_dependencies") $w.skip_dependencies }}{{ $extra = printf "%s --skip-dependencies" $extra }}{{ end -}}
+    {{- if and (hasKey $w "allow_reboot") $w.allow_reboot }}{{ $extra = printf "%s --allow-reboot" $extra }}{{ end -}}
+    {{- if and (hasKey $w "uninstall_previous") $w.uninstall_previous }}{{ $extra = printf "%s --uninstall-previous" $extra }}{{ end -}}
+  {{- end -}}
+winget install -e --id {{ $id }} --source {{ $source }}{{ $extra }} --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
+{{- end -}}

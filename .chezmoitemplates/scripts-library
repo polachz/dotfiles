@@ -43,12 +43,21 @@ function log_brown() {
   log_color "0;33" "$@"
 }
 
+function log_orange() {
+  log_color "38;5;208" "$@"
+}
+
 function log_task() {
   log_blue "🔃" "$@"
 }
 
 function log_manual_action() {
-  log_red "⚠️" "$@"
+  # 🔴, not ⚠️ — ⚠️ is a narrow base glyph (U+26A0) forced wide via a variation
+  # selector (U+FE0F), which some terminal fonts render inconsistently (glyph
+  # draws wide but the cursor only advances one cell, colliding with the next
+  # character). 🔴 is natively wide, no ambiguity, and pairs visually with
+  # log_info's 🔵 (both circles) while staying distinct from log_warn's 🔶.
+  log_red "🔴" "$@"
 }
 
 function log_c() {
@@ -70,7 +79,22 @@ function log_error() {
 }
 
 function log_info() {
-  log_blue "ℹ️" "$@"
+  # 🔵, not ℹ️ — ℹ️ is a narrow base glyph (U+2139) forced wide via a variation
+  # selector (U+FE0F), which some terminal fonts render inconsistently.
+  log_blue "🔵" "$@"
+}
+
+function log_ok() {
+  # ✅, not ✓ — ✓ (U+2713) is Unicode East Asian Width=Ambiguous, same
+  # inconsistent-rendering class as ℹ️/⚠️ above. ✅ is natively wide.
+  log_green "✅" "$@"
+}
+
+function log_warn() {
+  # 🔶, not ⚠ — ⚠ alone (no variation selector) defaults to narrow presentation
+  # in most fonts anyway, but is still Unicode East Asian Width=Ambiguous, same
+  # class of inconsistency. Orange (not yellow) to match the diamond's color.
+  log_orange "🔶" "$@"
 }
 
 function log_debug_force() {
@@ -118,13 +142,26 @@ function sudo() {
 function is_dnf_package_installed() {
   local package="$1"
 
-  dnf list installed $package > /dev/null 2>&1  
+  # `dnf list installed <pkg>` is NOT reliable here — verified live on Fedora 44/dnf5
+  # 2026-08-07: for a package that is NOT installed but exists in an enabled repo (e.g. a
+  # freshly-COPR-enabled one), dnf5 prints "Available packages" instead of erroring and still
+  # exits 0, so this used to silently report every not-yet-installed-but-available package as
+  # already installed. `rpm -q` queries the local package DB directly, no repo metadata involved.
+  rpm -q "${package}" > /dev/null 2>&1
 }
 
 function is_apt_package_installed() {
   local package="$1"
 
   apt list --quiet --quiet --installed "${package}" 2>/dev/null | grep --quiet .
+}
+
+function is_brew_package_installed() {
+  local package="$1"
+
+  # brew install auto-detects formula vs. cask (verified live), but the list/query
+  # side doesn't: `brew list --versions` only finds formulae, `--cask` only casks.
+  brew list --versions "${package}" > /dev/null 2>&1 || brew list --cask --versions "${package}" > /dev/null 2>&1
 }
 
 function not_during_test() {
@@ -145,14 +182,38 @@ function service_exists() {
   fi
 }
 
-function append_missing_packages_to_list_dnf() {
+function append_missing_packages_to_list() {
+  local manager="$1"
+  shift
   local wanted_packages=("$@")
+
+  # Empty-array-safe under `set -u` — "${arr[@]}" alone would be an unbound
+  # variable reference when wanted_packages has zero elements.
+  if [[ ${#wanted_packages[@]} -eq 0 ]]; then
+    return 0
+  fi
 
   for package in "${wanted_packages[@]}"; do
     # shellcheck disable=SC2310
-    if ! is_dnf_package_installed "${package}"; then
+    if ! "is_${manager}_package_installed" "${package}"; then
       missing_packages+=("${package}")
     fi
   done
 
+}
+
+# Finds the download URL of a specific asset (matched by grep pattern) in a
+# GitHub project's latest release. For the *version number* of the latest
+# release, use the .chezmoitemplates/get-github-latest-verson chezmoi
+# template instead (resolved at apply-time via a redirect, no curl needed) —
+# this function is only for locating a specific downloadable asset, e.g. for
+# a GitHub-release package-manager fallback (see CONCEPT_ROADMAP.md §7).
+function github_release_asset_url() {
+  local user_and_repo="$1"
+  local grep_search_pattern="$2"
+
+  curl -s "https://api.github.com/repos/${user_and_repo}/releases/latest" \
+    | grep "browser_download_url.*${grep_search_pattern}" \
+    | cut -d : -f 2,3 \
+    | tr -d '"'
 }

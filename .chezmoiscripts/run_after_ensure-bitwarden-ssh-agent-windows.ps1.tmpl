@@ -1,0 +1,43 @@
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
+# Disables the Windows built-in ssh-agent service so Bitwarden's SSH agent
+# (packages.yaml's `bitwarden` — roles: [workstation], requires_gui, same
+# condition gating this whole script) can actually claim its named pipe.
+# Runs on every apply (plain `run_` prefix), idempotent. Mirrors
+# dot_bashrc.d/10-bitwarden-ssh-agent.sh's intent for Linux/macOS, but
+# Windows needs a real service change, not just an env var.
+#
+# The other half of this fix — pointing git at the native Windows OpenSSH
+# client instead of Git for Windows' bundled MSYS ssh.exe, which can't talk
+# to that named pipe at all — lives in
+# dot_config/private_git/common.gitconfig.tmpl instead: it's plain gitconfig
+# CONTENT (a `[core] sshCommand` value), so it belongs in the fragment tree
+# like every other git setting in this repo, not as a `git config` call
+# poked directly into the real ~/.gitconfig from a script (moved there
+# 2026-08-20, was originally here).
+
+# WHY disabling the built-in ssh-agent service: it claims the same named
+# pipe Bitwarden's SSH agent needs (confirmed via bitwarden.com/help/
+# ssh-agent) — whichever one grabs the pipe first wins, and the built-in
+# one starts empty (no keys) and stays that way unless something
+# explicitly ssh-add's to it. Disabling a Windows SERVICE needs elevation —
+# a genuine Standard User can't do this (SERVICE_CHANGE_CONFIG isn't a
+# Standard User privilege), and unlike totalcmd/7zip there's no portable
+# no-elevation workaround for a service — so this only runs on the
+# can-elevate branch; the other branch just tells the user what to do
+# manually (see .deployment.can_elevate's own doc comment in
+# .chezmoi.yaml.tmpl for how that fact is computed).
+{{- if .deployment.can_elevate }}
+$sshAgentSvc = Get-Service -Name ssh-agent -ErrorAction SilentlyContinue
+if (-not $sshAgentSvc) {
+    Write-Host "OK: no built-in ssh-agent service found (OpenSSH Client feature not installed) - nothing to disable" -ForegroundColor Green
+} elseif ($sshAgentSvc.StartType -eq "Disabled") {
+    Write-Host "OK: Windows built-in ssh-agent service already disabled" -ForegroundColor Green
+} else {
+    Stop-Service -Name ssh-agent -Force -ErrorAction SilentlyContinue
+    Set-Service -Name ssh-agent -StartupType Disabled
+    Write-Host "OK: Windows built-in ssh-agent service stopped and disabled (Bitwarden's SSH agent needs the named pipe it was holding)" -ForegroundColor Green
+}
+{{- else }}
+Write-Host "MANUAL ACTION: this account can't elevate, so the built-in Windows ssh-agent service can't be disabled automatically - if Bitwarden's SSH agent doesn't work, an admin needs to run: Stop-Service ssh-agent; Set-Service ssh-agent -StartupType Disabled" -ForegroundColor Yellow
+{{- end }}
+{{- end -}}

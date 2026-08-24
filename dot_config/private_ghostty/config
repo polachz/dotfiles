@@ -1,0 +1,13 @@
+# Static — do not template. Composition happens via physical file presence
+# (masked per profile/OS by .chezmoiignore.tmpl), not conditionals here.
+# Later config-file wins on conflicting keys (same direction as git), so the
+# order below is deliberately common -> profile -> profile+OS.
+# See CONCEPT_ROADMAP.md §6.
+
+config-file = ?common.conf
+config-file = ?personal/common.conf
+config-file = ?personal/linux.conf
+config-file = ?personal/mac.conf
+config-file = ?work/common.conf
+config-file = ?work/linux.conf
+config-file = ?work/mac.conf

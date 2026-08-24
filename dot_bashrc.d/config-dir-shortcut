@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Shell config directory shortcut — same alias name across every shell, but
+# each points at that shell's OWN fragment directory (user's explicit
+# 2026-08-18 request). Bash-only, NOT in dot_zshrc.d/00-shared.zsh's list —
+# zsh gets its own version pointing at ~/.zshrc.d instead, see
+# dot_zshrc.d/05-config-dir-shortcut.zsh.
+alias brc="cd ~/.bashrc.d"

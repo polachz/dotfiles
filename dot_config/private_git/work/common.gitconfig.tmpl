@@ -1,0 +1,10 @@
+{{- /*
+  name/email are sourced from the work EJSON evault (secrets/work/evault, edit via
+  'edit-evault work') instead of being plaintext here — this repo is meant to be
+  publishable (see ENCRYPTION_SETUP.md "What's safe to publish"), so real identity
+  values don't belong in plaintext. First real use of the evault-secret-injection
+  mechanism, see .chezmoitemplates/evault-field and CONCEPT_ROADMAP.md §4.2.
+*/ -}}
+[user]
+    name = {{ includeTemplate "evault-field" (dict "profile" "work" "path" "git.user" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
+    email = {{ includeTemplate "evault-field" (dict "profile" "work" "path" "git.email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}

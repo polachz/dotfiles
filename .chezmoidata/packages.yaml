@@ -1,24 +1,115 @@
 packages:
-  dnf:
-    # Common — installed on all profiles
-    common:
-      - git
-      - openssl
-    # Personal profile — private machine packages
-    personal:
-      - tio          # serial terminal for RPI/microcontroller dev
-      - keepassxc
-      - doublecmd-gtk
-    # Work profile — work machine packages (populate when first work host arrives)
-    work: []
-    # VM guest tools — auto-detected via systemd-detect-virt
-    virtualbox:
-      - virtualbox-guest-additions
-    vmware:
-      - open-vm-tools
-  apt:
-    common:
-      - git
-      - openssl
-    personal: []
-    work: []
+  # Tool-first model (see CONCEPT_ROADMAP.md §7): one list per tool, with per-manager name
+  # overrides. `dnf`/`apt`/`brew` default to `name` when omitted; `winget` always needs an
+  # explicit value (string ID or map — see render-winget-install), missing = not available.
+  # `skip` = this manager doesn't have the tool, omit without error.
+  common:
+    - name: git
+      roles: [workstation]
+      winget: Git.Git
+    - name: age
+      # Convenience only, for an operator doing manual key setup/rotation
+      # (ENCRYPTION_SETUP.md / helpers/setup-encryption.sh) on their own
+      # workstation — the automated per-machine bootstrap never calls the
+      # external `age` binary at all, only chezmoi's own built-in
+      # `chezmoi age`/`chezmoi decrypt` subcommands (see
+      # run_once_before_init_age.sh.tmpl/.ps1.tmpl). Not needed on Windows
+      # either — chezmoi's built-in age covers it there too, and
+      # helpers/setup-encryption.sh is a bash script anyway.
+      roles: [workstation]
+      winget: skip
+  personal: []
+  work: []
+  # Tools independent of profile, gated by role/GUI/platform instead.
+  workstation_tools:
+    - name: fish
+      roles: [workstation]
+      winget: skip # not a target shell on Windows in this project — PowerShell 7 covers that (see CONCEPT_ROADMAP.md §1)
+    - name: oh-my-posh
+      roles: [workstation]
+      dnf: oh-my-posh # real Fedora package, Go SIG (verified via src.fedoraproject.org 2026-08-17)
+      apt: skip # not in Debian/Ubuntu's primary archive (verified via Launchpad API 2026-08-17) — needs oh-my-posh's own apt repo, not built yet
+      brew: oh-my-posh # homebrew/core, no tap needed (verified 2026-08-17)
+      winget: JanDeDobbeleer.OhMyPosh # verified live on winlab.local 2026-08-17
+    - name: jq
+      roles: [workstation] # deliberately NOT server — user's explicit call, keep server footprint minimal
+      winget: skip # PowerShell's native ConvertFrom-Json/ConvertTo-Json covers the `json` function there, no external tool needed
+    - name: bitwarden
+      roles: [workstation]
+      requires_gui: true
+      dnf: skip # not in default Fedora repos (verified live 2026-08-07). Real
+      # Linux install is .chezmoiscripts/run_after_install-bitwarden-desktop-linux.sh.tmpl
+      # instead (official GitHub-hosted .tar.gz, works on x64 AND arm64 — the
+      # official .rpm/.deb are x64-only, Flatpak isn't Bitwarden's own build,
+      # Snap needs adopting a whole new packaging ecosystem — see
+      # CONCEPT_ROADMAP.md §7 for the full reasoning, live-verified 2026-08-18).
+      apt: skip
+      brew: bitwarden # cask, brew auto-detects (verified live)
+      winget: Bitwarden.Bitwarden
+    - name: powershell7
+      roles: [workstation, server]
+      dnf: skip
+      apt: skip
+      brew: skip # intentionally Windows-only, even though pwsh is cross-platform
+      winget:
+        id: Microsoft.PowerShell
+        installer_type: wix # default msix doesn't register as DefaultShell/defaultProfile
+        scope: machine
+    - name: ghostty
+      roles: [workstation]
+      requires_gui: true
+      dnf: ghostty
+      copr: scottames/ghostty # not in default Fedora repos (verified live 2026-08-07)
+      apt: skip
+      winget: skip # replaced by Windows Terminal on Windows
+    - name: jetbrains-mono-nerd-font
+      roles: [workstation]
+      requires_gui: true
+      # dnf/apt: skip — no per-distro nerd-fonts packaging exists (checked live
+      # 2026-08-22). Installed instead by
+      # run_after_install-jetbrains-mono-nerd-font-linux.sh.tmpl, straight
+      # from the upstream ryanoasis/nerd-fonts GitHub release, per-user, no
+      # root needed — see that file for the full rationale (mirrors the
+      # Windows script's approach, minus the registry/isFixedPitch dance).
+      dnf: skip
+      apt: skip
+      brew: font-jetbrains-mono-nerd-font # cask, brew auto-detects (verified live 2026-08-14)
+      # winget: skip — DEVCOM.JetBrainsMonoNerdFont's manifest is a WiX MSI with NO
+      # per-user Scope option at all (confirmed live 2026-08-19), so it always requires
+      # elevation, for admins and Standard Users alike (unlike git/Total Commander, which
+      # degrade gracefully for a genuine Standard User — see bootstrap.ps1's git comment).
+      # Installed instead by .chezmoiscripts/run_after_install-jetbrains-mono-nerd-font-
+      # windows.ps1.tmpl, straight from the upstream ryanoasis/nerd-fonts GitHub release,
+      # per-user, no elevation for anyone — see that file for the full rationale.
+      winget: skip
+    - name: windows-terminal
+      roles: [workstation]
+      requires_gui: true
+      dnf: skip
+      apt: skip
+      brew: skip
+      winget: Microsoft.WindowsTerminal # install only; settings.json config is a follow-up task
+  # totalcmd and 7zip are deliberately NOT here (removed 2026-08-20) — both need an
+  # if-can-elevate/else-portable-fallback decision (see
+  # run_after_install-totalcmd-windows.ps1.tmpl / run_after_install-7zip-windows.ps1.tmpl),
+  # and splitting that decision from its outcome across this generic loop (a bare "SKIP"
+  # here) and a separately-timed run_after_ script (the actual fallback install, with no
+  # visible link between the two log lines) was confusing — user's explicit feedback.
+  # Consolidated into one dedicated script per tool instead, each deciding at chezmoi
+  # TEMPLATE render time which path to even include, so there's exactly one clear,
+  # self-explained action in the log either way.
+  # Generalizes the previous top-level virtualbox/vmware keys under the same roles-like
+  # principle: vm_types filters on .deployment.vm_type instead of a dedicated category per type.
+  vm_guest_tools:
+    - name: virtualbox-guest-additions
+      roles: [workstation, server]
+      vm_types: [virtualbox]
+      apt: skip
+      brew: skip
+      winget: skip
+    - name: open-vm-tools
+      roles: [workstation, server]
+      vm_types: [vmware]
+      apt: skip
+      brew: skip
+      winget: skip

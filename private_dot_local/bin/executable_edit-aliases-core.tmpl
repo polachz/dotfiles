@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# edit-aliases-core — edit an aliases/env YAML file (with validation) and/or
+# regenerate the auto-generated blocks of ALIASES.md, in one step.
+#
+# Usage:
+#   edit-aliases-core                                # regen-only: rebuild ALIASES.md, no editing
+#   edit-aliases-core aliases/common/ls.yaml         # edit that file, validate, then regenerate
+#   edit-aliases-core env/common/locale.yaml --repo /path/to/dev-repo
+#
+# Paths are relative to .chezmoidata/ in the resolved repo — defaults to
+# chezmoi's own source-path, same simplified model as edit-evault (see that
+# script's header for the 2026-08-20 reasoning: a second, separate dev-repo
+# clone is opt-in via --repo/$DOTFILES_REPO now, not required).
+#
+# Resolution order for the repo path (first match wins):
+#   1. --repo <path>              explicit, always wins
+#   2. $DOTFILES_REPO env var
+#   3. chezmoi source-path        the default — works with zero setup
+#   4. Interactive prompt         last resort, only if chezmoi itself is missing
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [<path-relative-to-.chezmoidata>] [--repo /path/to/dev-repo]
+
+With no path: regenerate ALIASES.md's generated blocks from the current
+YAML state — no editing.
+
+With a path (e.g. aliases/common/ls.yaml, env/common/locale.yaml): open
+\$EDITOR on that file, verify the result still renders cleanly through
+chezmoi's template engine (catches invalid YAML and missing required
+fields alike), then regenerate ALIASES.md.
+
+Options:
+  --repo <path>        Repo path to edit in. Falls back to \$DOTFILES_REPO env
+                       var, then chezmoi's own source-path (the default —
+                       works with zero setup), then an interactive prompt.
+  -h, --help           Show this message
+EOF
+}
+
+# ───── Argument parsing ──────────────────────────────────────────────────────
+
+YAML_PATH=""
+EXPLICIT_REPO=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --repo)
+            EXPLICIT_REPO="${2:-}"
+            [ -z "${EXPLICIT_REPO}" ] && error "--repo requires a path argument"
+            shift
+            ;;
+        -h|--help)
+            usage; exit 0
+            ;;
+        -*)
+            log_error "Unknown argument: $1"
+            usage; exit 1
+            ;;
+        *)
+            [ -n "${YAML_PATH}" ] && error "Only one YAML file path allowed"
+            YAML_PATH="$1"
+            ;;
+    esac
+    shift
+done
+
+# ───── Resolve dev repo path ─────────────────────────────────────────────────
+
+if [ -n "${EXPLICIT_REPO}" ]; then
+    REPO="${EXPLICIT_REPO}"
+elif [ -n "${DOTFILES_REPO:-}" ]; then
+    REPO="${DOTFILES_REPO}"
+    log_info "Using \$DOTFILES_REPO: ${REPO}"
+elif command -v chezmoi >/dev/null 2>&1 && REPO=$(chezmoi source-path 2>/dev/null) && [ -n "${REPO}" ]; then
+    log_info "Using chezmoi source-path: ${REPO}"
+else
+    log_warn "No --repo, \$DOTFILES_REPO, or chezmoi source-path found."
+    printf "Enter dotfiles repo path: "
+    read -r REPO
+fi
+
+[ -d "${REPO}" ] || error "Repo path does not exist: ${REPO}"
+[ -f "${REPO}/.chezmoi.yaml.tmpl" ] || error "Not a dotfiles repo (missing .chezmoi.yaml.tmpl): ${REPO}"
+[ -d "${REPO}/.git" ] || log_warn "Repo path has no .git/ — sure this is the right repo? Continuing anyway."
+
+ALIASES_MD="${REPO}/docs/ALIASES.md"
+[ -f "${ALIASES_MD}" ] || error "ALIASES.md not found at ${ALIASES_MD}"
+
+for marker in aliases-doc-aliases aliases-doc-env; do
+    grep -q "GENERATED:${marker}:start" "${ALIASES_MD}" \
+        || error "ALIASES.md is missing the GENERATED:${marker} markers — can't regenerate. Check it wasn't edited by hand."
+done
+
+WORK="${TMPDIR:-/tmp}/edit-aliases-core-$$"
+mkdir -p "${WORK}"
+trap 'rm -rf "${WORK}"' EXIT
+
+# ───── Optional: edit the target YAML file ──────────────────────────────────
+
+if [ -n "${YAML_PATH}" ]; then
+    TARGET="${REPO}/.chezmoidata/${YAML_PATH}"
+    [ -f "${TARGET}" ] || error "Not found: ${TARGET}"
+
+    EDITOR_CMD="${EDITOR:-nano}"
+    HASH_BEFORE=$(sha256sum "${TARGET}" | awk '{print $1}')
+
+    while true; do
+        log_info "Opening ${EDITOR_CMD} on ${YAML_PATH}..."
+        "${EDITOR_CMD}" "${TARGET}" || true
+
+        HASH_AFTER=$(sha256sum "${TARGET}" | awk '{print $1}')
+        if [ "${HASH_BEFORE}" = "${HASH_AFTER}" ]; then
+            log_ok "No changes — skipping regeneration."
+            exit 0
+        fi
+
+        # Rendering both generator templates exercises the exact same
+        # .aliases/.env data + resolve-os-value logic the real per-shell
+        # renderers use — a YAML syntax error or a missing required field
+        # (e.g. "description") fails here exactly as it would at
+        # `chezmoi apply` time, just without touching any deployed machine.
+        if chezmoi -S "${REPO}" execute-template < "${REPO}/.chezmoitemplates/generate-aliases-doc-aliases" > /dev/null 2>"${WORK}/err" \
+            && chezmoi -S "${REPO}" execute-template < "${REPO}/.chezmoitemplates/generate-aliases-doc-env" > /dev/null 2>>"${WORK}/err"; then
+            break
+        fi
+
+        log_error "Edited file breaks template rendering:"
+        cat "${WORK}/err" >&2
+        printf "Re-open %s to fix it? [Y/n] " "${EDITOR_CMD}"
+        read -r retry_choice
+        case "${retry_choice}" in
+            [Nn]*)
+                error "Leaving ${TARGET} as-is — fix it manually, then re-run to regenerate ALIASES.md."
+                ;;
+        esac
+    done
+fi
+
+# ───── Regenerate ALIASES.md's generated blocks ─────────────────────────────
+
+splice_block() {
+    local file="$1" marker="$2" content_file="$3"
+    awk -v start="GENERATED:${marker}:start" -v end="GENERATED:${marker}:end" -v contentfile="${content_file}" '
+        $0 ~ start {
+            print
+            while ((getline line < contentfile) > 0) print line
+            skip = 1
+            next
+        }
+        $0 ~ end { skip = 0 }
+        skip { next }
+        { print }
+    ' "${file}" > "${file}.tmp" && mv "${file}.tmp" "${file}"
+}
+
+log_task "Regenerating ALIASES.md..."
+
+chezmoi -S "${REPO}" execute-template < "${REPO}/.chezmoitemplates/generate-aliases-doc-aliases" > "${WORK}/aliases.md.part"
+chezmoi -S "${REPO}" execute-template < "${REPO}/.chezmoitemplates/generate-aliases-doc-env" > "${WORK}/env.md.part"
+
+splice_block "${ALIASES_MD}" "aliases-doc-aliases" "${WORK}/aliases.md.part"
+splice_block "${ALIASES_MD}" "aliases-doc-env" "${WORK}/env.md.part"
+
+log_ok "ALIASES.md regenerated."
+log_info "Next steps:"
+log_info "  cd ${REPO}"
+if [ -n "${YAML_PATH}" ]; then
+    log_info "  git add .chezmoidata/${YAML_PATH} docs/ALIASES.md && git commit -m 'aliases: update ${YAML_PATH}'"
+else
+    log_info "  git add docs/ALIASES.md && git commit -m 'aliases: regenerate ALIASES.md'"
+fi
+log_info "  git push"
+log_info "  # On other machines: chezmoi update  (pulls + applies)"

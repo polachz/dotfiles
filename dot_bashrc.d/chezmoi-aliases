@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Chezmoi shortcuts.
+#
+# Moved here from dot_bashrc.d/personal/ 2026-08-15 — plain chezmoi
+# invocation shortcuts apply equally to work machines, nothing
+# personal-specific about them (see CONCEPT_ROADMAP.md §3.6). Dropped the
+# `export CHZ_DEPLOYMENT_PROFILE="personal"` this file used to also carry —
+# it was hardcoded to "personal" (would have been actively wrong on a work
+# machine) and was already documented as a redundant leftover from before
+# `.deployment.profile` existed as real chezmoi template data.
+
+# Invoke chezmoi (flush history first to avoid losing it during
+# chezmoi-triggered shell restart). `ch update` specifically auto-reloads
+# the shell afterward (same `exec $SHELL -l` the `reload` alias uses) —
+# otherwise newly added/changed functions/aliases from the pulled commits
+# aren't visible until the shell is manually restarted (user's real pain
+# point, 2026-08-20). A plain `alias` can't express that conditional, so
+# `ch` is a function now; `chd` needs no such logic and stays an alias.
+function ch {
+  history -a
+  chezmoi "$@"
+  local status=$?
+  if [ "$1" = "update" ] && [ "$status" -eq 0 ]; then
+    exec "$SHELL" -l
+  fi
+  return "$status"
+}
+# Switch to chezmoi source directory — plain `cd`, NOT `chezmoi cd`.
+# `chezmoi cd` is chezmoi's own subcommand, a separate process — it can't
+# change ITS PARENT shell's directory (no process can), so chezmoi solves
+# that by launching a whole new nested shell already sitting there. Fine
+# once, but repeated `chd` calls without remembering to `exit` each one
+# stack up nested shells (confirmed live 2026-08-20 — "shells in shells in
+# shells"). `chezmoi source-path` is a plain query (just prints the path,
+# no shell-spawning side effect), so capturing it ourselves and `cd`-ing in
+# the CURRENT shell avoids nesting entirely — same principle as why
+# edit-evault/gclean/etc. are functions here instead of external scripts.
+alias chd='history -a && cd "$(chezmoi source-path)"'

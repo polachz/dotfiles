@@ -1,0 +1,73 @@
+{{- /*
+  Windows Terminal "fragment extension" — a native, documented mechanism
+  (https://learn.microsoft.com/windows/terminal/json-fragment-extensions) for third parties to
+  contribute profiles/color schemes WITHOUT touching the user's real settings.json. Works
+  regardless of whether Windows Terminal is packaged (winget/Store) or not, since this path is
+  the generic third-party drop location, not Windows Terminal's own config file.
+
+  UPDATED 2026-08-19 (user's explicit call): modifies the user's actual default Command Prompt
+  and PowerShell profiles directly via `"updates"` (a fragment CAN target the built-in default
+  profiles and dynamic profiles this way — Microsoft's own docs confirm "You can modify only
+  the default profiles, Command Prompt and PowerShell, as well as dynamic profiles through
+  fragments") instead of adding a separate "Dotfiles" profile nobody would actually use by
+  default (Windows Terminal fragments still can't set defaultProfile — that's the one thing
+  only settings.json itself can do, deliberately left alone, see CONCEPT_ROADMAP.md §7).
+
+  GUIDs below are Windows Terminal's own fixed identifiers for these profiles, confirmed
+  directly from its source (not just cited elsewhere) 2026-08-19:
+    - Command Prompt: defaults.json — "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}"
+    - Windows PowerShell (5.1): defaults.json — "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}"
+    - PowerShell 7/pwsh ("PowerShell", dynamically detected): PowershellCoreProfileGenerator.cpp
+      — hardcoded constant PowershellCoreGuid = {574e775e-4f2a-5b96-ac1e-a2962a402336}, NOT
+      computed via the generic dynamic-profile namespace+name hash (verified this does NOT
+      match that formula's output — pwsh's profile is special-cased in Terminal's own source
+      for backward compatibility, predating the generic hashing scheme WSL/SSH profiles use).
+      Only applies if pwsh is actually installed and detected — a bare `"updates"` targeting a
+      GUID with no matching profile silently does nothing, no error, so this is safe to ship
+      unconditionally even on a machine without pwsh yet.
+
+  font.face added 2026-08-17 (jetbrains-mono-nerd-font in packages.yaml) — needed for the
+  Oh My Posh prompt's segment glyphs to render instead of tofu boxes, confirmed live on
+  winlab.local. Updated 2026-08-19: now installed from the upstream ryanoasis/nerd-fonts
+  release (see run_after_install-jetbrains-mono-nerd-font-windows.ps1.tmpl) instead of the
+  DEVCOM WiX winget package — using the "...Mono" variant specifically, NOT the plain
+  "JetBrainsMono Nerd Font" that dot_config/private_ghostty/common.conf.tmpl uses on
+  macOS/Linux. Found live: the plain variant's `post` table has isFixedPitch=0, so Windows
+  Terminal's font picker filters it out and silently falls back (survived a full reboot,
+  ruling out a cache-timing issue) — the "...Mono" variant is properly flagged isFixedPitch=1
+  and registers as "JetBrainsMono Nerd Font Mono" (its own nameID 16), which IS what Windows
+  Terminal needs here even though it means the family name no longer matches Ghostty's exactly
+  (same situation as the old DEVCOM build's Windows-only "JetBrainsMono NF").
+*/ -}}
+{{- /*
+  Flat 10 for both profiles (changed 2026-08-20, user's explicit call, after briefly trying 12 -
+  see git history) - the original work=14/personal=13 split felt too large on Windows and had no
+  equivalent on dot_config/private_ghostty/common.conf.tmpl (flat 13 there, no profile split at
+  all) - inconsistent for no real reason. Bump this single number later if 10 turns out too small.
+*/ -}}
+{{- $fontSize := 10 -}}
+{
+    "profiles": [
+        {
+            "updates": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
+            "font": {
+                "face": "JetBrainsMono Nerd Font Mono",
+                "size": {{ $fontSize }}
+            }
+        },
+        {
+            "updates": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+            "font": {
+                "face": "JetBrainsMono Nerd Font Mono",
+                "size": {{ $fontSize }}
+            }
+        },
+        {
+            "updates": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
+            "font": {
+                "face": "JetBrainsMono Nerd Font Mono",
+                "size": {{ $fontSize }}
+            }
+        }
+    ]
+}

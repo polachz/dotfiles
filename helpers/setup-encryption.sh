@@ -26,11 +26,11 @@ set -uo pipefail
 
 # ───── Colors ────────────────────────────────────────────────────────────────
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[1;33m'; NC='\033[0m'
-ok()   { printf "${GREEN}✓ %s${NC}\n" "$*"; }
+RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; ORANGE='\033[38;5;208m'; NC='\033[0m'
+ok()   { printf "${GREEN}✅ %s${NC}\n" "$*"; }  # not ✓ — ambiguous-width glyph, same class as ℹ/⚠
 err()  { printf "${RED}✗ %s${NC}\n" "$*" >&2; }
-warn() { printf "${YELLOW}⚠ %s${NC}\n" "$*"; }
-info() { printf "${BLUE}ℹ %s${NC}\n" "$*"; }
+warn() { printf "${ORANGE}🔶 %s${NC}\n" "$*"; }  # not ⚠ — ambiguous-width glyph renders inconsistently across terminal fonts; orange to match the diamond
+info() { printf "${BLUE}🔵 %s${NC}\n" "$*"; }  # not ℹ — same reason
 step() { printf "\n${BLUE}━━━ %s ━━━${NC}\n" "$*"; }
 
 die() { err "$*"; exit 1; }
@@ -47,10 +47,9 @@ Arguments:
 Options:
   --deploy             Copy generated files into the dotfiles repo and
                        update .chezmoi.yaml.tmpl placeholders
-  --repo <path>        Dotfiles DEVELOPMENT repo path (where you 'git commit').
-                       Falls back to \$DOTFILES_REPO env var, then interactive
-                       prompt. Do NOT use chezmoi's source-path
-                       (~/.local/share/chezmoi) — those are managed copies.
+  --repo <path>        Repo path to deploy into. Falls back to \$DOTFILES_REPO
+                       env var, then chezmoi's own source-path (the default —
+                       works with zero setup), then an interactive prompt.
   --force              Overwrite existing output files in CWD
   -h, --help           Show this message
 
@@ -105,15 +104,17 @@ done
 
 # ───── Resolve dotfiles repo (if --deploy) ───────────────────────────────────
 #
-# IMPORTANT: chezmoi source-path returns the chezmoi-managed working copy
-# (~/.local/share/chezmoi by default), NOT your development repo. Writing
-# generated key files there would get overwritten by the next `chezmoi
-# update`. Always deploy to the development repo (where you `git commit`).
+# Defaults to chezmoi's own source-path (a real git repo — see edit-evault's
+# header comment for the 2026-08-20 reasoning) so this works with zero setup
+# on an already-bootstrapped machine. Genuinely no chezmoi source-path yet
+# (e.g. very first-ever setup, before any `chezmoi init`) falls through to
+# the interactive prompt.
 #
 # Resolution order (first match wins):
-#   1. --repo <path>                           (explicit, always wins)
+#   1. --repo <path>                (explicit, always wins)
 #   2. $DOTFILES_REPO env var
-#   3. Interactive prompt (last resort)
+#   3. chezmoi source-path          the default — works with zero setup
+#   4. Interactive prompt           last resort, only if chezmoi itself is missing/uninitialized
 
 REPO=""
 if [ "${DO_DEPLOY}" -eq 1 ]; then
@@ -122,28 +123,20 @@ if [ "${DO_DEPLOY}" -eq 1 ]; then
     elif [ -n "${DOTFILES_REPO:-}" ]; then
         REPO="${DOTFILES_REPO}"
         info "Using \$DOTFILES_REPO: ${REPO}"
+    elif command -v chezmoi >/dev/null 2>&1 && REPO=$(chezmoi source-path 2>/dev/null) && [ -n "${REPO}" ]; then
+        info "Using chezmoi source-path: ${REPO}"
     else
         warn "No deploy target specified. Provide one of:"
-        warn "  --repo /path/to/dev-repo            (recommended)"
+        warn "  --repo /path/to/dotfiles-repo"
         warn "  DOTFILES_REPO=/path env var"
         warn ""
-        warn "Note: do NOT use chezmoi's source-path (~/.local/share/chezmoi)."
-        warn "      That is chezmoi's working copy — your edits would get reset."
-        warn "      Use your DEVELOPMENT repo where you 'git commit'."
-        warn ""
-        printf "Enter dotfiles development repo path: "
+        printf "Enter dotfiles repo path: "
         read -r REPO
     fi
 
     [ -d "${REPO}" ] || die "Repo path does not exist: ${REPO}"
     [ -f "${REPO}/.chezmoi.yaml.tmpl" ] || die "Not a dotfiles repo (missing .chezmoi.yaml.tmpl): ${REPO}"
-    [ -d "${REPO}/.git" ] || warn "Repo path has no .git/ — sure this is your dev repo? Continuing anyway."
-
-    # Safety check — refuse to write into chezmoi-managed state
-    CHEZMOI_STATE=$(chezmoi source-path 2>/dev/null || true)
-    if [ -n "${CHEZMOI_STATE}" ] && [ "$(realpath "${REPO}" 2>/dev/null)" = "$(realpath "${CHEZMOI_STATE}" 2>/dev/null)" ]; then
-        die "Refusing to deploy: target '${REPO}' is chezmoi's managed source-path. Use your dev repo instead."
-    fi
+    [ -d "${REPO}/.git" ] || warn "Repo path has no .git/ — sure this is the right repo? Continuing anyway."
 
     info "Deploy target: ${REPO}"
 fi

@@ -1,0 +1,99 @@
+# Migrated from dot_bashrc.d/50-aliases-nav.sh (see CONCEPT_ROADMAP.md §3.6).
+# `windows:` values added for PowerShell 7 (CONCEPT_ROADMAP.md §3.3) — verified
+# live on winlab.local that bare `..`/`...`/etc. work fine as PowerShell
+# function names, unlike `-` (see that entry's comment).
+aliases:
+  common:
+    categories:
+      nav:
+        - name: ".."
+          command:
+            default: "cd .."
+            windows: "Set-Location .."
+          description: Go up one directory
+
+        - name: "..."
+          command:
+            default: "cd ../.."
+            windows: "Set-Location ../.."
+          description: Go up two directories
+
+        - name: "...."
+          command:
+            default: "cd ../../.."
+            windows: "Set-Location ../../.."
+          description: Go up three directories
+
+        - name: "....."
+          command:
+            default: "cd ../../../.."
+            windows: "Set-Location ../../../.."
+          description: Go up four directories
+
+        - name: hh
+          command:
+            default: "cd ~"
+            windows: "Set-Location ~"
+          description: Go to home directory
+
+        - name: ee
+          command:
+            default: "cd /etc"
+            windows: "Set-Location C:\\Windows\\System32\\drivers\\etc"
+          description: Go to /etc (Windows equivalent — hosts file, protocol/service definitions)
+
+        - name: "-"
+          command:
+            default: "cd -"
+            # PowerShell's parser treats a bare `-` as a unary minus operator,
+            # always — even a function literally named `-` can only be
+            # invoked via `& "-"`, never as typed bare input at the prompt.
+            # Verified live on winlab.local. Same category as `sudo`/`path`
+            # below (CONCEPT_ROADMAP.md §3.6) — needs shell-native stateful
+            # handling, not expressible as a plain command string.
+            windows: skip
+          description: Go to previous directory
+
+        # Migrated from dot_bashrc.d/personal/home-paths 2026-08-18 — was
+        # personal-scope AND bash-only, on the real work machine these
+        # existed in no shell at all. Promoted to common: none of these are
+        # actually identity-specific (see CONCEPT_ROADMAP.md §3.6).
+        - name: d
+          command:
+            default: "cd ~/Devel"
+            # User's real Windows convention is a completely different path
+            # (C:\Sources), not just a different case/separator — confirmed
+            # by the user directly, not guessed.
+            windows: "Set-Location C:\\Sources"
+          description: Go to the source-code working directory
+
+        - name: dl
+          command:
+            default: "cd ~/Downloads"
+            windows: "Set-Location ~/Downloads"
+          description: Go to the Downloads directory
+
+        - name: dt
+          command:
+            default: "cd ~/Desktop"
+            windows: "Set-Location ~/Desktop"
+          description: Go to the Desktop directory
+
+        - name: loc
+          command:
+            default: "cd ~/.local"
+            # XDG convention, no Windows equivalent — user confirmed skip
+            # over inventing a mapping (2026-08-18).
+            windows: skip
+          description: Go to the user-local data directory
+
+        - name: lb
+          command:
+            default: "cd ~/.local/bin"
+            # Windows has no ~/.local convention (see `loc` above), but DOES
+            # now have its own user-scope bin dir: $HOME\bin, where
+            # bootstrap.ps1 installs manually-fetched binaries (ejson, ...)
+            # and adds to the User PATH — deliberately not ~\.local\bin,
+            # since Windows has no dotfiles culture (2026-08-18).
+            windows: "Set-Location ~/bin"
+          description: Go to the user-local binaries directory

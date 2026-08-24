@@ -1,0 +1,117 @@
+{{- if and (eq .chezmoi.os "linux") (eq .deployment.role "workstation") .deployment.has_gui -}}
+#!/usr/bin/env bash
+# Installs/updates the Bitwarden desktop app on Linux from its official
+# GitHub-hosted tarball — runs on every apply (plain `run_` prefix), no-ops
+# once the installed version matches the latest available.
+#
+# WHY not dnf/apt/Flatpak/Snap (see packages.yaml's `bitwarden` entry,
+# dnf/apt: skip): no official Fedora/Debian repo package exists; the
+# Flatpak build on Flathub is NOT published by Bitwarden itself (community
+# repack — a real trust concern for a password manager specifically, user's
+# explicit call); Snap requires adopting snapd, an entirely separate
+# packaging ecosystem not used anywhere else on this machine.
+#
+# WHY not the official RPM either: verified live it's x86_64-ONLY — a
+# real ARM64 Linux box (e.g. this dotfiles' own UTM/Apple-Silicon LinLab
+# test VMs) can't install it at all ("does not have a compatible
+# architecture"). The plain .tar.gz IS published for both x64 and arm64
+# (verified against the real desktop-v2026.7.0 GitHub release asset list),
+# so it's the one mechanism that works uniformly on both architectures —
+# at the cost of needing to build the desktop-menu integration (.desktop
+# file, icons, sandbox permission) by hand, which a real package format
+# would normally do via its own postinst script.
+#
+# Version source: bitwarden.com's own download redirector (used for the
+# RPM concept originally, see CONCEPT_ROADMAP.md history) does NOT support
+# a tar.gz variant (verified live, 404) — so this queries the GitHub API
+# release list directly instead, same "grep the JSON for the first
+# matching tag" idiom bootstrap.sh already uses for EJSON's latest release.
+# Necessary nuance: bitwarden/clients hosts desktop/browser-extension/CLI
+# releases together under different tag prefixes — must filter for
+# "desktop-v*" specifically, plain "latest" would risk grabbing a non-desktop
+# release.
+
+{{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+bw_install_dir="${HOME}/.local/share/bitwarden"
+bw_version_file="${bw_install_dir}/.installed-version"
+bw_desktop_file="${HOME}/.local/share/applications/com.bitwarden.desktop.desktop"
+bw_icon_base="${HOME}/.local/share/icons/hicolor"
+
+case "$(uname -m)" in
+    x86_64) bw_arch="x64" ;;
+    aarch64|arm64) bw_arch="arm64" ;;
+    *)
+        log_yellow "Bitwarden: unsupported architecture $(uname -m), skipping install."
+        exit 0
+        ;;
+esac
+
+bw_tag=$(curl -fsSL "https://api.github.com/repos/bitwarden/clients/releases" 2>/dev/null \
+    | grep -o '"desktop-v[^"]*"' | head -n1 | tr -d '"')
+
+if [ -z "${bw_tag}" ]; then
+    log_yellow "Bitwarden: could not resolve latest desktop release from GitHub — skipping."
+    exit 0
+fi
+
+bw_latest_version="${bw_tag#desktop-v}"
+bw_installed_version=""
+if [ -f "${bw_version_file}" ]; then
+    bw_installed_version=$(cat "${bw_version_file}")
+fi
+
+if [ "${bw_installed_version}" = "${bw_latest_version}" ]; then
+    log_task "Bitwarden desktop ${bw_installed_version} already up to date"
+    exit 0
+fi
+
+log_task "Installing Bitwarden desktop ${bw_latest_version} (was: ${bw_installed_version:-none}, ${bw_arch})"
+
+bw_tarball_url="https://github.com/bitwarden/clients/releases/download/${bw_tag}/bitwarden_${bw_latest_version}_${bw_arch}.tar.gz"
+bw_tmp_tarball="$(mktemp -t bitwarden-XXXXXX.tar.gz)"
+trap 'rm -f "${bw_tmp_tarball}"' EXIT
+
+curl -fsSL -o "${bw_tmp_tarball}" "${bw_tarball_url}"
+
+rm -rf "${bw_install_dir}"
+mkdir -p "${bw_install_dir}"
+tar xzf "${bw_tmp_tarball}" -C "${bw_install_dir}"
+
+# Electron's setuid sandbox helper needs root ownership + the setuid bit to
+# actually sandbox renderer processes — a plain tar extraction can't set
+# this (needs root), unlike a real .rpm/.deb's postinst script would.
+if [ -f "${bw_install_dir}/chrome-sandbox" ]; then
+    sudo chown root:root "${bw_install_dir}/chrome-sandbox"
+    sudo chmod 4755 "${bw_install_dir}/chrome-sandbox"
+fi
+
+# Desktop-menu integration — a real package format does this via its own
+# postinst script; extracting a bare tarball doesn't, so it's done by hand
+# here. The tarball ships its own .desktop file, just with a bare `Exec=
+# bitwarden` (assumes PATH) instead of this install's actual absolute path.
+mkdir -p "$(dirname "${bw_desktop_file}")"
+sed "s|^Exec=bitwarden|Exec=${bw_install_dir}/bitwarden|" \
+    "${bw_install_dir}/resources/com.bitwarden.desktop.desktop" > "${bw_desktop_file}"
+
+for icon in "${bw_install_dir}/resources/icons"/*.png; do
+    [ -f "${icon}" ] || continue
+    icon_size=$(basename "${icon}" .png)
+    icon_dir="${bw_icon_base}/${icon_size}/apps"
+    mkdir -p "${icon_dir}"
+    cp "${icon}" "${icon_dir}/com.bitwarden.desktop.png"
+done
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "${HOME}/.local/share/applications" >/dev/null 2>&1 || true
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache "${bw_icon_base}" >/dev/null 2>&1 || true
+fi
+
+echo "${bw_latest_version}" > "${bw_version_file}"
+log_task "Bitwarden desktop ${bw_latest_version} installed"
+{{- end -}}

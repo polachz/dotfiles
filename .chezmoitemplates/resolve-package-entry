@@ -1,0 +1,12 @@
+{{- /* Shared package-name resolution for the packages.yaml tool-first model (see CONCEPT_ROADMAP.md §7). */ -}}
+{{- /* Expects a dict as input with keys "entry" (a packages.yaml tool object) and "manager" */ -}}
+{{- /* (one of "dnf"/"apt"/"brew" — winget uses render-winget-install instead, it needs more than a name). */ -}}
+{{- /* Returns the manager-specific package name, defaulting to entry.name if the manager key is absent, */ -}}
+{{- /* or the literal "skip" if the manager key is explicitly set to "skip". */ -}}
+{{- $entry := .entry -}}
+{{- $manager := .manager -}}
+{{- if hasKey $entry $manager -}}
+{{- index $entry $manager -}}
+{{- else -}}
+{{- $entry.name -}}
+{{- end -}}

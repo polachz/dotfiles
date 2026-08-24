@@ -10,24 +10,94 @@
 
 {{ if ne .deployment.profile "personal" }}
 .bashrc.d/personal
+.zshrc.d/personal
 secrets/personal
 ejson_key_personal.age
 age_key_personal.age
+.ssh/conf.d/*-personal-*.conf
+.config/git/personal
 {{ end }}
 
 {{ if ne .deployment.profile "work" }}
 .bashrc.d/work
+.zshrc.d/work
 secrets/work
 ejson_key_work.age
 age_key_work.age
+.ssh/conf.d/*-work-*.conf
+.config/git/work
+{{ end }}
+
+{{/*
+  Ghostty: GUI-only (no point on a headless dev machine) and Mac/Linux-only
+  (no Windows build exists). Within the surviving profile subdir, only the
+  fragment for the actual host OS is kept — see CONCEPT_ROADMAP.md §6.
+*/}}
+{{ if or (not .deployment.has_gui) (eq .chezmoi.os "windows") }}
+.config/ghostty
+{{ else }}
+{{ if ne .deployment.profile "personal" }}
+.config/ghostty/personal
+{{ else if eq .chezmoi.os "darwin" }}
+.config/ghostty/personal/linux.conf
+{{ else if eq .chezmoi.os "linux" }}
+.config/ghostty/personal/mac.conf
+{{ end }}
+{{ if ne .deployment.profile "work" }}
+.config/ghostty/work
+{{ else if eq .chezmoi.os "darwin" }}
+.config/ghostty/work/linux.conf
+{{ else if eq .chezmoi.os "linux" }}
+.config/ghostty/work/mac.conf
+{{ end }}
+{{ end }}
+
+{{/*
+  SSH client-side TERM fix for Ghostty (private_90-common.conf, see CONCEPT_ROADMAP.md §2.4) is
+  only useful on a machine that actually runs Ghostty locally — same has_gui/OS gating as Ghostty
+  itself above.
+*/}}
+{{ if or (not .deployment.has_gui) (eq .chezmoi.os "windows") }}
+.ssh/conf.d/90-common.conf
+{{ end }}
+
+{{/*
+  PowerShell 7 config — Windows-only (see CONCEPT_ROADMAP.md §3.3). Ignoring
+  the whole Documents dir (not just Documents/PowerShell) matters on macOS:
+  ~/Documents is TCC-protected, and chezmoi would still try to mkdir/chmod the
+  now-empty parent dir even with only the child ignored, tripping "operation
+  not permitted" without ever needing real access to it.
+*/}}
+{{ if ne .chezmoi.os "windows" }}
+Documents
+{{ end }}
+
+{{/*
+  fish's gh.fish only claims the `gh` name when the real GitHub CLI isn't
+  on PATH — its autoload mechanism prefers any function file present here
+  over an external binary regardless of a runtime check inside it, unlike
+  bash/zsh's live `command -v` check (dot_bashrc.d/85-functions-extra.sh).
+  ghi.fish (unconditional) is the always-available fallback either way.
+*/}}
+{{ if lookPath "gh" }}
+.config/fish/functions/gh.fish
+{{ end }}
+
+{{/*
+  Windows Terminal fragment: GUI-only and Windows-only (same has_gui/OS gating as Ghostty above,
+  see CONCEPT_ROADMAP.md §7).
+*/}}
+{{ if or (not .deployment.has_gui) (ne .chezmoi.os "windows") }}
+AppData/Local/Microsoft/Windows Terminal
 {{ end }}
 
 # Repo docs / bootstrap / helpers are not part of the dotfiles set.
+CONCEPT_ROADMAP.md
 README.md
-ENCRYPTION_SETUP.md
-DAILY_WORKFLOW.md
-ALIASES.md
+docs
+docs/**
 LICENSE
 bootstrap.sh
+bootstrap.ps1
 helpers
 helpers/**

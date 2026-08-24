@@ -1,0 +1,44 @@
+{{- if ne .chezmoi.os "windows" -}}
+#!/usr/bin/env bash
+# Ensures ~/.ssh/config includes ~/.ssh/conf.d/*.conf — idempotent, runs on
+# every apply (plain `run_` prefix).
+#
+# ~/.ssh/config, like ~/.bashrc and ~/.zshrc, is NEVER fully owned/templated
+# by chezmoi — found real, load-bearing content in it during testing (GSSAPI
+# settings for *.redhat.com, UTM lab-VM Host shortcuts), same lesson as
+# ~/.zshrc (see CONCEPT_ROADMAP.md §2.1/§3.3). Only a small idempotent
+# `Include` line gets appended if missing; everything else lives under the
+# safely-chezmoi-owned ~/.ssh/conf.d/ instead. See CONCEPT_ROADMAP.md §2.4.
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+mkdir -p "${HOME}/.ssh"
+chmod 700 "${HOME}/.ssh"
+
+sshconfig="${HOME}/.ssh/config"
+touch "${sshconfig}"
+chmod 600 "${sshconfig}"
+
+if ! grep -q '^Include ~/\.ssh/conf\.d/\*\.conf$' "${sshconfig}"; then
+    log_task "~/.ssh/config doesn't include ~/.ssh/conf.d/ — adding it"
+    cat >> "${sshconfig}" <<'EOF'
+
+# Added by dotfiles bootstrap — includes ~/.ssh/conf.d/*.conf (see
+# CONCEPT_ROADMAP.md §2.4). SSH matches first-occurrence-wins (unlike git),
+# so this Include only affects options not already set by whatever precedes
+# it in this file.
+#
+# The `Host *` line right before Include is NOT redundant — confirmed via
+# testing (and documented OpenSSH behavior) that an Include appearing while
+# still inside an earlier, NON-matching `Host`/`Match` block from whatever
+# precedes it in this file is silently skipped for any host that doesn't
+# match that earlier block, even though the included file is still read.
+# `Host *` unconditionally resets the context so Include always applies.
+Host *
+Include ~/.ssh/conf.d/*.conf
+EOF
+fi
+{{- end -}}

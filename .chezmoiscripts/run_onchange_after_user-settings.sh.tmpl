@@ -1,3 +1,4 @@
+{{- if ne .chezmoi.os "windows" -}}
 #!/usr/bin/env bash
 # Group memberships + git remote switch — runs after package install.
 
@@ -6,23 +7,41 @@
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
+# getent/usermod are GNU/glibc tools — absent on macOS (BSD userland). Group
+# membership there goes through dscl/dseditgroup instead.
+group_exists() {
+    if [ "$(uname -s)" = "Darwin" ]; then
+        dscl . -read "/Groups/$1" > /dev/null 2>&1
+    else
+        getent group "$1" > /dev/null 2>&1
+    fi
+}
+
 # Returns 0 if user is NOT a member of the given group, 1 otherwise.
 not_in_group() {
     local group_name=$1
-    if ! getent group "${group_name}" | grep -qw "${USER}"; then
-        return 0
+    if [ "$(uname -s)" = "Darwin" ]; then
+        dseditgroup -o checkmember -m "${USER}" "${group_name}" > /dev/null 2>&1 && return 1 || return 0
     else
-        return 1
+        if ! getent group "${group_name}" | grep -qw "${USER}"; then
+            return 0
+        else
+            return 1
+        fi
     fi
 }
 
 # Adds user to group only if not already a member (avoids needing sudo).
 add_to_group() {
     local group_name=$1
-    if getent group ${group_name} > /dev/null 2>&1; then
+    if group_exists "${group_name}"; then
         if not_in_group "${group_name}"; then
             log_info "Adding user to group ${group_name}"
-            sudo usermod -a -G "${group_name}" "${USER}" > /dev/null 2>&1
+            if [ "$(uname -s)" = "Darwin" ]; then
+                sudo dseditgroup -o edit -a "${USER}" -t user "${group_name}" > /dev/null 2>&1
+            else
+                sudo usermod -a -G "${group_name}" "${USER}" > /dev/null 2>&1
+            fi
         fi
     else
         log_error "Group ${group_name} does not exist on this machine"
@@ -30,25 +49,38 @@ add_to_group() {
 }
 
 log_task "Processing group memberships for user ${USER}"
+{{- if eq .chezmoi.os "linux" }}
+{{/* wheel (sudo-without-password on some distro configs) and dialout (serial
+     port access) are Linux group conventions with no macOS equivalent — macOS
+     grants sudo via the "admin" group instead, already set up by the OS. */}}
 add_to_group wheel
 add_to_group dialout
+{{- end }}
 {{- if eq .deployment.vm_type "virtualbox" }}
 add_to_group vboxsf
 {{- end }}
 
+{{- if eq .deployment.role "workstation" }}
 # Switch chezmoi source repo from https to ssh so future pushes work without password.
-# {{ .chezmoi.sourceDir }} is the local clone.
+# Workstation-only — a server never pushes back to the dotfiles repo, and this is the
+# only place in the whole repo that actually needs a real `git` binary (chezmoi's own
+# built-in git handles the initial clone regardless of role, see
+# run_once_before_init_age.sh.tmpl). {{ .chezmoi.sourceDir }} is the local clone.
 git_local_dir="{{ joinPath .chezmoi.sourceDir ".git" }}"
 git_repo_url=$(git --git-dir="${git_local_dir}" remote get-url origin)
 if ! echo "${git_repo_url}" | grep -q "^git"; then
     log_task "Changing chezmoi source remote repo access from https to ssh"
-    new_repo_url=$(echo "${git_repo_url}" | grep -oP 'https://\K\S+')
+    # Plain bash parameter expansion instead of `grep -oP` (PCRE) — BSD grep
+    # on macOS has no -P support at all, confirmed live ("invalid option").
+    new_repo_url="${git_repo_url#https://}"
     new_repo_url="git@${new_repo_url/\//:}"
     pushd "${git_local_dir}" > /dev/null
     git remote set-url origin "${new_repo_url}" || error "Change remote repo url from https to ssh failed!"
     popd > /dev/null
 fi
+{{- end }}
 
 # Make chezmoi config readable only by the user.
 log_task "Changing chezmoi config file rights"
 chmod 0600 "{{ joinPath .chezmoi_config_dir "chezmoi.yaml" }}"
+{{- end -}}

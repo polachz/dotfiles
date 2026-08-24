@@ -1,0 +1,7 @@
+env:
+  common:
+    categories:
+      editor:
+        - name: EDITOR
+          value: nano
+          description: Default editor

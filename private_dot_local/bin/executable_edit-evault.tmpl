@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+# edit-evault — decrypt, edit, re-encrypt an EJSON evault in one step.
+#
+# Usage:
+#   edit-evault personal     # edit secrets/personal/evault
+#   edit-evault work         # edit secrets/work/evault
+#
+# Uses $EDITOR (defaults to nano). The decrypted JSON lives in tmpfs
+# (/dev/shm) for the duration of editing — never on disk. Falls back to
+# /tmp with 0600 perms + shred on shutdown if /dev/shm is unavailable.
+#
+# IMPORTANT — write target:
+#   This edits the evault directly in chezmoi's OWN source-path
+#   (~/.local/share/chezmoi by default) unless told otherwise — that IS a
+#   real git repo (chezmoi init clones it there), so `chezmoi cd` (the `chd`
+#   alias/function) plus a normal `git commit`/`push` works from it exactly
+#   like any other repo. Simplified 2026-08-20 (was: "never use chezmoi's
+#   source-path, always keep a second, separate dev-repo clone") — the
+#   theoretical risk that motivated the split (a `chezmoi init -Reinit`/
+#   `purge` destroying uncommitted WIP there) is a rare, explicit,
+#   deliberate maintenance operation, not something day-to-day `chezmoi
+#   update` can trigger; ordinary `git pull` already refuses to clobber
+#   local changes it can't cleanly merge. A second clone (still supported
+#   via --repo/$DOTFILES_REPO for anyone who wants one) is opt-in now, not
+#   required just to edit secrets.
+#
+# Resolution order for the repo path (first match wins):
+#   1. --repo <path>             explicit, always wins
+#   2. $DOTFILES_REPO env var
+#   3. chezmoi source-path       the default — works with zero setup
+#   4. Interactive prompt        last resort, only if chezmoi itself is missing
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <personal|work> [--repo /path/to/dev-repo]
+
+Decrypt, edit (in tmpfs), and re-encrypt an EJSON evault for the given profile.
+
+Arguments:
+  personal | work      Which profile's evault to edit
+
+Options:
+  --repo <path>        Repo path to edit in. Falls back to \$DOTFILES_REPO env
+                       var, then chezmoi's own source-path (the default —
+                       works with zero setup), then an interactive prompt.
+  -h, --help           Show this message
+EOF
+}
+
+# ───── Argument parsing ──────────────────────────────────────────────────────
+
+PROFILE=""
+EXPLICIT_REPO=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        personal|work)
+            [ -n "${PROFILE}" ] && error "Profile already set to '${PROFILE}' — only one allowed"
+            PROFILE="$1"
+            ;;
+        --repo)
+            EXPLICIT_REPO="${2:-}"
+            [ -z "${EXPLICIT_REPO}" ] && error "--repo requires a path argument"
+            shift
+            ;;
+        -h|--help)
+            usage; exit 0
+            ;;
+        *)
+            log_error "Unknown argument: $1"
+            usage; exit 1
+            ;;
+    esac
+    shift
+done
+
+[ -z "${PROFILE}" ] && { usage; error "Missing positional argument: profile"; }
+
+# ───── Resolve dev repo path ─────────────────────────────────────────────────
+
+if [ -n "${EXPLICIT_REPO}" ]; then
+    REPO="${EXPLICIT_REPO}"
+elif [ -n "${DOTFILES_REPO:-}" ]; then
+    REPO="${DOTFILES_REPO}"
+    log_info "Using \$DOTFILES_REPO: ${REPO}"
+elif command -v chezmoi >/dev/null 2>&1 && REPO=$(chezmoi source-path 2>/dev/null) && [ -n "${REPO}" ]; then
+    log_info "Using chezmoi source-path: ${REPO}"
+else
+    log_warn "No --repo, \$DOTFILES_REPO, or chezmoi source-path found."
+    printf "Enter dotfiles repo path: "
+    read -r REPO
+fi
+
+[ -d "${REPO}" ] || error "Repo path does not exist: ${REPO}"
+[ -f "${REPO}/.chezmoi.yaml.tmpl" ] || error "Not a dotfiles repo (missing .chezmoi.yaml.tmpl): ${REPO}"
+[ -d "${REPO}/.git" ] || log_warn "Repo path has no .git/ — sure this is the right repo? Continuing anyway."
+
+EVAULT="${REPO}/secrets/${PROFILE}/evault"
+[ -f "${EVAULT}" ] || error "Evault not found at ${EVAULT}"
+
+# ───── Locate EJSON private key ──────────────────────────────────────────────
+
+EJSON_PUB=$(grep '"_public_key"' "${EVAULT}" | sed 's/.*"_public_key": *"\([^"]*\)".*/\1/')
+# `tr`, not `${PROFILE^^}` (bash 4+ case conversion) — macOS's system
+# /usr/bin/env-resolved bash is 3.2.57 and doesn't support it (found via
+# testing: "bad substitution").
+PROFILE_UPPER=$(echo "${PROFILE}" | tr '[:lower:]' '[:upper:]')
+if [ -z "${EJSON_PUB}" ] || [ "${EJSON_PUB}" = "REPLACE_WITH_${PROFILE_UPPER}_EJSON_PUBLIC_KEY" ]; then
+    error "Evault has no real _public_key — run docs/ENCRYPTION_SETUP.md first"
+fi
+
+KEY_DIR="${HOME}/.config/chezmoi/keys"
+KEY_FILE="${KEY_DIR}/${EJSON_PUB}"
+if [ ! -r "${KEY_FILE}" ]; then
+    log_error "EJSON private key missing at ${KEY_FILE}"
+    log_error "Run 'chezmoi apply' first to unlock the key chain."
+    exit 1
+fi
+
+# ───── Set up safe workspace (tmpfs preferred) ───────────────────────────────
+
+if [ -d /dev/shm ] && [ -w /dev/shm ]; then
+    WORK_BASE=/dev/shm
+else
+    WORK_BASE=/tmp
+    log_warn "/dev/shm unavailable, falling back to /tmp (plaintext may touch disk)"
+fi
+
+WORK="${WORK_BASE}/edit-evault-${PROFILE}-$$"
+TMP_FILE="${WORK}/evault.json"
+mkdir -p "${WORK}" && chmod 700 "${WORK}"
+
+# Always shred on exit (even on error / Ctrl-C)
+cleanup() {
+    if [ -f "${TMP_FILE}" ]; then
+        shred -u "${TMP_FILE}" 2>/dev/null || rm -f "${TMP_FILE}"
+    fi
+    rmdir "${WORK}" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# ───── Decrypt → edit → re-encrypt ───────────────────────────────────────────
+
+EDITOR_CMD="${EDITOR:-nano}"
+
+log_info "Decrypting ${PROFILE} evault into ${WORK_BASE} (tmpfs)..."
+if ! ejson -keydir "${KEY_DIR}" decrypt "${EVAULT}" > "${TMP_FILE}"; then
+    error "ejson decrypt failed"
+fi
+chmod 600 "${TMP_FILE}"
+
+# Snapshot the file's content hash before editing — if unchanged, skip re-encrypt
+HASH_BEFORE=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
+
+# Loops on invalid JSON so a typo doesn't force a manual /tmp recovery dance —
+# re-opens the same tmp file (edits so far are preserved) until it's either
+# valid JSON or the user explicitly gives up.
+while true; do
+    log_info "Opening ${EDITOR_CMD}..."
+    # `|| true` — under scripts-library's `set -e`, a non-zero editor exit (e.g.
+    # an abnormal quit) must NOT skip straight to the cleanup trap, which would
+    # shred the tmp file before the hash-check/re-encrypt below ever runs.
+    "${EDITOR_CMD}" "${TMP_FILE}" || true
+
+    HASH_AFTER=$(sha256sum "${TMP_FILE}" | awk '{print $1}')
+    if [ "${HASH_BEFORE}" = "${HASH_AFTER}" ]; then
+        log_ok "No changes — skipping re-encrypt."
+        exit 0
+    fi
+
+    # Sanity check — must still be valid JSON before encrypting
+    if python3 -c "import json,sys; json.load(open('${TMP_FILE}'))" 2>/dev/null; then
+        break
+    fi
+
+    log_error "Edited file is not valid JSON."
+    printf "Re-open %s to fix it? [Y/n] " "${EDITOR_CMD}"
+    read -r retry_choice
+    case "${retry_choice}" in
+        [Nn]*)
+            log_error "Plaintext is still at ${TMP_FILE}; copy your work somewhere before exit"
+            # Disable cleanup so user can recover
+            trap - EXIT
+            exit 1
+            ;;
+    esac
+done
+
+log_info "Re-encrypting evault into ${REPO}..."
+# ejson encrypt modifies in place — give it a fresh copy at the repo location
+cp "${TMP_FILE}" "${EVAULT}"
+if ! ejson encrypt "${EVAULT}"; then
+    error "ejson encrypt failed — evault may be in a broken state"
+fi
+
+log_ok "${PROFILE} evault updated and re-encrypted in dev repo."
+log_info "Next steps:"
+log_info "  cd ${REPO}"
+log_info "  git add secrets/${PROFILE}/evault && git commit -m 'evault: update ${PROFILE}'"
+log_info "  git push"
+log_info "  # On other machines: chezmoi update  (pulls + applies)"

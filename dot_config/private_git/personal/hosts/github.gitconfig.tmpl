@@ -1,0 +1,7 @@
+{{- /*
+  Same pattern as work/hosts/github.gitconfig.tmpl — per-host override for
+  github.com remotes, GitHub noreply email sourced from the personal EJSON
+  evault (git.github_email, edit via 'edit-evault personal').
+*/ -}}
+[user]
+    email = {{ includeTemplate "evault-field" (dict "profile" "personal" "path" "git.github_email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}

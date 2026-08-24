@@ -1,0 +1,113 @@
+# Migrated from dot_bashrc.d/50-aliases-power.sh 2026-08-18 (see
+# CONCEPT_ROADMAP.md §3.6) — that file was bash/zsh-only, missing entirely
+# from fish and PowerShell, the same class of gap the git aliases had before
+# their own migration.
+#
+# One deliberate behavior simplification made during the move: the original
+# had a `[ $UID -ne 0 ]` runtime branch (no `sudo` prefix when already root).
+# The YAML alias model only branches on OS, not runtime UID, and `sudo <cmd>`
+# when already root is a harmless no-op passthrough on every tested system
+# (sudo detects root and just execs, no re-auth) — so the branch was dropped,
+# not worked around; behavior is unchanged either way.
+#
+# macOS/Linux binary paths verified live: macOS ships /sbin/reboot, /sbin/halt,
+# /sbin/shutdown (confirmed identical files, BSD argv[0]-dispatch idiom) but
+# NOT /sbin/poweroff — hence poweroff's darwin override below.
+aliases:
+  common:
+    categories:
+      power:
+        - name: reboot
+          command:
+            default: "sudo /sbin/reboot"
+            windows: "Restart-Computer -Force"
+          description: Reboot the machine
+
+        - name: poweroff
+          command:
+            default: "sudo /sbin/poweroff"
+            darwin: "sudo /sbin/shutdown -h now" # macOS has no /sbin/poweroff binary (verified live)
+            windows: "Stop-Computer -Force"
+          description: Power off the machine
+
+        - name: halt
+          command:
+            default: "sudo /sbin/halt"
+            # Windows has no distinct halt-vs-poweroff concept — Stop-Computer
+            # is the closest single equivalent for both.
+            windows: "Stop-Computer -Force"
+          description: Halt the machine
+
+        - name: shutdown
+          command:
+            default: "sudo /sbin/shutdown"
+            # Bare `shutdown` here is the flexible/schedulable Linux/macOS
+            # form (no args = platform-default delay). Windows shutdown.exe/
+            # Stop-Computer both require explicit timing flags — no safe,
+            # faithful bare equivalent. See `shutdownnow` for the immediate
+            # case, which does have one.
+            windows: skip
+          description: Shut down the machine (flexible/scheduled form)
+
+        - name: shutdownnow
+          command:
+            default: "sudo /sbin/shutdown -h now"
+            windows: "Stop-Computer -Force"
+          description: Shut down the machine immediately
+
+        - name: root
+          command:
+            # Bare `sudo $SHELL`, NOT `sudo -i` — `-i` unconditionally resets
+            # $HOME to root's real home (verified live on both platforms),
+            # defeating the whole point of a convenience root shell (no
+            # dotfiles, no colored prompt, root's own unconfigured
+            # environment). Bare `sudo $SHELL` preserves $HOME on macOS
+            # (verified live) — nothing more needed there. On Linux, bare
+            # sudo does NOT preserve $HOME either (Fedora's sudoers ships
+            # `Defaults always_set_home`, verified live, `sudo -E` doesn't
+            # override it) — paired with the new
+            # run_after_ensure-root-environment-mirror.sh.tmpl, which
+            # mirrors the invoking user's aliases/functions/prompt into
+            # /root via $SUDO_USER instead. See CONCEPT_ROADMAP.md §3.8 for
+            # the full reasoning and live verification.
+            default: "sudo $SHELL"
+            # Same native-sudo-first, RunAs-fallback concept as makeme/
+            # makeroot (see misc.yaml) — CONCEPT_ROADMAP.md §7. `sudo pwsh`
+            # opens an elevated PowerShell (new window or inline, depending
+            # on the machine's configured sudo mode); falls back to the old
+            # RunAs popup on pre-24H2 Windows. Same caveats apply: needs a
+            # real interactive/console session, not a plain SSH exec.
+            #
+            # Trailing `; $args | Out-Null` is NOT decorative — verified live
+            # on winlab.local that the renderer's auto-appended `@args` after
+            # an `if {...} else {...}` block is a hard PARSE ERROR ("The
+            # splatting operator '@' cannot be used to reference variables in
+            # an expression... can be used only as an argument to a
+            # command") — an if-statement isn't a "command" any more than a
+            # bare property access was in the earlier `count` bug. Referencing
+            # `$args` explicitly here (same trick as `reload` below) makes the
+            # renderer skip the auto-append entirely, same mechanism as
+            # makeme/makeroot's `"$args"` string interpolation, just applied
+            # to a value that has no natural place to put it.
+            windows: 'if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo pwsh } else { Start-Process pwsh -Verb RunAs }; $args | Out-Null'
+          description: Start a root/elevated shell
+
+        - name: reload
+          command:
+            # Plain $SHELL, not ${SHELL} — verified live that fish hard-errors
+            # ("Variables cannot be bracketed") on the brace form, unlike
+            # bash/zsh where both forms are equivalent. Unbraced $SHELL works
+            # identically in bash, zsh, AND fish, so no override is needed.
+            default: "exec $SHELL -l"
+            # PowerShell has no exec-replace-process or login-shell concept —
+            # re-sourcing $PROFILE achieves the practical goal (pick up
+            # dotfiles changes without closing the window) even though it's
+            # not a literal port of "restart as login shell".
+            #
+            # Trailing `; $args | Out-Null` — verified live that the
+            # renderer's auto-appended `@args` after a dot-source (`. $PROFILE
+            # @args`) is a hard PARSE ERROR, same root cause/fix as `root`
+            # above: splatting is only valid as an argument to an actual
+            # command, not after `.`/an expression. See that entry's comment.
+            windows: '. $PROFILE; $args | Out-Null'
+          description: Reload the shell (re-exec as a login shell; PowerShell re-sources $PROFILE instead)

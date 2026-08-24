@@ -1,0 +1,40 @@
+{{- if eq .chezmoi.os "windows" -}}
+# Ensures $PROFILE (CurrentUserCurrentHost) dot-sources
+# Documents\PowerShell\dotfiles.d\*.ps1 — idempotent, runs on every apply
+# (plain `run_` prefix). Targets PowerShell 7 (`pwsh`) — chezmoi's built-in
+# `.ps1` interpreter default (`pwsh -NoLogo -File`, no config needed).
+#
+# $PROFILE, like ~/.bashrc/~/.zshrc/~/.ssh/config/~/.gitconfig, is NEVER
+# fully owned/templated by chezmoi — a real PowerShell profile commonly
+# accumulates important content (posh-git, oh-my-posh, conda/venv init)
+# that a full-file replacement would silently destroy. Same lesson as the
+# other rc files, see CONCEPT_ROADMAP.md §2.1/§2.3/§2.4/§3.3. Only a small
+# idempotent dot-sourcing block gets appended if missing; everything else
+# lives under the safely-chezmoi-owned Documents\PowerShell\dotfiles.d\
+# instead. See CONCEPT_ROADMAP.md §3.3.
+
+$profilePath = $PROFILE
+
+if (-not (Test-Path $profilePath)) {
+    New-Item -ItemType File -Path $profilePath -Force | Out-Null
+}
+
+$existingContent = Get-Content -Path $profilePath -Raw -ErrorAction SilentlyContinue
+
+if (-not $existingContent -or $existingContent -notmatch 'dotfiles\.d') {
+    Write-Host "`$PROFILE doesn't source dotfiles.d\ - adding it" -ForegroundColor Blue
+
+    $block = @'
+
+# Added by dotfiles bootstrap - sources Documents\PowerShell\dotfiles.d\*.ps1
+# (see CONCEPT_ROADMAP.md 2.1/2.3/2.4/3.3 for why this file itself is never
+# fully owned by chezmoi).
+$dotfilesD = Join-Path (Split-Path $PROFILE) 'dotfiles.d'
+if (Test-Path $dotfilesD) {
+    Get-ChildItem "$dotfilesD\*.ps1" | ForEach-Object { . $_.FullName }
+}
+'@
+
+    Add-Content -Path $profilePath -Value $block
+}
+{{- end -}}

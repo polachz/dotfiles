@@ -1,0 +1,45 @@
+{{- if ne .chezmoi.os "windows" -}}
+#!/usr/bin/env bash
+# Ensures ~/.zshrc sources ~/.zshrc.d/* — idempotent, runs on every apply
+# (plain `run_` prefix), same pattern and same reasoning as
+# run_after_ensure-bashrc-sourcing.sh.tmpl.
+#
+# Unlike ~/.bashrc.d/* auto-sourcing, zsh has NO OS-provided convention for
+# this at all on any distro — but more importantly, unlike bash's ~/.bashrc.d
+# (which chezmoi never fully owned), an earlier version of this concept tried
+# to have chezmoi manage the ENTIRE ~/.zshrc file directly. That's wrong: a
+# real ~/.zshrc commonly has genuinely important user content (found on this
+# exact machine during testing: Google Cloud SDK setup, Claude Code Vertex AI
+# env vars, Bitwarden SSH agent socket) that a full-file replacement would
+# silently destroy. So ~/.zshrc, like ~/.bashrc, stays user/OS-owned — only a
+# small idempotent sourcing block gets appended if missing. Everything else
+# lives under the safely-chezmoi-owned ~/.zshrc.d/ instead.
+# See CONCEPT_ROADMAP.md §2.1/§3.3 for the full history of this correction.
+
+# {{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+zshrc="${HOME}/.zshrc"
+touch "${zshrc}"
+
+if ! grep -q '\.zshrc\.d' "${zshrc}"; then
+    log_task "~/.zshrc doesn't source ~/.zshrc.d/ — adding it"
+    cat >> "${zshrc}" <<'EOF'
+
+# Added by dotfiles bootstrap — sources ~/.zshrc.d/*, the zsh-only
+# counterpart to ~/.bashrc.d/* (see CONCEPT_ROADMAP.md §2.1/§3.3). The (N)
+# glob qualifier is zsh-specific — without it, zsh treats a no-match glob
+# (e.g. no ~/.zshrc.d present) as a fatal error, unlike bash which no-ops.
+if [ -d ~/.zshrc.d ]; then
+    for rc in ~/.zshrc.d/*(N); do
+        if [ -f "$rc" ]; then
+            . "$rc"
+        fi
+    done
+fi
+unset rc
+EOF
+fi
+{{- end -}}

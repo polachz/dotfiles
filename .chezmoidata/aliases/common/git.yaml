@@ -1,0 +1,38 @@
+# Migrated from dot_bashrc.d/git-aliases 2026-08-17 — plain git wrapper
+# commands have no shell-specific quirks (unlike chezmoi-aliases' `ch`/`chd`,
+# which need bash/zsh's `history -a` idiom), so unlike those, these fit the
+# shared cross-shell alias model cleanly — fish and PowerShell get parity
+# for free instead of needing hand-written duplicates.
+aliases:
+  common:
+    categories:
+      git:
+        - name: g
+          command: git
+          description: Git
+        - name: gcm
+          command: git commit -m
+          description: Commit with message
+        - name: gcam
+          command: git commit -am
+          description: Commit all tracked changes with message (does not stage new untracked files, unlike git add .)
+        - name: gcms
+          # `-s` (signoff) before `-m`, not after — `-m` always consumes the
+          # very next token as the message, so a trailing `@args`-appended
+          # `-s` (e.g. typing `gcm -s "msg"`) would be swallowed as the
+          # message text instead of being read as a flag. Baking `-s` in
+          # before `-m` avoids that trap entirely.
+          command: git commit -s -m
+          description: Commit with message, signed off (-s / Signed-off-by trailer)
+        - name: gp
+          command: git push
+          description: Push
+        - name: gst
+          command: git status
+          description: Status
+        - name: gam
+          command: git add -u
+          description: Stage modified + deleted files
+        - name: ga
+          command: git add
+          description: Stage files

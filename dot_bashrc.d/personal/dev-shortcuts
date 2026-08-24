@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-# Developer shortcuts — editor wrapper, bashrc.d editing.
-
-alias ali='zpfn_edit ~/.bashrc.d/personal/git-aliases'
-alias e='zpfn_edit'

@@ -1,0 +1,62 @@
+{{- if eq .chezmoi.os "windows" -}}
+# Ensures $HOME\.ssh\config carries the dotfiles-managed conf.d fragment content — runs on
+# every apply.
+#
+# Unlike every other rc-like file in this repo, this does NOT use a native `Include` — verified
+# live 2026-08-07 that Win32-OpenSSH's `Include` directive hangs ssh.exe indefinitely for both
+# absolute and tilde-style paths (confirmed on the in-box 9.5p2 AND the latest 10.0.0.0p2 GitHub
+# release, so it's a persistent bug in the port itself, not a version issue), and silently
+# no-ops for a path relative to the config file's own directory. See CONCEPT_ROADMAP.md §2.4/§7.
+#
+# Instead, the conf.d/*.conf fragment CONTENT is embedded directly into $HOME\.ssh\config, inside
+# a sentinel-delimited managed block that gets fully REGENERATED on every apply (not just
+# appended once) — the fragments' content can change between applies, so a one-time append
+# (like the bash version's Include line) isn't enough here. Precedence is identical either way
+# (SSH itself parses it the same whether the content arrived via Include or was already inline).
+
+$sshDir = Join-Path $HOME ".ssh"
+if (-not (Test-Path $sshDir)) {
+    New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+}
+
+$sshConfig = Join-Path $sshDir "config"
+if (-not (Test-Path $sshConfig)) {
+    New-Item -ItemType File -Path $sshConfig -Force | Out-Null
+}
+
+$confD = Join-Path $sshDir "conf.d"
+$beginMarker = "# BEGIN dotfiles conf.d (managed by chezmoi, do not edit by hand)"
+$endMarker = "# END dotfiles conf.d"
+
+$fragmentContent = ""
+if (Test-Path $confD) {
+    $fragments = Get-ChildItem -Path $confD -Filter "*.conf" | Sort-Object Name
+    foreach ($fragment in $fragments) {
+        $fragmentContent += (Get-Content -Path $fragment.FullName -Raw).TrimEnd()
+        $fragmentContent += "`n"
+    }
+}
+
+$newBlock = "$beginMarker`n$fragmentContent$endMarker"
+
+$existingContent = Get-Content -Path $sshConfig -Raw -ErrorAction SilentlyContinue
+if ($null -eq $existingContent) { $existingContent = "" }
+
+$beginIdx = $existingContent.IndexOf($beginMarker)
+if ($beginIdx -ge 0) {
+    $endIdx = $existingContent.IndexOf($endMarker, $beginIdx)
+    if ($endIdx -ge 0) {
+        $endIdx += $endMarker.Length
+        $before = $existingContent.Substring(0, $beginIdx)
+        $after = $existingContent.Substring($endIdx)
+        $updatedContent = $before + $newBlock + $after
+        if ($updatedContent -ne $existingContent) {
+            Write-Host "`$HOME\.ssh\config conf.d block out of date - regenerating it" -ForegroundColor Blue
+            Set-Content -Path $sshConfig -Value $updatedContent -NoNewline
+        }
+    }
+} else {
+    Write-Host "`$HOME\.ssh\config missing conf.d block - adding it" -ForegroundColor Blue
+    Add-Content -Path $sshConfig -Value "`n$newBlock"
+}
+{{- end -}}

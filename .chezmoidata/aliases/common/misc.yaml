@@ -1,0 +1,133 @@
+# Migrated from dot_bashrc.d/50-aliases-misc.sh (see CONCEPT_ROADMAP.md §3.6).
+# `windows:` values added for PowerShell 7 (CONCEPT_ROADMAP.md §3.3) — real
+# equivalents verified live on winlab.local, not guessed.
+#
+# Deliberately NOT migrated here (need per-shell native handling, not a plain
+# command string — see CONCEPT_ROADMAP.md §3.6):
+#   - `sudo='sudo '`      trailing-space trick, shell-specific idiom
+#   - `path` alias        bash parameter-expansion (${PATH//:/\n}), no fish equivalent string
+#   - power/reboot family runtime $UID branching, not an OS-time fact
+aliases:
+  common:
+    categories:
+      misc:
+        # `gh` moved out of the plain alias model 2026-08-20 — needs a
+        # conditional definition (only claim the name if the real GitHub
+        # CLI isn't on PATH), which this flat command-string model can't
+        # express. See dot_bashrc.d/85-functions-extra.sh (bash/zsh),
+        # dot_config/fish/functions/{gh,ghi}.fish(.tmpl), and
+        # Documents/PowerShell/dotfiles.d/80-functions.ps1 for the actual
+        # `gh`/`ghi` implementation.
+
+        - name: count
+          command:
+            default: "find . -type f | wc -l"
+            # NOT `(Get-ChildItem -Recurse -File).Count` — verified live that
+            # trailing `@args` (auto-appended by the renderer) after a bare
+            # property access is a hard PARSE ERROR that fails the whole
+            # generated script, not just this function. Ending in a real
+            # cmdlet call keeps `@args` splatting valid.
+            windows: "Get-ChildItem -Recurse -File | Measure-Object | Select-Object -ExpandProperty Count"
+          description: Count all files in the current directory tree
+
+        - name: makeme
+          command:
+            default: "sudo chown $USER:$USER"
+            # Prefers Windows 11 24H2+'s native `sudo.exe` (inline, same-window
+            # UX, close to Unix sudo) when present; falls back to the old
+            # `Start-Process -Verb RunAs` popup (new elevated window) on older
+            # Windows. Verified live on winlab.local (2026-08-18): BOTH paths
+            # require an interactive desktop session to show the UAC consent —
+            # over a plain (non-`administrators_authorized_keys`) SSH session
+            # `sudo` fails fast with a clear "You are not allowed to run sudo"
+            # error, while `Start-Process -Verb RunAs` silently never launches
+            # anything at all (no error, no process). Neither is usable for
+            # unattended/headless bootstrap — see CONCEPT_ROADMAP.md's Windows
+            # user-scope/elevation section. `sudo.exe`/`takeown /F` syntax
+            # verified live.
+            windows: 'if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo.exe takeown /F "$args" } else { Start-Process pwsh -Verb RunAs -ArgumentList ''-NoProfile'',''-Command'',"takeown /F `"$args`"" }'
+          description: Set file owner to the current user
+
+        - name: makeroot
+          command:
+            default: "sudo chown 0:0"
+            windows: 'if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo.exe takeown /F "$args" /A } else { Start-Process pwsh -Verb RunAs -ArgumentList ''-NoProfile'',''-Command'',"takeown /F `"$args`" /A" }'
+          description: Set file owner to root (Windows — Administrators group)
+
+        - name: sha
+          command:
+            default: "shasum -a 256"
+            windows: "Get-FileHash -Algorithm SHA256 -Path"
+          description: SHA-256 checksum shortcut
+
+        - name: ping
+          command:
+            default: "ping -c 5"
+            # Windows ping.exe uses -n, not -c — verified live: `-c` is
+            # silently IGNORED (not an error), and it pings the default 4x
+            # instead. Confirmed genuinely different flag, not just syntax.
+            #
+            # `ping.exe`, NOT bare `ping` — the renderer emits `function
+            # ping { ... }`, and PowerShell's command resolution prefers
+            # functions over external commands, so a bare `ping` here would
+            # call ITSELF, infinitely, instead of the real executable.
+            # Verified live: this genuinely hung/burned CPU on winlab.local
+            # until killed. Bash's `alias ping='ping -c 5'` doesn't have
+            # this problem — bash aliases have a one-level self-recursion
+            # guard built in; PowerShell functions don't.
+            windows: "ping.exe -n 5"
+          kind: alias
+          description: Ping with a bounded count of 5
+
+        - name: ports
+          command:
+            default: "netstat -tulanp"
+            darwin: "lsof -iTCP -sTCP:LISTEN -n -P"
+            windows: "Get-NetTCPConnection -State Listen"
+          description: Show all listening ports on this machine
+
+        - name: week
+          command:
+            default: "date +%V"
+            windows: "Get-Date -UFormat %V"
+          description: Print the current ISO week number
+
+        # Migrated from dot_bashrc.d/personal/dev-shortcuts 2026-08-18 — same
+        # reasoning as home-paths above (nav.yaml): was personal-scope AND
+        # bash-only, neither `e` nor `ali` is actually identity-specific.
+        - name: e
+          command:
+            # Plain $EDITOR, not ${EDITOR} — same fish incompatibility as
+            # `reload`'s $SHELL fix (power.yaml): fish hard-errors on the
+            # brace form. Unbraced works identically in bash/zsh/fish.
+            default: "$EDITOR"
+            # `& $env:EDITOR`, not bare `$env:EDITOR` — a bare variable
+            # reference is an expression, not a command invocation, so the
+            # renderer's auto-appended `@args` would hit the exact same
+            # splatting parse error as `reload`/`root` in power.yaml (see
+            # CONCEPT_ROADMAP.md §3.3 bug #5). The `&` call operator makes
+            # this a real command invocation, which IS a valid splat target.
+            windows: "& $env:EDITOR"
+          description: Open $EDITOR
+
+        - name: ali
+          command:
+            default: "edit-aliases-core aliases/common/git.yaml"
+            # edit-aliases-core (like edit-evault) is a bash script deployed
+            # to ~/.local/bin — that whole external-script tooling has no
+            # Windows story at all today (bash doesn't run natively, and
+            # nothing adds ~/.local/bin-equivalent to PATH on Windows
+            # either). Not a syntax issue to work around — flagged as a
+            # separate, real gap (CONCEPT_ROADMAP.md §3.6), not silently
+            # stubbed here.
+            windows: skip
+          description: Edit git aliases (dev repo copy, validated + regenerates ALIASES.md)
+
+        - name: myip
+          command:
+            default: "curl -s https://ifconfig.me"
+            # curl.exe explicitly — PowerShell aliases bare `curl` to
+            # Invoke-WebRequest, which doesn't understand `-s`. curl.exe
+            # itself has shipped natively since Windows 10 1803.
+            windows: "curl.exe -s https://ifconfig.me"
+          description: Show this machine's public IP address

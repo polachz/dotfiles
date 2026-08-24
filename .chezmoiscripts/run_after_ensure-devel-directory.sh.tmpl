@@ -1,0 +1,10 @@
+{{- if ne .chezmoi.os "windows" -}}
+#!/usr/bin/env bash
+# Ensures ~/Devel exists — idempotent, runs on every apply (plain `run_`
+# prefix). This is the source-code working directory the `d` alias
+# (.chezmoidata/aliases/common/nav.yaml, CONCEPT_ROADMAP.md §3.6) cd's into —
+# a different path on Windows (C:\Sources, see the .ps1.tmpl counterpart of
+# this script), confirmed by the user directly, not guessed.
+
+mkdir -p "${HOME}/Devel"
+{{- end -}}

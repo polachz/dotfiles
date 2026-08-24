@@ -1,0 +1,27 @@
+{{- /*
+  Generates the "<scope> scope — environment variables" sections of
+  ALIASES.md from the YAML files under .chezmoidata/env/ — see
+  CONCEPT_ROADMAP.md §3.4.
+
+  Regenerate via `edit-aliases-core` (no args = regen-only mode), which
+  splices this output into ALIASES.md between the GENERATED:aliases-doc-env
+  markers. Never edit that spliced block by hand — it's replaced verbatim on
+  every regeneration. Hand-maintained prose (intro paragraphs, non-YAML
+  content) belongs outside the markers.
+*/ -}}
+{{- range $scope := keys .env | sortAlpha -}}
+## {{ $scope | title }} scope — environment variables (`.chezmoidata/env/{{ $scope }}/`)
+{{- range $cat := keys (index $.env $scope).categories | sortAlpha }}
+
+### `{{ $cat }}`
+
+| Variable | Linux | macOS | Windows | Description |
+|---|---|---|---|---|
+{{- range (index (index $.env $scope).categories $cat) }}
+{{- $linux := includeTemplate "resolve-os-value" (dict "value" .value "os" "linux") | trim | replace "|" "\\|" }}
+{{- $darwin := includeTemplate "resolve-os-value" (dict "value" .value "os" "darwin") | trim | replace "|" "\\|" }}
+{{- $windows := includeTemplate "resolve-os-value" (dict "value" .value "os" "windows") | trim | replace "|" "\\|" }}
+| `{{ .name }}` | {{ if eq $linux "skip" }}—{{ else }}`{{ $linux }}`{{ end }} | {{ if eq $darwin "skip" }}—{{ else }}`{{ $darwin }}`{{ end }} | {{ if eq $windows "skip" }}—{{ else }}`{{ $windows }}`{{ end }} | {{ .description }} |
+{{- end }}
+{{- end }}
+{{ end -}}

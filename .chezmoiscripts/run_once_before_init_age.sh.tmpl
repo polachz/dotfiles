@@ -1,4 +1,5 @@
-#!/bin/sh
+{{- if ne .chezmoi.os "windows" -}}
+#!/usr/bin/env bash
 # Profile-aware Age + EJSON key bootstrap (interactive).
 #
 # Each profile uses its own key set — a personal machine cannot decrypt
@@ -15,14 +16,33 @@ true || source ../.chezmoitemplates/scripts-library
 
 profile='{{ .deployment.profile }}'
 
-log_task "Install Age tool if necessary"
-{{- if not (includeTemplate "is-os-command-available" (list "age")) -}}
-{{ template "install-os-package" (dict "package_manager" $.package_manager "package" "age") }}
-{{- end }}
+{{- /*
+  No external `age` binary install here on purpose - despite the name, this whole script only
+  ever calls chezmoi's OWN built-in `chezmoi age decrypt`/`chezmoi decrypt` subcommands below,
+  never a real `age`/`age-keygen` command. The external binary is only used by an operator's
+  manual key setup/rotation workflow (ENCRYPTION_SETUP.md, helpers/setup-encryption.sh - neither
+  of which is deployed to any machine, both excluded via .chezmoiignore.tmpl), covered instead
+  by packages.yaml's own `age` entry (roles: [workstation]) for whoever does that manual work on
+  their own workstation - a server gets no forced age install at all now, same reasoning as git.
+*/ -}}
 
+{{- /*
+  git is only ensured here for workstation role - this script's own age/EJSON decrypt uses
+  chezmoi's built-in `chezmoi age decrypt`/`chezmoi decrypt` subcommands (see below), never a
+  real `git` binary. The only actual git-binary usage anywhere in this repo is
+  run_onchange_after_user-settings.sh.tmpl's remote-to-SSH switch, a workstation-only concern
+  (a server never pushes back to the dotfiles repo) - so a server role gets no forced git
+  install here at all. chezmoi's own built-in git (go-git) already handles the initial clone
+  with no external git needed regardless of role. Workstations still get git properly via
+  packages.yaml's own `git` entry during the normal apply - this pre-emptive install only
+  matters for the later remote-switch script, which runs before packages.yaml's git would
+  otherwise land.
+*/ -}}
+{{- if eq .deployment.role "workstation" }}
 log_task "Install Git tool if necessary"
 {{- if not (includeTemplate "is-os-command-available" (list "git")) -}}
 {{ template "install-os-package" (dict "package_manager" $.package_manager "package" "git") }}
+{{- end }}
 {{- end }}
 
 ch_cfg_dir='{{ .chezmoi_config_dir }}'
@@ -42,10 +62,41 @@ mkdir -p "${keys_dir}" && chmod 700 "${keys_dir}"
 
 if [ ! -f "${age_key_file}" ]; then
     log_task "Decrypting Age key for profile '${profile}'"
+    # `chezmoi age decrypt --passphrase` needs a real controlling terminal to prompt
+    # securely — in a context with none (non-interactive automation, an SSH exec
+    # channel with no pty allocated, CI) it fails instantly with "could not open a
+    # new TTY". Without this upfront check, the retry loop below would spin forever
+    # at effectively zero cost per iteration — confirmed live (burned real CPU on a
+    # lab VM in seconds until manually killed, same class of bug as the earlier
+    # PowerShell `ping` self-recursion finding). Fail fast with a clear message
+    # instead of silently maxing out a CPU core.
+    #
+    # Confirmed live 2026-08-22: stdin(0) is NOT a tty even in a genuinely
+    # interactive SSH session, because the whole bootstrap.sh was invoked as
+    # `curl ... | sh -s -- ...` — stdin of the resulting `sh` process (and
+    # everything it execs, including chezmoi and this nested script) is the
+    # curl pipe, not the terminal, regardless of the outer session. `/dev/tty`
+    # is unaffected by this — it always refers to the process's actual
+    # controlling terminal, independent of what's plumbed into fd 0 — so
+    # reattach to it first when stdin isn't already a tty; only fail if that
+    # ALSO doesn't exist (a genuinely non-interactive context with no
+    # controlling terminal at all, e.g. real CI/cron).
+    if [ ! -t 0 ] && [ -r /dev/tty ]; then
+        exec < /dev/tty
+    fi
+    if [ ! -t 0 ]; then
+        error "No controlling terminal available to prompt for the ${profile} Age passphrase (stdin is not a tty, and /dev/tty is unavailable). Run this interactively, e.g. via a real SSH session, not a non-interactive exec/automation context."
+    fi
     log_info "Paste the ${profile} Age passphrase from your password manager when prompted."
+    attempt=0
+    max_attempts=10
     while [ ! -f "${age_key_file}" ]; do
+        attempt=$((attempt + 1))
+        if [ "${attempt}" -gt "${max_attempts}" ]; then
+            error "Failed to decrypt ${age_blob} after ${max_attempts} attempts — giving up."
+        fi
         {{ .chezmoi.executable }} age decrypt --passphrase --output "${age_key_file}" "${age_blob}" \
-            || log_error "Decrypting ${age_blob} failed. Try again..."
+            || log_error "Decrypting ${age_blob} failed (attempt ${attempt}/${max_attempts}). Try again..."
     done
     chmod 600 "${age_key_file}"
 fi
@@ -62,3 +113,4 @@ EOF
     rm -f "${ch_tmp_cfg}"
     chmod 600 "${ekey_file}"
 fi
+{{- end -}}

@@ -8,10 +8,50 @@
 {{- $enc_ejson_key_id_personal  := "42f3b8a03a245634684166fa5216585f2f3d51b99d20d43172c8c04a34e4fd67" -}}
 {{- $enc_ejson_key_id_work      := "ee6199e72ef1df36fac21e84403b6c7463450b5a5f733a2b70502b60144aac5d" -}}
 
-{{/* Prompt for profile on first init (personal | work). */}}
-{{- $profile := promptStringOnce . "deployment.profile" "Profile (personal/work)" "personal" -}}
+{{/*
+  Init-time facts (profile, role, has_gui) resolve in this order:
+  1. matching DOTFILES_* env var, if set and non-empty (scripted/automated init — CI, lab VMs)
+  2. interactive promptStringOnce/promptBoolOnce fallback (human-driven machines), cached in the
+     local, never-committed chezmoi config after the first answer.
+*/}}
+
+{{/* Profile (personal | work). */}}
+{{- $profile := env "DOTFILES_PROFILE" -}}
+{{- if eq $profile "" -}}
+  {{- $profile = promptStringOnce . "deployment.profile" "Profile (personal/work)" "personal" -}}
+{{- end -}}
 {{- if and (ne $profile "personal") (ne $profile "work") -}}
   {{- fail (printf "Invalid profile %q — must be 'personal' or 'work'" $profile) -}}
+{{- end -}}
+
+{{/* Role is orthogonal to profile — same identity/keys, different package/config selection. */}}
+{{- $role := env "DOTFILES_ROLE" -}}
+{{- if eq $role "" -}}
+  {{- $role = promptStringOnce . "deployment.role" "Role (workstation/server)" "workstation" -}}
+{{- end -}}
+{{- if and (ne $role "workstation") (ne $role "server") -}}
+  {{- fail (printf "Invalid role %q — must be 'workstation' or 'server'" $role) -}}
+{{- end -}}
+
+{{/*
+  GUI presence is orthogonal to role — a workstation can be headless. Gates GUI-only tools
+  (Ghostty, Windows Terminal, Bitwarden desktop, the Nerd Font). Only asks interactively on
+  Linux, where a headless machine is common (that's what --role server is for elsewhere too) —
+  macOS/Windows default straight to true without a prompt, since a headless Mac/Windows box
+  isn't a real scenario this project needs to ask about every run. DOTFILES_HAS_GUI still
+  overrides on any OS, for the rare exception (e.g. a genuinely headless Mac build server).
+*/}}
+{{- $hasGuiEnv := env "DOTFILES_HAS_GUI" -}}
+{{- $has_gui := false -}}
+{{- if ne $hasGuiEnv "" -}}
+  {{- if and (ne $hasGuiEnv "true") (ne $hasGuiEnv "false") -}}
+    {{- fail (printf "Invalid DOTFILES_HAS_GUI %q — must be 'true' or 'false'" $hasGuiEnv) -}}
+  {{- end -}}
+  {{- $has_gui = eq $hasGuiEnv "true" -}}
+{{- else if ne .chezmoi.os "linux" -}}
+  {{- $has_gui = true -}}
+{{- else -}}
+  {{- $has_gui = promptBoolOnce . "deployment.has_gui" "Does this machine have a GUI" true -}}
 {{- end -}}
 
 {{/* Resolve per-profile crypto identifiers. */}}
@@ -26,8 +66,36 @@
 {{- $enc_keys_dir       := joinPath $ch_cfg_dir "keys" -}}
 {{- $enc_age_key_file   := joinPath $ch_cfg_dir (printf "age_%s.key" $profile) -}}
 
-{{/* Auto-detect virtualisation host so guest tools can install themselves. */}}
-{{- $virt_type := (output "systemd-detect-virt" | trim) -}}
+{{/* Auto-detect virtualisation host so guest tools can install themselves. Linux-only tool. */}}
+{{- $virt_type := "none" -}}
+{{- if lookPath "systemd-detect-virt" -}}
+  {{- $virt_type = (output "systemd-detect-virt" | trim) -}}
+{{- end -}}
+
+{{/*
+  Windows-only: can this account actually elevate via UAC at all? NOT the same as "is this
+  process currently elevated" (WindowsPrincipal.IsInRole is unreliable for that check anyway —
+  UAC's split token means a non-elevated admin's own token often reports false) — this queries
+  real local-Administrators-group membership by well-known SID (S-1-5-32-544, not the localized
+  group name, which differs on non-English Windows). Recomputed fresh every run, not
+  prompted/cached, matching the virt-detection pattern above — it's live system state, not a
+  deployment identity choice like profile/role/gui.
+
+  WHY this matters: some Windows installers (e.g. Total Commander's winget package) hard-require
+  elevation for EVERYONE, admin or not — confirmed live 2026-08-19, a genuine Standard User gets
+  an actual credential-entry UAC prompt (not the simple "allow?" a local admin sees), which would
+  hang a scripted bootstrap forever. Others (git, per PrivilegesRequired=none — see bootstrap.ps1)
+  degrade gracefully for Standard Users and don't need this at all. Consumed directly (template
+  render time, not packages.yaml) by run_after_install-totalcmd-windows.ps1.tmpl and
+  run_after_install-7zip-windows.ps1.tmpl, each choosing between a winget-install branch and a
+  portable no-elevation fallback branch — see those files for why (2026-08-20 consolidation, see
+  CONCEPT_ROADMAP.md §7).
+*/}}
+{{- $can_elevate := true -}}
+{{- if eq .chezmoi.os "windows" -}}
+  {{- $canElevateCheck := "try { $g = Get-LocalGroup -SID 'S-1-5-32-544' -ErrorAction Stop; $m = Get-LocalGroupMember -Group $g -ErrorAction Stop; $me = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value; if ($m | Where-Object { $_.SID.Value -eq $me }) { Write-Output 'true' } else { Write-Output 'false' } } catch { Write-Output 'false' }" -}}
+  {{- $can_elevate = eq (output "powershell" "-NoProfile" "-NonInteractive" "-Command" $canElevateCheck | trim) "true" -}}
+{{- end -}}
 
 {{- $osid := .chezmoi.os -}}
 {{- if hasKey .chezmoi.osRelease "id" -}}
@@ -45,6 +113,9 @@ data:
       key_id: {{ $enc_ejson_key_id | quote }}
   deployment:
     profile: {{ $profile | quote }}
+    role: {{ $role | quote }}
+    has_gui: {{ $has_gui }}
+    can_elevate: {{ $can_elevate }}
     osid: {{ $osid | quote }}
 {{- if eq $virt_type "oracle" }}
     vm: true
@@ -59,12 +130,17 @@ data:
     vm: false
     vm_type: none
 {{- end }}
-{{- if eq .chezmoi.osRelease.id "fedora" }}
+{{- $osReleaseId := index .chezmoi.osRelease "id" }}
+{{- if eq $osReleaseId "fedora" }}
   package_manager: dnf
-{{- else if eq .chezmoi.osRelease.id "ubuntu" }}
+{{- else if eq $osReleaseId "ubuntu" }}
   package_manager: apt
-{{- else if eq .chezmoi.osRelease.id "debian" }}
+{{- else if eq $osReleaseId "debian" }}
   package_manager: apt
+{{- else if eq .chezmoi.os "darwin" }}
+  package_manager: brew
+{{- else if eq .chezmoi.os "windows" }}
+  package_manager: winget
 {{- end }}
   ejson_vault: {{ joinPath .chezmoi.sourceDir "secrets" $profile "evault" | quote }}
 encryption: 'age'
@@ -76,3 +152,16 @@ ejson:
 diff:
   exclude:
     - scripts
+{{- if eq .chezmoi.os "windows" }}
+{{/*
+  Without this, `chezmoi cd` (the `chd` function/alias) falls back to an
+  OS-specific default on Windows — confirmed live 2026-08-20: that's
+  cmd.exe, not the user's actual shell (pwsh), landing you in a completely
+  different shell with none of this repo's functions/aliases/prompt. `$SHELL`
+  detection (chezmoi's other fallback) doesn't exist as a concept on Windows
+  at all, unlike Linux/macOS where it already picks the right shell without
+  this override.
+*/}}
+cd:
+  command: pwsh
+{{- end }}

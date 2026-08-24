@@ -1,0 +1,175 @@
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
+{{- if .deployment.can_elevate -}}
+# Installs Total Commander via winget (this account can elevate - real
+# Program Files install with proper uninstaller registration). Runs on
+# every apply (plain `run_after_` prefix), no-ops once already installed.
+#
+# NOT in packages.yaml's generic loop on purpose - the winget-vs-portable
+# decision and its outcome used to be split across two separately-timed
+# scripts (packages.yaml's onchange-phase loop printing a bare "SKIP", the
+# portable fallback's after-phase script actually installing something
+# with no visible link between the two log lines) - confusing, user's
+# explicit feedback 2026-08-20. Consolidated into ONE script per tool
+# instead, deciding at chezmoi TEMPLATE render time (not PowerShell
+# runtime) which of the two paths to even include in the rendered script,
+# so there's exactly one, immediately-explained action in the log either
+# way. See the other half of this can_elevate template branch for the
+# portable/no-elevation path, and CONCEPT_ROADMAP.md for the full
+# elevation investigation (Ghisler.TotalCommander's installer forces
+# elevation for everyone via its own code, not just its manifest).
+
+$ErrorActionPreference = "Stop"
+
+$installed = winget list --id Ghisler.TotalCommander -e --source winget --accept-source-agreements 2>$null | Select-String -SimpleMatch "Ghisler.TotalCommander"
+if ($installed) {
+    Write-Host "OK: Total Commander already installed" -ForegroundColor Green
+} else {
+    Write-Host "-> Installing Total Commander via winget" -ForegroundColor Blue
+    winget install -e --id Ghisler.TotalCommander --source winget --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
+}
+{{- else -}}
+# Installs Total Commander per-user, no elevation - this account can't
+# elevate at all (not a member of the local Administrators group). Runs on
+# every apply (plain `run_after_` prefix), no-ops once the installed
+# version matches the latest available. See the other half of this
+# can_elevate template branch for the normal winget-install path used
+# when this account CAN elevate, and the note there about why this is
+# one consolidated script instead of two.
+#
+# WHY this fallback exists at all: Ghisler.TotalCommander's INSTALLER (an
+# InstallShield self-extracting bootstrapper) forces elevation for EVERYONE
+# via its own internal code, confirmed live 2026-08-19 - even though its
+# own embedded manifest says requestedExecutionLevel="highestAvailable"
+# (which should only ask admin-group members, per Inno Setup/manifest
+# semantics - see bootstrap.ps1's git comment) and even with the
+# __COMPAT_LAYER=RunAsInvoker compatibility shim, a genuine Standard User
+# (confirmed via Get-LocalGroupMember -Group Administrators NOT listing
+# the test account) still got a real credential-entry UAC prompt. The
+# installer's elevation request is baked into its own application logic,
+# not just the OS manifest, so no command-line trick can suppress it.
+#
+# THE ACTUAL PROGRAM needs none of that, though - confirmed live by
+# extracting the installer's payload directly: TOTALCMD64.EXE has its OWN
+# manifest with requestedExecutionLevel="asInvoker" (never self-elevates),
+# and Total Commander is genuinely portable software - copy the files
+# anywhere, no registry/system integration required to run it. The
+# installer .exe is just a self-extracting ZIP (openable directly via
+# .NET's ZipFile, no third-party tool needed) wrapping one INSTALL.CAB
+# (a plain Microsoft Cabinet archive, extractable via Windows' own
+# built-in expand.exe) containing the real program files. So this
+# downloads the official installer .exe but NEVER RUNS it - only unpacks
+# its payload with built-in Windows/.NET tools, entirely avoiding the
+# installer's own forced-elevation code path.
+#
+# Version resolution: Ghisler's site has no GitHub-style releases API, so
+# this scrapes the official download page for the current 64-bit installer
+# URL (https://totalcommander.ch/<ver>/tcmd<ver>x64.exe) - more fragile
+# than an API (breaks if Ghisler restructures the page), but stays current
+# automatically rather than needing a manually-bumped pinned version
+# (deliberate tradeoff, user's call 2026-08-19).
+
+$ErrorActionPreference = "Stop"
+
+$installDir = Join-Path $HOME "tcmd"
+$stateDir = Join-Path $env:LOCALAPPDATA "dotfiles"
+$versionFile = Join-Path $stateDir "totalcmd.version"
+
+New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+
+Write-Host "-> This account can't elevate (not a member of the local Administrators group) - installing Total Commander via portable, no-elevation fallback" -ForegroundColor Blue
+
+# Per-user Start Menu + Desktop shortcuts ($env:APPDATA / the per-user
+# Desktop special folder, no elevation needed for either) - the all-users
+# locations (%ProgramData%, the public Desktop) would need admin,
+# deliberately not used here. A function, not inline, so it can run both
+# on a fresh install AND on the "already up to date" no-op path below (an
+# existing install from before shortcuts were added here shouldn't need a
+# version bump just to get them - CreateShortcut is cheap/idempotent to
+# just always re-ensure).
+function New-TotalCommanderShortcuts($tcExe, $workDir) {
+    $wshShell = New-Object -ComObject WScript.Shell
+    $shortcutTargets = @(
+        (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Total Commander.lnk"),
+        (Join-Path ([Environment]::GetFolderPath("Desktop")) "Total Commander.lnk")
+    )
+    foreach ($shortcutPath in $shortcutTargets) {
+        $shortcut = $wshShell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = $tcExe
+        $shortcut.WorkingDirectory = $workDir
+        $shortcut.IconLocation = $tcExe
+        $shortcut.Save()
+    }
+}
+
+# A transient network failure (or, less likely, a page-structure change)
+# here is not worth aborting the WHOLE chezmoi apply over - this tool is
+# optional, so it's skipped with a clear warning (retried next apply)
+# instead, same pattern as the Nerd Font/7-Zip scripts.
+try {
+    $downloadPageHtml = (Invoke-WebRequest -Uri "https://www.ghisler.com/download.htm" -UseBasicParsing -ErrorAction Stop).Content
+} catch {
+    Write-Host "SKIP: could not reach https://www.ghisler.com/download.htm ($($_.Exception.Message)) - will retry next apply" -ForegroundColor Yellow
+    return
+}
+$urlMatch = [regex]::Match($downloadPageHtml, 'https://totalcommander\.ch/(\d+)/tcmd\1x64\.exe')
+if (-not $urlMatch.Success) {
+    Write-Host "SKIP: could not find the Total Commander 64-bit download link on https://www.ghisler.com/download.htm - page structure may have changed, check manually" -ForegroundColor Yellow
+    return
+}
+$downloadUrl = $urlMatch.Value
+$latestVersion = $urlMatch.Groups[1].Value
+
+$installedVersion = $null
+if (Test-Path $versionFile) {
+    $installedVersion = Get-Content $versionFile -Raw
+}
+
+if ($installedVersion -eq $latestVersion) {
+    Write-Host "OK: Total Commander already up to date ($latestVersion)" -ForegroundColor Green
+    $existingExe = Join-Path $installDir "TOTALCMD64.EXE"
+    if (Test-Path $existingExe) {
+        New-TotalCommanderShortcuts -tcExe $existingExe -workDir $installDir
+    }
+    return
+}
+
+Write-Host "-> Installing Total Commander $latestVersion (per-user, no elevation)" -ForegroundColor Blue
+
+$exePath = Join-Path $env:TEMP "dotfiles-tcmd-installer.exe"
+$zipPath = Join-Path $env:TEMP "dotfiles-tcmd-installer.zip"
+$unpackDir = Join-Path $env:TEMP "dotfiles-tcmd-unpack"
+
+Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath
+Copy-Item $exePath $zipPath -Force
+
+if (Test-Path $unpackDir) { Remove-Item $unpackDir -Recurse -Force }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $unpackDir)
+
+$cabPath = Join-Path $unpackDir "INSTALL.CAB"
+if (-not (Test-Path $cabPath)) {
+    throw "INSTALL.CAB not found after unpacking $downloadUrl - installer layout may have changed, check manually."
+}
+
+New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+& expand.exe -F:* $cabPath $installDir | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "expand.exe failed extracting $cabPath (exit $LASTEXITCODE)."
+}
+
+$tcExe = Join-Path $installDir "TOTALCMD64.EXE"
+if (-not (Test-Path $tcExe)) {
+    throw "TOTALCMD64.EXE not found in $installDir after extraction - installer layout may have changed, check manually."
+}
+
+New-TotalCommanderShortcuts -tcExe $tcExe -workDir $installDir
+
+Remove-Item $exePath -Force -ErrorAction SilentlyContinue
+Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+Remove-Item $unpackDir -Recurse -Force -ErrorAction SilentlyContinue
+
+Set-Content -Path $versionFile -Value $latestVersion -NoNewline
+
+Write-Host "OK: Total Commander $latestVersion installed to $installDir (per-user, no elevation, Start Menu + Desktop shortcuts created)" -ForegroundColor Green
+{{- end -}}
+{{- end -}}

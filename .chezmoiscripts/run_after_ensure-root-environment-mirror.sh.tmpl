@@ -1,0 +1,114 @@
+{{- if eq .chezmoi.os "linux" -}}
+#!/usr/bin/env bash
+# Mirrors the invoking sudo user's shell environment (aliases/functions/
+# prompt) into /root — idempotent, runs on every apply (plain `run_` prefix).
+# Linux-only: macOS doesn't need this at all — bare `sudo $SHELL` there
+# already preserves the invoking user's $HOME (verified live), so root just
+# uses the same real dotfiles in place. Fedora's sudoers ships `Defaults
+# always_set_home` (verified live, `sudo -E` doesn't override it), so on
+# Linux even bare `sudo $SHELL` resets $HOME to /root, which has nothing
+# deployed to it at all (chezmoi only ever manages the invoking user's own
+# $HOME). See CONCEPT_ROADMAP.md §3.8 for the full investigation.
+#
+# Design: NOT a duplicate copy of the dotfiles content into /root (would
+# need permanent double maintenance) — a small root-owned loader that reads
+# $SUDO_USER (set by sudo itself even under always_set_home, since it's
+# audit/security info, not "user environment") at shell-start time and
+# sources that user's *live* .bashrc.d/.zshrc.d/fish config directly. Always
+# up to date, no drift possible. Security note: this adds no new privilege
+# — a sudoer can already run anything in their own dotfiles as root trivially
+# (`sudo bash -c "$(cat ~/.bashrc.d/*)"`), this just makes it automatic.
+#
+# $HOME is temporarily pointed at the invoking user's real home while
+# sourcing, then restored to /root afterward — verified live this matters:
+# some sourced files resolve $HOME-relative paths themselves (e.g. Oh My
+# Posh's init line embeds "$HOME/.config/oh-my-posh/atomic.omp.json" at the
+# point it runs — without the override it resolves to a nonexistent
+# /root/.config/oh-my-posh/... and Oh My Posh renders a literal "CONFIG NOT
+# FOUND" segment instead of the real theme, confirmed live). Restoring $HOME
+# afterward keeps root's own `cd ~`/general file operations pointed at
+# /root, only the mirrored shell config sees the invoking user's $HOME.
+
+{{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+sudo mkdir -p /root
+sudo touch /root/.bashrc
+
+if ! sudo grep -q 'DOTFILES_ROOT_MIRROR' /root/.bashrc; then
+    log_task "Mirroring invoking sudo user's environment into /root/.bashrc"
+    sudo tee -a /root/.bashrc > /dev/null <<'BASH_MIRROR_EOF'
+
+# DOTFILES_ROOT_MIRROR — added by dotfiles bootstrap (see
+# run_after_ensure-root-environment-mirror.sh.tmpl). Sources the invoking
+# sudo user's own .bashrc.d live, so a `root` shell (sudo $SHELL) feels like
+# the same environment instead of root's own unconfigured one.
+if [ -n "${SUDO_USER}" ]; then
+    _dotfiles_orig_home=$(getent passwd "${SUDO_USER}" 2>/dev/null | cut -d: -f6)
+    if [ -n "${_dotfiles_orig_home}" ] && [ -d "${_dotfiles_orig_home}/.bashrc.d" ]; then
+        _dotfiles_real_home="${HOME}"
+        HOME="${_dotfiles_orig_home}"
+        for rc in "${_dotfiles_orig_home}/.bashrc.d"/*; do
+            [ -f "${rc}" ] && [ -r "${rc}" ] && . "${rc}"
+        done
+        HOME="${_dotfiles_real_home}"
+    fi
+    unset _dotfiles_orig_home _dotfiles_real_home rc
+fi
+BASH_MIRROR_EOF
+fi
+
+sudo touch /root/.zshrc
+
+if ! sudo grep -q 'DOTFILES_ROOT_MIRROR' /root/.zshrc; then
+    log_task "Mirroring invoking sudo user's environment into /root/.zshrc"
+    sudo tee -a /root/.zshrc > /dev/null <<'ZSH_MIRROR_EOF'
+
+# DOTFILES_ROOT_MIRROR — added by dotfiles bootstrap (see
+# run_after_ensure-root-environment-mirror.sh.tmpl). zsh equivalent of the
+# .bashrc block above — the (N) glob qualifier is zsh-specific (bash no-ops
+# on a no-match glob, zsh treats it as a fatal error without it).
+if [ -n "${SUDO_USER}" ]; then
+    _dotfiles_orig_home=$(getent passwd "${SUDO_USER}" 2>/dev/null | cut -d: -f6)
+    if [ -n "${_dotfiles_orig_home}" ] && [ -d "${_dotfiles_orig_home}/.zshrc.d" ]; then
+        _dotfiles_real_home="${HOME}"
+        HOME="${_dotfiles_orig_home}"
+        for rc in "${_dotfiles_orig_home}/.zshrc.d"/*(N); do
+            [ -f "${rc}" ] && [ -r "${rc}" ] && . "${rc}"
+        done
+        HOME="${_dotfiles_real_home}"
+    fi
+    unset _dotfiles_orig_home _dotfiles_real_home rc
+fi
+ZSH_MIRROR_EOF
+fi
+
+sudo mkdir -p /root/.config/fish
+sudo touch /root/.config/fish/config.fish
+
+if ! sudo grep -q 'DOTFILES_ROOT_MIRROR' /root/.config/fish/config.fish; then
+    log_task "Mirroring invoking sudo user's environment into /root/.config/fish/config.fish"
+    sudo tee -a /root/.config/fish/config.fish > /dev/null <<'FISH_MIRROR_EOF'
+
+# DOTFILES_ROOT_MIRROR — added by dotfiles bootstrap (see
+# run_after_ensure-root-environment-mirror.sh.tmpl). Functions are added via
+# $fish_function_path (fish autoloads them lazily, no need to source each
+# file); conf.d files (aliases, Oh My Posh init) are sourced directly, same
+# $HOME-restore pattern as the bash/zsh blocks above.
+if set -q SUDO_USER
+    set -l orig_home (getent passwd $SUDO_USER 2>/dev/null | cut -d: -f6)
+    if test -n "$orig_home"; and test -d "$orig_home/.config/fish"
+        set -gx fish_function_path $fish_function_path "$orig_home/.config/fish/functions"
+        set -l real_home $HOME
+        set -gx HOME $orig_home
+        for f in "$orig_home/.config/fish/conf.d"/*.fish
+            source $f
+        end
+        set -gx HOME $real_home
+    end
+end
+FISH_MIRROR_EOF
+fi
+{{- end -}}

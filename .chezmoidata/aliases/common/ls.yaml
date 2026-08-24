@@ -1,0 +1,102 @@
+# Migrated from dot_bashrc.d/50-aliases-ls.sh (see CONCEPT_ROADMAP.md §3.6).
+# `windows:` values added for PowerShell 7 (CONCEPT_ROADMAP.md §3.3) — real
+# Get-ChildItem-based equivalents, verified live on winlab.local. PowerShell
+# doesn't distinguish a separate "long" view the way `ls -l` does (the
+# default table view already shows Mode/LastWriteTime/Length), so several
+# entries share the same underlying command as their non-"long" counterpart.
+aliases:
+  common:
+    categories:
+      ls:
+        - name: ll
+          command:
+            default: "ls -l --color"
+            darwin: "ls -l -G"
+            windows: "Get-ChildItem"
+          description: List all files and folders in long format
+
+        - name: la
+          command:
+            default: "ls -A --color"
+            darwin: "ls -A -G"
+            windows: "Get-ChildItem -Force"
+          description: List all entries including hidden ones
+
+        - name: lla
+          command:
+            default: "ls -Al --color"
+            darwin: "ls -Al -G"
+            windows: "Get-ChildItem -Force"
+          description: List all entries including hidden ones, in long format
+
+        - name: ld
+          command:
+            default: "ls -d --color */"
+            darwin: "ls -d -G */"
+            windows: "Get-ChildItem -Directory"
+          description: List only directories
+
+        - name: lld
+          command:
+            default: "ls -ld --color */"
+            darwin: "ls -ld -G */"
+            windows: "Get-ChildItem -Directory"
+          description: List only directories, in long format
+
+        - name: lh
+          command:
+            default: "ls -ld --color .[^.]* ..?*"
+            darwin: "ls -ld -G .[^.]* ..?*"
+            windows: "Get-ChildItem -Hidden"
+          description: List only hidden files and directories
+
+        - name: llh
+          command:
+            default: "ls -ld --color .[^.]* ..?*"
+            darwin: "ls -ld -G .[^.]* ..?*"
+            windows: "Get-ChildItem -Hidden"
+          description: List only hidden files and directories, in long format
+
+        - name: lt
+          command:
+            default: "ls --human-readable --size -1 -S --classify"
+            windows: "Get-ChildItem | Sort-Object Length -Descending"
+          description: List folder contents sorted by size, with item type marker
+
+        - name: lm
+          command:
+            default: "ls -t -1 --color"
+            darwin: "ls -t -1 -G"
+            windows: "Get-ChildItem | Sort-Object LastWriteTime -Descending"
+          description: List files sorted by modification date, newest first
+
+        - name: grep
+          command:
+            default: "grep --color=auto"
+            windows: "Select-String"
+          kind: alias
+          # PowerShell-only: this entry filters piped stdin content, so the
+          # renderer must prepend `$input |`. Verified live this is NOT
+          # something to do unconditionally for every entry — an *always*
+          # `$input |`-prefixed `Get-ChildItem` etc. silently produces NO
+          # output at all when called without an upstream pipe (piping an
+          # empty $input suppresses the whole invocation), so only entries
+          # that explicitly opt in via this flag get the prefix.
+          pipes_stdin: true
+          description: Colorized grep
+
+        - name: fgrep
+          command:
+            default: "fgrep --color=auto"
+            windows: "Select-String -SimpleMatch"
+          kind: alias
+          pipes_stdin: true
+          description: Colorized fgrep
+
+        - name: egrep
+          command:
+            default: "egrep --color=auto"
+            windows: "Select-String"
+          kind: alias
+          pipes_stdin: true
+          description: Colorized egrep

@@ -1,0 +1,166 @@
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
+{{- if .deployment.can_elevate -}}
+# Installs 7-Zip via winget (this account can elevate - real Program Files
+# install with Explorer right-click shell integration). Runs on every
+# apply (plain `run_after_` prefix), no-ops once already installed.
+#
+# NOT in packages.yaml's generic loop on purpose - see
+# run_after_install-totalcmd-windows.ps1.tmpl's comment for why (the
+# winget-vs-portable decision and its outcome used to be split across two
+# separately-timed scripts with no visible link between them - confusing,
+# user's explicit feedback 2026-08-20). Consolidated into ONE script per
+# tool instead, deciding at chezmoi TEMPLATE render time which of the two
+# paths to even include in the rendered script. See the other half of
+# this can_elevate template branch for the portable/no-elevation path.
+
+$ErrorActionPreference = "Stop"
+
+$installed = winget list --id 7zip.7zip -e --source winget --accept-source-agreements 2>$null | Select-String -SimpleMatch "7zip.7zip"
+if ($installed) {
+    Write-Host "OK: 7-Zip already installed" -ForegroundColor Green
+} else {
+    Write-Host "-> Installing 7-Zip via winget" -ForegroundColor Blue
+    winget install -e --id 7zip.7zip --source winget --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
+}
+{{- else -}}
+# Installs 7-Zip per-user, no elevation - this account can't elevate at
+# all (not a member of the local Administrators group). Runs on every
+# apply (plain `run_after_` prefix), no-ops once the installed version
+# matches the latest available. See the other half of this can_elevate
+# template branch for the normal winget-install path used when this
+# account CAN elevate, and the note there about why this is one
+# consolidated script instead of two.
+#
+# WHY this fallback exists at all: 7zip.7zip's winget manifest has ONLY
+# Scope: machine (no per-user option at all) plus ElevationRequirement:
+# elevatesSelf - confirmed live 2026-08-19.
+#
+# HOW: 7-Zip's own installer .exe is a self-extracting 7z archive (SFX) -
+# NOT a plain ZIP like Total Commander's installer, so .NET's built-in
+# ZipFile can't open it directly. Instead this downloads 7zr.exe (7-Zip's
+# own tiny ~600KB standalone reduced-codec decoder - confirmed live it
+# supports exactly the codecs the installer's SFX payload uses: LZMA,
+# LZMA2, BCJ, BCJ2 - no other codecs needed here, that's precisely why
+# 7zr.exe exists in the first place, historically used for bootstrapping
+# 7-Zip itself) and uses THAT to extract the installer's payload directly
+# - never running the installer itself, so its own forced elevation logic
+# never runs. No shell/Explorer context-menu integration this way (that
+# needs HKLM either way) - just the GUI file manager (7zFM.exe) and
+# console tool (7z.exe), which is what actually matters day-to-day.
+#
+# Version resolution: ip7z/7zip (the current official 7-Zip GitHub home)
+# has real GitHub releases, so this uses the API like ejson/the Nerd Font
+# do, unlike Total Commander's HTML-scrape fallback (Ghisler has no
+# releases API at all).
+
+$ErrorActionPreference = "Stop"
+
+$installDir = Join-Path $HOME "7-Zip"
+$stateDir = Join-Path $env:LOCALAPPDATA "dotfiles"
+$versionFile = Join-Path $stateDir "7zip.version"
+
+New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+
+Write-Host "-> This account can't elevate (not a member of the local Administrators group) - installing 7-Zip via portable, no-elevation fallback" -ForegroundColor Blue
+
+function New-SevenZipShortcuts($exePath, $workDir) {
+    $wshShell = New-Object -ComObject WScript.Shell
+    $shortcutTargets = @(
+        (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\7-Zip File Manager.lnk"),
+        (Join-Path ([Environment]::GetFolderPath("Desktop")) "7-Zip File Manager.lnk")
+    )
+    foreach ($shortcutPath in $shortcutTargets) {
+        $shortcut = $wshShell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = $exePath
+        $shortcut.WorkingDirectory = $workDir
+        $shortcut.IconLocation = $exePath
+        $shortcut.Save()
+    }
+}
+
+# Unlike Total Commander (pure GUI file manager, not typically invoked from
+# a shell), 7z.exe is genuinely useful on the command line - added to the
+# User PATH (no elevation needed, same mechanism bootstrap.ps1 uses for
+# ejson), idempotent (only appends if not already present). User's explicit
+# call, 2026-08-19.
+function Add-SevenZipToPath($dir) {
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    if ($userPath -notlike "*$dir*") {
+        [System.Environment]::SetEnvironmentVariable("Path", "$userPath;$dir", "User")
+    }
+}
+
+# GitHub's unauthenticated API rate limit (60/hour per source IP) is a real
+# risk here, confirmed live 2026-08-19 during heavy same-day testing - this
+# tool is optional, so a transient network/rate-limit failure skips it with
+# a clear warning (retried next apply) instead of aborting the WHOLE
+# chezmoi apply, matching the pattern
+# run_after_install-bitwarden-desktop-linux.sh.tmpl already used.
+try {
+    $latestTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/ip7z/7zip/releases/latest" -ErrorAction Stop).tag_name
+} catch {
+    Write-Host "SKIP: could not resolve latest 7-Zip release ($($_.Exception.Message)) - will retry next apply" -ForegroundColor Yellow
+    return
+}
+
+$installedVersion = $null
+if (Test-Path $versionFile) {
+    $installedVersion = Get-Content $versionFile -Raw
+}
+
+if ($installedVersion -eq $latestTag) {
+    Write-Host "OK: 7-Zip already up to date ($latestTag)" -ForegroundColor Green
+    $existingExe = Join-Path $installDir "7zFM.exe"
+    if (Test-Path $existingExe) {
+        New-SevenZipShortcuts -exePath $existingExe -workDir $installDir
+        Add-SevenZipToPath -dir $installDir
+    }
+    return
+}
+
+Write-Host "-> Installing 7-Zip $latestTag (per-user, no elevation)" -ForegroundColor Blue
+
+$arch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [System.Runtime.InteropServices.Architecture]::Arm64) { "arm64" } else { "x64" }
+$compactVersion = $latestTag -replace '\.', ''
+
+$decoderPath = Join-Path $env:TEMP "dotfiles-7zr.exe"
+$installerPath = Join-Path $env:TEMP "dotfiles-7zip-installer.exe"
+$extractDir = Join-Path $env:TEMP "dotfiles-7zip-extract"
+
+Invoke-WebRequest -Uri "https://github.com/ip7z/7zip/releases/download/$latestTag/7zr.exe" -OutFile $decoderPath
+Invoke-WebRequest -Uri "https://github.com/ip7z/7zip/releases/download/$latestTag/7z${compactVersion}-${arch}.exe" -OutFile $installerPath
+
+if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
+New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
+
+& $decoderPath x $installerPath "-o$extractDir" -y | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "7zr.exe failed extracting $installerPath (exit $LASTEXITCODE)."
+}
+
+$fmExe = Join-Path $extractDir "7zFM.exe"
+if (-not (Test-Path $fmExe)) {
+    throw "7zFM.exe not found in $extractDir after extraction - installer layout may have changed, check manually."
+}
+
+New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+foreach ($file in @("7zFM.exe", "7zG.exe", "7z.exe", "7z.dll", "7-zip.dll", "License.txt")) {
+    $src = Join-Path $extractDir $file
+    if (Test-Path $src) {
+        Copy-Item $src (Join-Path $installDir $file) -Force
+    }
+}
+
+$installedExe = Join-Path $installDir "7zFM.exe"
+New-SevenZipShortcuts -exePath $installedExe -workDir $installDir
+Add-SevenZipToPath -dir $installDir
+
+Remove-Item $decoderPath -Force -ErrorAction SilentlyContinue
+Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+
+Set-Content -Path $versionFile -Value $latestTag -NoNewline
+
+Write-Host "OK: 7-Zip $latestTag installed to $installDir (per-user, no elevation, on PATH, no Explorer integration)" -ForegroundColor Green
+{{- end -}}
+{{- end -}}

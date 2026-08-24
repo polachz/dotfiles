@@ -1,0 +1,32 @@
+{{- /*
+  Generates the "<scope> scope — aliases" sections of ALIASES.md from the
+  YAML files under .chezmoidata/aliases/ — see CONCEPT_ROADMAP.md §3.4.
+
+  Regenerate via `edit-aliases-core` (no args = regen-only mode), which
+  splices this output into ALIASES.md between the
+  GENERATED:aliases-doc-aliases markers. Never edit that spliced block by
+  hand — it's replaced verbatim on every regeneration. Hand-maintained prose
+  (intro paragraphs, non-YAML-sourced sections) belongs outside the markers.
+
+  Every OS column is always shown (even when identical across all three, or
+  when a value isn't OS-dependent at all) rather than trying to collapse
+  duplicates — more repetitive, but mechanically simple and never wrong.
+*/ -}}
+{{- range $scope := keys .aliases | sortAlpha -}}
+## {{ $scope | title }} scope — aliases (`.chezmoidata/aliases/{{ $scope }}/`)
+{{- range $cat := keys (index $.aliases $scope).categories | sortAlpha }}
+
+### `{{ $cat }}`
+
+| Command | Linux | macOS | Windows | Kind | Description |
+|---|---|---|---|---|---|
+{{- range (index (index $.aliases $scope).categories $cat) }}
+{{- $linux := includeTemplate "resolve-os-value" (dict "value" .command "os" "linux") | trim | replace "|" "\\|" }}
+{{- $darwin := includeTemplate "resolve-os-value" (dict "value" .command "os" "darwin") | trim | replace "|" "\\|" }}
+{{- $windows := includeTemplate "resolve-os-value" (dict "value" .command "os" "windows") | trim | replace "|" "\\|" }}
+{{- $kind := "abbr" }}{{- if hasKey . "kind" }}{{ $kind = .kind }}{{ end }}
+{{- $desc := .description }}{{- if and (hasKey . "pipes_stdin") .pipes_stdin }}{{ $desc = printf "%s (pipes stdin)" $desc }}{{ end }}
+| `{{ .name }}` | {{ if eq $linux "skip" }}—{{ else }}`{{ $linux }}`{{ end }} | {{ if eq $darwin "skip" }}—{{ else }}`{{ $darwin }}`{{ end }} | {{ if eq $windows "skip" }}—{{ else }}`{{ $windows }}`{{ end }} | {{ $kind }} | {{ $desc }} |
+{{- end }}
+{{- end }}
+{{ end -}}
