@@ -338,6 +338,29 @@ than touching the real MSIX-packaged, JSONC `settings.json` directly; setting
 it as the default profile is deliberately out of scope (would require
 parsing/rewriting that JSONC file safely).
 
+**macOS Terminal.app** has no config file chezmoi can own, but still gets
+the same Nerd Font as Ghostty (`role: workstation` + `has_gui: true` only),
+via AppleScript (`osascript`) driven from
+`run_after_ensure-terminalapp-font-macos.sh.tmpl`. Two real findings from
+building this:
+- The documented `default settings set`/`startup settings set` AppleScript
+  properties are broken on current macOS — every phrasing (`get`, `set`,
+  `'s`, parenthesized) throws a parser error, in both directions. The
+  working alternative: resolve the actual default/startup profile *name* via
+  `defaults read com.apple.Terminal "Default Window Settings"` (a plain
+  string preference, not an archived object), then address that profile by
+  name — `settings set "<name>"` parses and works fine.
+- Setting `font name` to a family string ("JetBrainsMono Nerd Font") reads
+  back as that face's specific PostScript name instead (e.g.
+  "JetBrainsMonoNF-Regular" for the Homebrew cask build — a different name
+  than the raw upstream release the Linux/Windows Nerd Font scripts
+  install), so idempotency is checked by prefix match, not exact string.
+- Like Windows UAC over plain SSH (§11), the first AppleScript control of
+  Terminal.app triggers a one-time macOS Automation permission prompt
+  (System Settings > Privacy & Security > Automation) that cannot be granted
+  non-interactively — a fully headless bootstrap silently no-ops here until
+  a human runs `chezmoi apply` once with a real screen to click Allow.
+
 **Editor** (nano/vim) config has no secrets and is fully shared across
 profiles — no scope-split machinery needed.
 

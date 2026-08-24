@@ -1,0 +1,89 @@
+{{- if and (eq .chezmoi.os "darwin") (eq .deployment.role "workstation") .deployment.has_gui -}}
+#!/usr/bin/env bash
+# Sets JetBrainsMono Nerd Font on macOS's built-in Terminal.app, matching
+# Ghostty's font-family (dot_config/private_ghostty/common.conf.tmpl) so Oh
+# My Posh's segment glyphs render correctly there too, instead of tofu boxes.
+# Terminal.app has no config file chezmoi can own — this is the one
+# Terminal.app touch-point, via its own AppleScript "settings set" API. Runs
+# on every apply (plain `run_after_` prefix), no-ops once already set.
+#
+# KNOWN LIMITATION: the first time anything (including this script) drives
+# Terminal.app via AppleScript/osascript, macOS shows a one-time "<X> wants
+# to control Terminal" Automation permission prompt (System Settings >
+# Privacy & Security > Automation) that cannot be granted non-interactively.
+# On a fully unattended/headless bootstrap this step silently no-ops until a
+# human runs `chezmoi apply` once with a real screen present to click Allow
+# — retried on every apply, so it self-heals on the next interactive run.
+# Same category of limitation as Windows UAC blocking sudo over plain SSH.
+#
+# REAL BUG FOUND LIVE (macOS Tahoe, Terminal.app's current AppleScript
+# dictionary): the documented `default settings set`/`startup settings set`
+# properties are simply broken — every phrasing tried (`get`, `set`, `'s`,
+# parenthesized) throws a parser error ("A 'set' can't go after this
+# property" / "Expected end of line but found 'set'"), in both the read AND
+# write direction. `settings set "<name>"` (a named reference, not the
+# `default`/`startup` adjective form) parses and works fine for both.
+# Workaround: resolve the actual default/startup profile NAME via
+# `defaults read com.apple.Terminal` (a plain string preference, not an
+# archived object) instead of asking Terminal.app for it via AppleScript,
+# then address that profile by name.
+#
+# Also found live: `font name` doesn't store/return what you'd expect from a
+# Ghostty/CSS-style "font-family" string — setting it to the family name
+# "JetBrainsMono Nerd Font" round-trips as the specific face's PostScript
+# name instead (e.g. "JetBrainsMonoNF-Regular" for this Homebrew cask build,
+# NOT "JetBrainsMonoNerdFont-Regular" like the raw upstream release the
+# Linux/Windows scripts install — the brew cask renames the faces). Hence
+# the idempotency check below matches by prefix ("JetBrainsMono"), not an
+# exact string.
+
+{{ template "scripts-library" }}
+
+# The following line is for ShellCheck to correctly identify the above included library
+true || source ../.chezmoitemplates/scripts-library
+
+font_name="JetBrainsMono Nerd Font"
+
+# "Basic" is macOS's own factory-default profile name, used only as a
+# fallback if these preference keys are somehow unset (not observed live,
+# but cheaper than failing outright).
+default_profile=$(defaults read com.apple.Terminal "Default Window Settings" 2>/dev/null || echo "Basic")
+startup_profile=$(defaults read com.apple.Terminal "Startup Window Settings" 2>/dev/null || echo "Basic")
+
+# Usually the same profile — dedupe so it isn't touched (and re-verified)
+# twice.
+profiles=("${default_profile}")
+if [ "${startup_profile}" != "${default_profile}" ]; then
+    profiles+=("${startup_profile}")
+fi
+
+err_file="$(mktemp -t dotfiles-terminalapp-font.XXXXXX)"
+trap 'rm -f "${err_file}"' EXIT
+
+changed=0
+skipped=0
+for profile in "${profiles[@]}"; do
+    current_font=$(osascript -e "tell application \"Terminal\" to get font name of settings set \"${profile}\"" 2>"${err_file}") || {
+        log_yellow "SKIP: could not read Terminal.app profile '${profile}' font via osascript ($(tr -d '\n' < "${err_file}")) — likely the one-time macOS Automation permission prompt hasn't been granted yet, retry next apply after allowing it"
+        skipped=1
+        continue
+    }
+
+    case "${current_font}" in
+        JetBrainsMono*) continue ;;
+    esac
+
+    if osascript -e "tell application \"Terminal\" to set font name of settings set \"${profile}\" to \"${font_name}\"" >/dev/null 2>"${err_file}"; then
+        changed=1
+    else
+        log_yellow "SKIP: could not set Terminal.app profile '${profile}' font via osascript ($(tr -d '\n' < "${err_file}"))"
+        skipped=1
+    fi
+done
+
+if [ "${changed}" -eq 1 ]; then
+    log_task "Terminal.app font set to ${font_name} (profile(s): ${profiles[*]})"
+elif [ "${skipped}" -eq 0 ]; then
+    log_task "Terminal.app font already set (profile(s): ${profiles[*]})"
+fi
+{{- end -}}

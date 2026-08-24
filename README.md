@@ -316,6 +316,15 @@ override.
   Setting it as the default profile is out of scope (see
   [`docs/ARCHITECTURE.md` § Terminal, prompt, and editor](docs/ARCHITECTURE.md#9-terminal-prompt-and-editor))
   — pick it manually from the profile dropdown.
+- **macOS Terminal.app** — only `role: workstation` + `has_gui: true`. Not
+  otherwise managed by this repo (no config file to own), but its default
+  and startup profile get the same JetBrainsMono Nerd Font as Ghostty, set
+  via AppleScript (`osascript`). The first `chezmoi apply` that touches
+  Terminal.app triggers a one-time macOS Automation permission prompt that
+  can't be granted non-interactively — self-heals on the next apply after
+  it's allowed. See [`docs/ARCHITECTURE.md` § Terminal, prompt, and
+  editor](docs/ARCHITECTURE.md#9-terminal-prompt-and-editor) for a real
+  AppleScript dictionary bug found along the way.
 
 ### SSH config (`~/.ssh/conf.d/`)
 
