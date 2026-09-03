@@ -66,10 +66,19 @@
 {{- $enc_keys_dir       := joinPath $ch_cfg_dir "keys" -}}
 {{- $enc_age_key_file   := joinPath $ch_cfg_dir (printf "age_%s.key" $profile) -}}
 
-{{/* Auto-detect virtualisation host so guest tools can install themselves. Linux-only tool. */}}
+{{/*
+  Auto-detect virtualisation host so guest tools can install themselves. Linux-only tool.
+
+  systemd-detect-virt has an unusual exit-code convention: on bare metal (no virtualization
+  detected at all) it still prints "none" to stdout, but exits 1, not 0 — confirmed live on a
+  real bare-metal server, where chezmoi's `output` (which errors on any non-zero exit) aborted
+  the ENTIRE template render before this was wrapped in `sh -c "... || true"`. Every VM/container
+  case (the thing this variable actually gates on) exits 0 as expected; only the bare-metal "none"
+  case needed this.
+*/}}
 {{- $virt_type := "none" -}}
 {{- if lookPath "systemd-detect-virt" -}}
-  {{- $virt_type = (output "systemd-detect-virt" | trim) -}}
+  {{- $virt_type = (output "sh" "-c" "systemd-detect-virt || true" | trim) -}}
 {{- end -}}
 
 {{/*
