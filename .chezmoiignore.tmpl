@@ -72,16 +72,6 @@ age_key_work.age
 Documents
 {{ end }}
 
-{{/*
-  fish's gh.fish only claims the `gh` name when the real GitHub CLI isn't
-  on PATH — its autoload mechanism prefers any function file present here
-  over an external binary regardless of a runtime check inside it, unlike
-  bash/zsh's live `command -v` check (dot_bashrc.d/85-functions-extra.sh).
-  ghi.fish (unconditional) is the always-available fallback either way.
-*/}}
-{{ if lookPath "gh" }}
-.config/fish/functions/gh.fish
-{{ end }}
 
 {{/*
   Windows Terminal fragment: GUI-only and Windows-only (same has_gui/OS gating as Ghostty above,

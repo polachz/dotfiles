@@ -208,8 +208,7 @@ so each is hand-written once per shell: bash/zsh share
 | `gclean` | Delete local git branches already merged into the repo's default branch | Detects the default branch from `origin/HEAD`, falls back to `main`; the current branch and `main`/`master` are always excluded as an extra safety net regardless of what detection returns. |
 | `gnb <name> [base\|@]` | Create a new git branch and push it upstream (`-u origin`) in one step | Base branch: explicit `[base]` arg, `@` for the current branch (git's own HEAD shorthand), or (default) the repo's actual default branch — same `origin/HEAD` detection as `gclean`, falls back to `main`. Falls back to `origin/<base>` if `<base>` has no local tracking branch yet. |
 | `cheat <topic>` | Quick cheatsheet lookup via `curl cheat.sh/<topic>` | |
-| `ghi` | Search shell history for a pattern | Always available, regardless of what else is on PATH. |
-| `gh` | Search shell history for a pattern — same as `ghi` | Moved out of the plain alias model 2026-08-20 (was `misc.yaml`'s `gh`) once it became clear it collides with the real GitHub CLI's own `gh` binary. Only defined/present when the real `gh` isn't on PATH: bash/zsh/PowerShell check live on every new shell (`command -v`/`Get-Command`), fish can't do that (autoloading a function file always wins over an external binary regardless of a runtime check inside it) so `gh.fish` is masked out via `.chezmoiignore.tmpl`'s `lookPath "gh"` at apply time instead — reacts on the next `chezmoi apply`/`update`, not instantly. Once the real `gh` shows up, use `ghi` instead. |
+| `ghi` | Search shell history for a pattern | The short name `gh` was removed 2026-09-03 (user's call) so it never shadows the real GitHub CLI's own `gh` binary — `ghi` is now the only name across every shell. |
 
 Deliberately **not yet implemented**: a random string/password generator —
 user has an existing implementation in another project to port the exact

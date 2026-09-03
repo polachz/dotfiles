@@ -180,21 +180,12 @@ function global:cheat {
     curl.exe -s "cheat.sh/$Topic"
 }
 
-# Search shell history for a pattern. `ghi` always works; `gh` is only
-# defined when the real GitHub CLI (`gh.exe`) isn't on PATH — checked fresh
-# every time this profile loads (a new pwsh session), so it stops shadowing
-# the real tool the moment it's installed, no re-apply needed. See
-# dot_bashrc.d/85-functions-extra.sh for the bash/zsh equivalent. User's
-# call, 2026-08-20.
+# Search shell history for a pattern. `gh` (the short name) removed
+# 2026-09-03 to stop shadowing the real GitHub CLI (`gh.exe`) unconditionally
+# — this is the only remaining name.
 function global:ghi {
     param([string]$Pattern)
     Get-History | Out-String -Stream | Select-String $Pattern
-}
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    function global:gh {
-        param([string]$Pattern)
-        Get-History | Out-String -Stream | Select-String $Pattern
-    }
 }
 
 # Decrypt, edit, and re-encrypt an EJSON evault in one step — PowerShell

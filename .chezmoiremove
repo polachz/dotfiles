@@ -1,0 +1,9 @@
+# Targets removed from source but not automatically deleted from HOME by
+# chezmoi (it has no history of what used to be managed) — see
+# docs/DAILY_WORKFLOW.md's "E8. Stale rendered file after deleting template".
+
+# gh.fish removed 2026-09-03 — the short `gh` name now unconditionally
+# shadowed the real GitHub CLI on fish (its autoload always wins over an
+# external binary of the same name, unlike bash/zsh's live command -v
+# check). Use ghi.fish instead.
+.config/fish/functions/gh.fish
