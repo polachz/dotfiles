@@ -28,6 +28,19 @@
 # FOUND" segment instead of the real theme, confirmed live). Restoring $HOME
 # afterward keeps root's own `cd ~`/general file operations pointed at
 # /root, only the mirrored shell config sees the invoking user's $HOME.
+#
+# IMPORTANT on a shared/multi-user server: the presence check below must be
+# for a file this dotfiles project itself generates, NOT bare directory
+# existence — `~/.bashrc.d/` in particular is a pre-existing Fedora/RHEL OS
+# convention (see run_after_ensure-bashrc-sourcing.sh.tmpl's own comment),
+# so a colleague's account could have a `.bashrc.d`/`.zshrc.d`/`.config/fish`
+# for entirely unrelated reasons. Checking bare `-d` there would silently
+# source THEIR unrelated files into root's shell the first time they
+# personally run `sudo <shell>` — not a privilege escalation (they could
+# already run their own files as root trivially), but a surprising, unasked-
+# for behavior change to their own sudo session. Checking for one of this
+# project's own generated files instead means the mirror only ever activates
+# for an account that has actually bootstrapped these dotfiles.
 
 {{ template "scripts-library" }}
 
@@ -47,7 +60,7 @@ if ! sudo grep -q 'DOTFILES_ROOT_MIRROR' /root/.bashrc; then
 # the same environment instead of root's own unconfigured one.
 if [ -n "${SUDO_USER}" ]; then
     _dotfiles_orig_home=$(getent passwd "${SUDO_USER}" 2>/dev/null | cut -d: -f6)
-    if [ -n "${_dotfiles_orig_home}" ] && [ -d "${_dotfiles_orig_home}/.bashrc.d" ]; then
+    if [ -n "${_dotfiles_orig_home}" ] && [ -f "${_dotfiles_orig_home}/.bashrc.d/50-aliases-generated.sh" ]; then
         _dotfiles_real_home="${HOME}"
         HOME="${_dotfiles_orig_home}"
         for rc in "${_dotfiles_orig_home}/.bashrc.d"/*; do
@@ -72,7 +85,7 @@ if ! sudo grep -q 'DOTFILES_ROOT_MIRROR' /root/.zshrc; then
 # on a no-match glob, zsh treats it as a fatal error without it).
 if [ -n "${SUDO_USER}" ]; then
     _dotfiles_orig_home=$(getent passwd "${SUDO_USER}" 2>/dev/null | cut -d: -f6)
-    if [ -n "${_dotfiles_orig_home}" ] && [ -d "${_dotfiles_orig_home}/.zshrc.d" ]; then
+    if [ -n "${_dotfiles_orig_home}" ] && [ -f "${_dotfiles_orig_home}/.zshrc.d/00-shared.zsh" ]; then
         _dotfiles_real_home="${HOME}"
         HOME="${_dotfiles_orig_home}"
         for rc in "${_dotfiles_orig_home}/.zshrc.d"/*(N); do
@@ -99,7 +112,7 @@ if ! sudo grep -q 'DOTFILES_ROOT_MIRROR' /root/.config/fish/config.fish; then
 # $HOME-restore pattern as the bash/zsh blocks above.
 if set -q SUDO_USER
     set -l orig_home (getent passwd $SUDO_USER 2>/dev/null | cut -d: -f6)
-    if test -n "$orig_home"; and test -d "$orig_home/.config/fish"
+    if test -n "$orig_home"; and test -f "$orig_home/.config/fish/conf.d/aliases.fish"
         set -gx fish_function_path $fish_function_path "$orig_home/.config/fish/functions"
         set -l real_home $HOME
         set -gx HOME $orig_home
