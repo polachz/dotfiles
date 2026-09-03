@@ -62,8 +62,25 @@ display_gui_menu() {
     echo
 }
 
+display_sudo_menu() {
+    echo "Do you have sudo/root access on this machine?"
+    echo
+    echo "  1) Yes"
+    echo "  2) No"
+    echo "  e) Exit"
+    echo
+}
+
 # ───── CLI parsing ───────────────────────────────────────────────────────────
 
+# No apostrophes anywhere in this heredoc's text, found the hard way: an
+# odd number of literal `'` characters inside a heredoc that's itself inside
+# a `$(...)` command substitution breaks bash's parser ("unexpected EOF
+# while looking for matching `''`") — confirmed live this happens even with
+# the heredoc delimiter itself quoted (<<'EOF'), so it's not an expansion
+# issue, just how `$(...)`'s own boundary-scanning tracks quote state
+# through a heredoc body it should otherwise treat as inert. Write around
+# it (spell out "is not"/"will not", no quoted words) rather than escaping.
 HELP=$(cat <<EOF
 Usage: bootstrap.sh [options]
 
@@ -82,6 +99,17 @@ Options:
   -v, --verbose                       Verbose output
   -r, --reinit                        Clear chezmoi state and re-apply from
                                         scratch
+  --sudo <yes|no>                     Do you have sudo/root access on this
+                                        machine? (always asks if omitted,
+                                        no OS-based default like --gui has)
+                                        Answering no skips every root-only
+                                        step up front (package install,
+                                        group membership, the /root shell
+                                        mirror) instead of prompting for a
+                                        password that will never come.
+                                        Everything else (aliases, env,
+                                        prompt, git/SSH config) still
+                                        applies normally.
   --debug                             Enable debug logging in dotfile scripts
   --chezmoi-debug                     Pass --debug to chezmoi itself
   --debug-all                         Both --debug and --chezmoi-debug
@@ -91,6 +119,7 @@ Env vars:
   CHZ_DEPLOYMENT_PROFILE         Same as --profile
   CHZ_DEPLOYMENT_ROLE            Same as --role
   CHZ_HAS_GUI                    Same as --gui (yes/no)
+  CHZ_HAS_ROOT                   Same as --sudo (yes/no)
   CHZ_BOOTSTRAP_BRANCH           Same as --branch
   CHZ_BOOTSTRAP_DRY_RUN          Set to 1 to dry-run
   CHZ_BOOTSTRAP_VERBOSE          Set to 1 for verbose output
@@ -110,6 +139,10 @@ while [ $# -gt 0 ]; do
             ;;
         --gui)
             CHZ_HAS_GUI="$2"
+            shift
+            ;;
+        --sudo)
+            CHZ_HAS_ROOT="$2"
             shift
             ;;
         -b|--branch)
@@ -228,6 +261,33 @@ case "${CHZ_HAS_GUI}" in
 esac
 
 log_info "Has GUI: ${CHZ_HAS_GUI}"
+
+# ───── Resolve sudo/root access ──────────────────────────────────────────────
+# Always asks (unlike --gui, no OS-based default) — a machine with no
+# sudo/root access at all is common on shared servers you're not admin on,
+# regardless of OS. `has_root_access` (scripts-library) would otherwise try
+# sudo anyway and prompt for a password that isn't coming.
+
+if [ -z "${CHZ_HAS_ROOT-}" ]; then
+    while true; do
+        display_sudo_menu
+        printf "Enter your choice: "
+        read -r choice
+        case "$choice" in
+            1) CHZ_HAS_ROOT="yes"; break;;
+            2) CHZ_HAS_ROOT="no";  break;;
+            e|exit) echo "Aborted."; exit 0;;
+            *) echo "Invalid selection. Please try again.";;
+        esac
+    done
+fi
+
+case "${CHZ_HAS_ROOT}" in
+    yes|no) ;;
+    *) error "Invalid --sudo: '${CHZ_HAS_ROOT}' (must be 'yes' or 'no')";;
+esac
+
+log_info "Has sudo/root: ${CHZ_HAS_ROOT}"
 
 # ───── macOS: ensure Xcode Command Line Tools ────────────────────────────────
 # A brand-new Mac has neither git nor Homebrew. Installing either normally pops
@@ -474,6 +534,19 @@ else
     export DOTFILES_HAS_GUI="false"
 fi
 
-log_task "Running 'chezmoi $*' (profile=${CHZ_DEPLOYMENT_PROFILE}, role=${CHZ_DEPLOYMENT_ROLE}, gui=${CHZ_HAS_GUI})"
+# DOTFILES_NO_ROOT is NOT read by .chezmoi.yaml.tmpl like the three above —
+# it's a plain runtime env var, read directly by scripts-library's
+# has_root_access at EVERY apply (not cached into chezmoi.yaml at init time),
+# since whether you currently have sudo can change independently of profile/
+# role and shouldn't need a `chezmoi init -Reinit` to pick back up once it
+# does. `exec`-ing chezmoi below (not just calling it) is what makes this
+# export actually reach the run_*.tmpl scripts chezmoi executes as children.
+if [ "${CHZ_HAS_ROOT}" = "no" ]; then
+    export DOTFILES_NO_ROOT="true"
+else
+    export DOTFILES_NO_ROOT="false"
+fi
+
+log_task "Running 'chezmoi $*' (profile=${CHZ_DEPLOYMENT_PROFILE}, role=${CHZ_DEPLOYMENT_ROLE}, gui=${CHZ_HAS_GUI}, sudo=${CHZ_HAS_ROOT})"
 
 exec "${chezmoi}" "$@"

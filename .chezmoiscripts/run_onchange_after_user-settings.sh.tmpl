@@ -36,6 +36,13 @@ add_to_group() {
     local group_name=$1
     if group_exists "${group_name}"; then
         if not_in_group "${group_name}"; then
+            # Optional, not required for the rest of this script (git remote
+            # switch, chmod below need no root) — skip cleanly rather than
+            # failing the whole apply on a machine with no sudo/root access.
+            if ! has_root_access; then
+                log_yellow "SKIP: no sudo/root access — cannot add user to group ${group_name} (retry a future apply once you have sudo)"
+                return 0
+            fi
             log_info "Adding user to group ${group_name}"
             if [ "$(uname -s)" = "Darwin" ]; then
                 sudo dseditgroup -o edit -a "${USER}" -t user "${group_name}" > /dev/null 2>&1

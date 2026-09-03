@@ -431,6 +431,31 @@ assume elevation is available; `makeme`/`makeroot` try native `sudo.exe`
 first and fall back to the `RunAs` popup only on older Windows, but neither
 path is assumed to succeed under non-interactive automation.
 
+**The same "never assume elevation" principle applies to Linux/macOS sudo,
+not just Windows UAC.** A shared server you're not an admin on is a real,
+common case — `scripts-library`'s `has_root_access` (unlike its plain `sudo`
+wrapper, which errors the whole script out loudly) checks whether sudo is
+actually available (cached credentials, or one interactive `sudo --validate`
+prompt) and returns false rather than failing, so callers can skip an
+OPTIONAL root-only step cleanly instead of aborting the entire `chezmoi
+apply`. Used by the package-install, group-membership, and `/root`
+environment-mirror scripts. `bootstrap.sh --sudo no` (or `CHZ_HAS_ROOT=no`,
+bridged to the plain runtime env var `DOTFILES_NO_ROOT` — deliberately not
+cached into `chezmoi.yaml` like profile/role/has_gui, since sudo access can
+change independently and shouldn't need a reinit to pick back up) short-
+circuits `has_root_access` immediately, skipping the interactive prompt
+entirely for a machine known upfront to have none.
+
+**Real bash parser bug found while building the above**: an odd number of
+literal `'` characters inside a heredoc breaks bash's parser whenever that
+heredoc is itself inside a `$(...)` command substitution (`unexpected EOF
+while looking for matching` `'`) — confirmed live even with the heredoc
+delimiter itself quoted (`<<'EOF'`), so it isn't a variable-expansion issue;
+`$(...)`'s own boundary-scanning apparently tracks quote state through a
+heredoc body it should otherwise treat as inert. `bootstrap.sh`'s `HELP=$(cat
+<<EOF ... EOF)` block has to stay apostrophe-free for this reason — spelled
+out as "is not"/"will not" rather than contracted, not escaped.
+
 **SSH `Include` doesn't work; git config includes do.** See §5/§6 above —
 git for Windows honors `$HOME` and tilde-expansion identically to Unix, so
 its include mechanism needed no special-casing, while SSH's needed a

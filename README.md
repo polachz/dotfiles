@@ -177,6 +177,7 @@ repo clone, but they can't be decrypted without the matching Age key.
 | `-p`, `--profile <personal\|work>` | Pre-select profile (skip menu) |
 | `--role <workstation\|server>` | Pre-select machine role (skip menu) |
 | `--gui <yes\|no>` | Pre-select GUI presence (skip menu) |
+| `--sudo <yes\|no>` | Do you have sudo/root access on this machine? (always asks if omitted — a shared server you're not admin on is a common case) `no` skips every root-only step (package install, group membership, the `/root` shell mirror) instead of trying and prompting for a password that will never come; everything else still applies |
 | `-b`, `--branch <name>` | Clone/checkout this git branch instead of the default branch (e.g. to bootstrap from a work-in-progress branch not yet merged to main) |
 | `-d`, `--dry-run` | Show what would change without applying |
 | `-a`, `--apply` | Force apply (overrides dry-run default on re-runs) |
@@ -193,6 +194,7 @@ repo clone, but they can't be decrypted without the matching Age key.
 | `CHZ_DEPLOYMENT_PROFILE` | Profile selector (`personal` or `work`) — same as `--profile`. Bridged internally to `DOTFILES_PROFILE` before invoking chezmoi. |
 | `CHZ_DEPLOYMENT_ROLE` | Role selector (`workstation` or `server`) — same as `--role`. Bridged internally to `DOTFILES_ROLE`. |
 | `CHZ_HAS_GUI` | GUI presence (`yes` or `no`) — same as `--gui`. Bridged internally to `DOTFILES_HAS_GUI` (`true`/`false`). |
+| `CHZ_HAS_ROOT` | Sudo/root availability (`yes` or `no`) — same as `--sudo`. Bridged internally to `DOTFILES_NO_ROOT` (`true`/`false`, inverted) — read live by every script at apply time, not cached into `chezmoi.yaml` like the three above, since sudo access can change independently of profile/role. |
 | `CHZ_BOOTSTRAP_BRANCH` | Same as `--branch` |
 | `CHZ_BOOTSTRAP_DRY_RUN` | Set to `1` to run in dry-run mode |
 | `CHZ_BOOTSTRAP_VERBOSE` | Set to `1` for verbose output |

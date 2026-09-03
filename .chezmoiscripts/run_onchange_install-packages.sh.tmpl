@@ -42,6 +42,10 @@ START_TIME=$SECONDS
 copr_repos=({{ range $coprRepos }}{{ . | quote }} {{ end }})
 for repo in "${copr_repos[@]:-}"; do
   if [[ -n "${repo}" ]]; then
+    if ! has_root_access; then
+      log_yellow "SKIP: no sudo/root access — cannot enable COPR repo ${repo} (retry a future apply once you have sudo)"
+      continue
+    fi
     log_task "Enabling COPR repo: ${repo}"
     sudo dnf copr enable -y "${repo}"
   fi
@@ -52,12 +56,19 @@ log_task "Processing {{ $manager }} packages: ${required_packages[*]:-}"
 append_missing_packages_to_list {{ $manager }} "${required_packages[@]}"
 
 if [[ ${#missing_packages[@]} -gt 0 ]]; then
-  log_task "Installing missing {{ $manager }} packages: ${missing_packages[*]}"
+{{- if or (eq $manager "dnf") (eq $manager "apt") }}
+  if ! has_root_access; then
+    log_yellow "SKIP: no sudo/root access — cannot install {{ $manager }} packages: ${missing_packages[*]} (retry a future apply once you have sudo)"
+  else
+    log_task "Installing missing {{ $manager }} packages: ${missing_packages[*]}"
 {{- if eq $manager "dnf" }}
-  sudo dnf -y install "${missing_packages[@]}"
+    sudo dnf -y install "${missing_packages[@]}"
 {{- else if eq $manager "apt" }}
-  sudo apt-get -y install "${missing_packages[@]}"
+    sudo apt-get -y install "${missing_packages[@]}"
+{{- end }}
+  fi
 {{- else if eq $manager "brew" }}
+  log_task "Installing missing {{ $manager }} packages: ${missing_packages[*]}"
   HOMEBREW_NO_ASK=1 brew install "${missing_packages[@]}"
 {{- end }}
 else

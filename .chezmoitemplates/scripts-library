@@ -129,7 +129,9 @@ function sudo() {
   else
     if ! command sudo --non-interactive true 2>/dev/null; then
       log_manual_action "Root privileges are required, please enter your password below"
-      command sudo --validate
+      if ! command sudo --validate; then
+        error "No sudo/root access available for $(whoami) on this machine — cannot continue this step. Callers that can proceed without root should check has_root_access first instead of calling sudo directly."
+      fi
     fi
     if [[ "${exec}" == true ]]; then
       exec sudo "$@"
@@ -137,6 +139,36 @@ function sudo() {
       command sudo "$@"
     fi
   fi
+}
+
+# Checks whether root access is actually available for the current user —
+# unlike the `sudo` wrapper above (which errors the whole script out loudly
+# on failure), this never fails the calling script itself. Use it wherever a
+# step is OPTIONAL without root (a nice-to-have package install, group
+# membership, the /root environment mirror) so a genuinely unprivileged user
+# (no sudoers entry at all — e.g. a shared server where you're not admin)
+# still gets everything this repo can do without root applied cleanly,
+# instead of `chezmoi apply` dying on the first root-only step it hits.
+# Prompts at most once (interactively, via `sudo --validate`) — if that
+# succeeds, the real `sudo` wrapper's own check below sees the now-cached
+# credentials and doesn't prompt again.
+function has_root_access() {
+  # Set by bootstrap.sh's --sudo no / CHZ_HAS_ROOT=no (the "Do you have
+  # sudo/root access on this machine?" prompt) — an explicit "no" answer
+  # means skip immediately, never even attempt sudo, so nothing prompts for
+  # a password that isn't coming.
+  if [[ "${DOTFILES_NO_ROOT:-}" == "true" ]]; then
+    return 1
+  fi
+  # shellcheck disable=SC2312
+  if [[ "$(id -u)" -eq 0 ]]; then
+    return 0
+  fi
+  if command sudo --non-interactive true 2>/dev/null; then
+    return 0
+  fi
+  log_manual_action "This step can use root privileges if available — enter your password below, or press Ctrl+D to skip it"
+  command sudo --validate 2>/dev/null
 }
 
 function is_dnf_package_installed() {
