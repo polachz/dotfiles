@@ -54,6 +54,27 @@
   {{- $has_gui = promptBoolOnce . "deployment.has_gui" "Does this machine have a GUI" true -}}
 {{- end -}}
 
+{{/*
+  Do you have sudo/root access on this machine at all? Cached like profile/role/has_gui above
+  (promptBoolOnce, asked once at init, remembered in chezmoi.yaml) rather than re-checked live on
+  every apply like Windows' can_elevate (see below) — confirmed live this matters: a real check
+  can't distinguish "no root" from "root, but needs an interactive password" without actually
+  prompting for one, and prompting on every single `chezmoi update` (not just the first apply) on
+  a machine that genuinely has none is exactly the friction this avoids. Default true (assume
+  root is available unless told otherwise) — bootstrap.sh's `--sudo`/`CHZ_HAS_ROOT` bridges to
+  DOTFILES_HAS_ROOT the same way `--gui`/CHZ_HAS_GUI bridges to DOTFILES_HAS_GUI above.
+*/}}
+{{- $hasRootEnv := env "DOTFILES_HAS_ROOT" -}}
+{{- $has_root := true -}}
+{{- if ne $hasRootEnv "" -}}
+  {{- if and (ne $hasRootEnv "true") (ne $hasRootEnv "false") -}}
+    {{- fail (printf "Invalid DOTFILES_HAS_ROOT %q — must be 'true' or 'false'" $hasRootEnv) -}}
+  {{- end -}}
+  {{- $has_root = eq $hasRootEnv "true" -}}
+{{- else -}}
+  {{- $has_root = promptBoolOnce . "deployment.has_root" "Do you have sudo/root access on this machine" true -}}
+{{- end -}}
+
 {{/* Resolve per-profile crypto identifiers. */}}
 {{- $enc_age_recipient := $enc_age_recipient_personal -}}
 {{- $enc_ejson_key_id  := $enc_ejson_key_id_personal  -}}
@@ -124,6 +145,7 @@ data:
     profile: {{ $profile | quote }}
     role: {{ $role | quote }}
     has_gui: {{ $has_gui }}
+    has_root: {{ $has_root }}
     can_elevate: {{ $can_elevate }}
     osid: {{ $osid | quote }}
 {{- if eq $virt_type "oracle" }}

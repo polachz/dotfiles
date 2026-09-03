@@ -534,17 +534,14 @@ else
     export DOTFILES_HAS_GUI="false"
 fi
 
-# DOTFILES_NO_ROOT is NOT read by .chezmoi.yaml.tmpl like the three above —
-# it's a plain runtime env var, read directly by scripts-library's
-# has_root_access at EVERY apply (not cached into chezmoi.yaml at init time),
-# since whether you currently have sudo can change independently of profile/
-# role and shouldn't need a `chezmoi init -Reinit` to pick back up once it
-# does. `exec`-ing chezmoi below (not just calling it) is what makes this
-# export actually reach the run_*.tmpl scripts chezmoi executes as children.
-if [ "${CHZ_HAS_ROOT}" = "no" ]; then
-    export DOTFILES_NO_ROOT="true"
+# DOTFILES_HAS_ROOT IS read by .chezmoi.yaml.tmpl, same as the two above —
+# cached into chezmoi.yaml via promptBoolOnce on first init if not set here,
+# so a plain `chezmoi update` later never needs this env var at all (or a
+# password prompt for a sudo access that was already declared absent).
+if [ "${CHZ_HAS_ROOT}" = "yes" ]; then
+    export DOTFILES_HAS_ROOT="true"
 else
-    export DOTFILES_NO_ROOT="false"
+    export DOTFILES_HAS_ROOT="false"
 fi
 
 log_task "Running 'chezmoi $*' (profile=${CHZ_DEPLOYMENT_PROFILE}, role=${CHZ_DEPLOYMENT_ROLE}, gui=${CHZ_HAS_GUI}, sudo=${CHZ_HAS_ROOT})"

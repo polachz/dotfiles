@@ -194,12 +194,12 @@ repo clone, but they can't be decrypted without the matching Age key.
 | `CHZ_DEPLOYMENT_PROFILE` | Profile selector (`personal` or `work`) — same as `--profile`. Bridged internally to `DOTFILES_PROFILE` before invoking chezmoi. |
 | `CHZ_DEPLOYMENT_ROLE` | Role selector (`workstation` or `server`) — same as `--role`. Bridged internally to `DOTFILES_ROLE`. |
 | `CHZ_HAS_GUI` | GUI presence (`yes` or `no`) — same as `--gui`. Bridged internally to `DOTFILES_HAS_GUI` (`true`/`false`). |
-| `CHZ_HAS_ROOT` | Sudo/root availability (`yes` or `no`) — same as `--sudo`. Bridged internally to `DOTFILES_NO_ROOT` (`true`/`false`, inverted) — read live by every script at apply time, not cached into `chezmoi.yaml` like the three above, since sudo access can change independently of profile/role. |
+| `CHZ_HAS_ROOT` | Sudo/root availability (`yes` or `no`) — same as `--sudo`. Bridged internally to `DOTFILES_HAS_ROOT` (`true`/`false`) and, like the three above, cached into `chezmoi.yaml` at init time (`promptBoolOnce`) — asked once, never re-prompted on a plain `chezmoi update`. |
 | `CHZ_BOOTSTRAP_BRANCH` | Same as `--branch` |
 | `CHZ_BOOTSTRAP_DRY_RUN` | Set to `1` to run in dry-run mode |
 | `CHZ_BOOTSTRAP_VERBOSE` | Set to `1` for verbose output |
 | `CHZ_DOTFILES_DEBUG` | Set to `1` to enable `set -x` debug mode in dotfile scripts |
-| `DOTFILES_PROFILE` / `DOTFILES_ROLE` / `DOTFILES_HAS_GUI` | Read directly by chezmoi's `.chezmoi.yaml.tmpl` — set these yourself to bypass bootstrap.sh's menus entirely (e.g. CI, lab VM automation) |
+| `DOTFILES_PROFILE` / `DOTFILES_ROLE` / `DOTFILES_HAS_GUI` / `DOTFILES_HAS_ROOT` | Read directly by chezmoi's `.chezmoi.yaml.tmpl` — set these yourself to bypass bootstrap.sh's menus entirely (e.g. CI, lab VM automation) |
 
 ---
 

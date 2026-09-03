@@ -7,6 +7,12 @@
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
+# Cached fact (promptBoolOnce, asked once at init — see .chezmoi.yaml.tmpl),
+# not re-checked live here: a machine that declared "no sudo" up front
+# should never see a password prompt on a routine `chezmoi update` for
+# group membership, which is optional to begin with.
+HAS_ROOT={{ .deployment.has_root }}
+
 # getent/usermod are GNU/glibc tools — absent on macOS (BSD userland). Group
 # membership there goes through dscl/dseditgroup instead.
 group_exists() {
@@ -39,8 +45,12 @@ add_to_group() {
             # Optional, not required for the rest of this script (git remote
             # switch, chmod below need no root) — skip cleanly rather than
             # failing the whole apply on a machine with no sudo/root access.
+            if [ "${HAS_ROOT}" != "true" ]; then
+                log_yellow "SKIP: no sudo/root access on this machine — cannot add user to group ${group_name}"
+                return 0
+            fi
             if ! has_root_access; then
-                log_yellow "SKIP: no sudo/root access — cannot add user to group ${group_name} (retry a future apply once you have sudo)"
+                log_yellow "SKIP: sudo/root access unavailable right now — cannot add user to group ${group_name} (retry a future apply)"
                 return 0
             fi
             log_info "Adding user to group ${group_name}"

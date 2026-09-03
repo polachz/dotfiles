@@ -1,7 +1,11 @@
-{{- if eq .chezmoi.os "linux" -}}
+{{- if and (eq .chezmoi.os "linux") .deployment.has_root -}}
 #!/usr/bin/env bash
 # Mirrors the invoking sudo user's shell environment (aliases/functions/
 # prompt) into /root — idempotent, runs on every apply (plain `run_` prefix).
+# Renders to nothing at all (see the outer `.deployment.has_root` guard)
+# on a machine that declared it has no sudo/root access at init — no point
+# even trying, and definitely no repeated password prompt on every
+# `chezmoi update` for a fact that's already known.
 # Linux-only: macOS doesn't need this at all — bare `sudo $SHELL` there
 # already preserves the invoking user's $HOME (verified live), so root just
 # uses the same real dotfiles in place. Fedora's sudoers ships `Defaults
@@ -54,12 +58,12 @@
 # The following line is for ShellCheck to correctly identify the above included library
 true || source ../.chezmoitemplates/scripts-library
 
-# Purely a convenience feature — skip cleanly rather than failing the whole
-# apply on a machine where this account has no sudo/root access at all (e.g.
-# a shared server you're not an admin on). This account's own shell config
-# is entirely unaffected either way.
+# Secondary safety net for the "declared has_root: true, but sudo actually
+# fails right now" case (expired ticket, revoked access since init, ...) —
+# the common "no sudo at all" case is already handled above at template
+# render time, before this line even exists in the deployed script.
 if ! has_root_access; then
-    log_yellow "SKIP: no sudo/root access on this machine — /root environment mirror not set up (retry a future apply once you have sudo)"
+    log_yellow "SKIP: sudo/root access unavailable right now — /root environment mirror not set up (retry a future apply)"
     exit 0
 fi
 

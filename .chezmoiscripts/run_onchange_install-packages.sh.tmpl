@@ -24,6 +24,14 @@ START_TIME=$SECONDS
 {{- $hasGui := .deployment.has_gui }}
 {{- $vmType := .deployment.vm_type }}
 {{- $profile := .deployment.profile }}
+# Cached fact (promptBoolOnce, asked once at init — see .chezmoi.yaml.tmpl),
+# not re-checked live here: a machine that declared "no sudo" up front
+# should never see a password prompt on a routine `chezmoi update`. Declared
+# unconditionally (even for brew, which never needs it) — the COPR loop
+# below always exists in the rendered script regardless of $manager (it's
+# just always empty for brew), and referencing an undeclared var under
+# `set -u` would be a landmine even if unreachable in practice today.
+HAS_ROOT={{ .deployment.has_root }}
 {{- $allTools := concat .packages.common (index .packages $profile) .packages.workstation_tools .packages.vm_guest_tools }}
 {{- $requiredPkgs := list }}
 {{- $coprRepos := list }}
@@ -42,8 +50,12 @@ START_TIME=$SECONDS
 copr_repos=({{ range $coprRepos }}{{ . | quote }} {{ end }})
 for repo in "${copr_repos[@]:-}"; do
   if [[ -n "${repo}" ]]; then
+    if [[ "${HAS_ROOT}" != "true" ]]; then
+      log_yellow "SKIP: no sudo/root access on this machine — cannot enable COPR repo ${repo}"
+      continue
+    fi
     if ! has_root_access; then
-      log_yellow "SKIP: no sudo/root access — cannot enable COPR repo ${repo} (retry a future apply once you have sudo)"
+      log_yellow "SKIP: sudo/root access unavailable right now — cannot enable COPR repo ${repo} (retry a future apply)"
       continue
     fi
     log_task "Enabling COPR repo: ${repo}"
@@ -57,8 +69,10 @@ append_missing_packages_to_list {{ $manager }} "${required_packages[@]}"
 
 if [[ ${#missing_packages[@]} -gt 0 ]]; then
 {{- if or (eq $manager "dnf") (eq $manager "apt") }}
-  if ! has_root_access; then
-    log_yellow "SKIP: no sudo/root access — cannot install {{ $manager }} packages: ${missing_packages[*]} (retry a future apply once you have sudo)"
+  if [[ "${HAS_ROOT}" != "true" ]]; then
+    log_yellow "SKIP: no sudo/root access on this machine — cannot install {{ $manager }} packages: ${missing_packages[*]}"
+  elif ! has_root_access; then
+    log_yellow "SKIP: sudo/root access unavailable right now — cannot install {{ $manager }} packages: ${missing_packages[*]} (retry a future apply)"
   else
     log_task "Installing missing {{ $manager }} packages: ${missing_packages[*]}"
 {{- if eq $manager "dnf" }}

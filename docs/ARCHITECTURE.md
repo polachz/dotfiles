@@ -433,18 +433,22 @@ path is assumed to succeed under non-interactive automation.
 
 **The same "never assume elevation" principle applies to Linux/macOS sudo,
 not just Windows UAC.** A shared server you're not an admin on is a real,
-common case — `scripts-library`'s `has_root_access` (unlike its plain `sudo`
-wrapper, which errors the whole script out loudly) checks whether sudo is
-actually available (cached credentials, or one interactive `sudo --validate`
-prompt) and returns false rather than failing, so callers can skip an
-OPTIONAL root-only step cleanly instead of aborting the entire `chezmoi
-apply`. Used by the package-install, group-membership, and `/root`
-environment-mirror scripts. `bootstrap.sh --sudo no` (or `CHZ_HAS_ROOT=no`,
-bridged to the plain runtime env var `DOTFILES_NO_ROOT` — deliberately not
-cached into `chezmoi.yaml` like profile/role/has_gui, since sudo access can
-change independently and shouldn't need a reinit to pick back up) short-
-circuits `has_root_access` immediately, skipping the interactive prompt
-entirely for a machine known upfront to have none.
+common case. Whether the machine has sudo/root access at all is a fourth
+init-time fact, `.deployment.has_root` — cached via `promptBoolOnce` exactly
+like profile/role/has_gui (`bootstrap.sh --sudo yes|no` / `CHZ_HAS_ROOT`
+bridges to `DOTFILES_HAS_ROOT`), **not** re-checked live on every apply. This
+matters specifically because a live check can't distinguish "no root" from
+"root, but needs an interactive password" without actually prompting for
+one — unlike Windows' `can_elevate` above (a cheap, non-interactive group-
+membership query), so re-prompting on every single `chezmoi update` (not
+just the first apply) would be real, avoidable friction on a machine that
+genuinely has none. The package-install, group-membership, and `/root`
+environment-mirror scripts all check the cached fact first (skipping with no
+sudo attempt at all when false) and fall back to `scripts-library`'s
+`has_root_access` — which, unlike its plain `sudo` wrapper that errors the
+whole script out loudly, checks live (cached credentials or one interactive
+`sudo --validate`) and returns false rather than failing — as a secondary
+safety net for the "declared yes, but sudo actually fails right now" case.
 
 **Real bash parser bug found while building the above**: an odd number of
 literal `'` characters inside a heredoc breaks bash's parser whenever that

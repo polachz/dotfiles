@@ -153,13 +153,13 @@ function sudo() {
 # succeeds, the real `sudo` wrapper's own check below sees the now-cached
 # credentials and doesn't prompt again.
 function has_root_access() {
-  # Set by bootstrap.sh's --sudo no / CHZ_HAS_ROOT=no (the "Do you have
-  # sudo/root access on this machine?" prompt) — an explicit "no" answer
-  # means skip immediately, never even attempt sudo, so nothing prompts for
-  # a password that isn't coming.
-  if [[ "${DOTFILES_NO_ROOT:-}" == "true" ]]; then
-    return 1
-  fi
+  # Callers should already have checked the cached `.deployment.has_root`
+  # fact (promptBoolOnce, asked once at init — see .chezmoi.yaml.tmpl) BEFORE
+  # calling this, so a machine that declared "no sudo" up front never even
+  # reaches here on every `chezmoi update`. This function is the runtime
+  # fallback for the "declared yes" case: still needs a real check, since
+  # "yes" doesn't guarantee an already-cached sudo ticket, and typing a
+  # password interactively here is the expected/normal first-apply flow.
   # shellcheck disable=SC2312
   if [[ "$(id -u)" -eq 0 ]]; then
     return 0
@@ -167,7 +167,7 @@ function has_root_access() {
   if command sudo --non-interactive true 2>/dev/null; then
     return 0
   fi
-  log_manual_action "This step can use root privileges if available — enter your password below, or press Ctrl+D to skip it"
+  log_manual_action "This step needs root privileges — enter your password below, or press Ctrl+D to skip it"
   command sudo --validate 2>/dev/null
 }
 
