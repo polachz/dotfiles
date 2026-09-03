@@ -38,9 +38,16 @@
 # source THEIR unrelated files into root's shell the first time they
 # personally run `sudo <shell>` — not a privilege escalation (they could
 # already run their own files as root trivially), but a surprising, unasked-
-# for behavior change to their own sudo session. Checking for one of this
-# project's own generated files instead means the mirror only ever activates
-# for an account that has actually bootstrapped these dotfiles.
+# for behavior change to their own sudo session.
+#
+# All three blocks below check for one single, dedicated canary file instead
+# — `~/.local/share/dotfiles/managed-by-chezmoi` (private_dot_local/share/
+# dotfiles/managed-by-chezmoi in the source repo, deployed unconditionally
+# for every OS/profile/role/GUI state) — rather than any specific shell's
+# generated alias file. Decouples this safety check from the alias/env
+# rendering pipeline's own file names, which are an implementation detail
+# that could change; the canary's only job is answering "does this account
+# have these dotfiles at all", nothing more.
 
 {{ template "scripts-library" }}
 
@@ -60,7 +67,7 @@ if ! sudo grep -q 'DOTFILES_ROOT_MIRROR' /root/.bashrc; then
 # the same environment instead of root's own unconfigured one.
 if [ -n "${SUDO_USER}" ]; then
     _dotfiles_orig_home=$(getent passwd "${SUDO_USER}" 2>/dev/null | cut -d: -f6)
-    if [ -n "${_dotfiles_orig_home}" ] && [ -f "${_dotfiles_orig_home}/.bashrc.d/50-aliases-generated.sh" ]; then
+    if [ -n "${_dotfiles_orig_home}" ] && [ -f "${_dotfiles_orig_home}/.local/share/dotfiles/managed-by-chezmoi" ]; then
         _dotfiles_real_home="${HOME}"
         HOME="${_dotfiles_orig_home}"
         for rc in "${_dotfiles_orig_home}/.bashrc.d"/*; do
@@ -85,7 +92,7 @@ if ! sudo grep -q 'DOTFILES_ROOT_MIRROR' /root/.zshrc; then
 # on a no-match glob, zsh treats it as a fatal error without it).
 if [ -n "${SUDO_USER}" ]; then
     _dotfiles_orig_home=$(getent passwd "${SUDO_USER}" 2>/dev/null | cut -d: -f6)
-    if [ -n "${_dotfiles_orig_home}" ] && [ -f "${_dotfiles_orig_home}/.zshrc.d/00-shared.zsh" ]; then
+    if [ -n "${_dotfiles_orig_home}" ] && [ -f "${_dotfiles_orig_home}/.local/share/dotfiles/managed-by-chezmoi" ]; then
         _dotfiles_real_home="${HOME}"
         HOME="${_dotfiles_orig_home}"
         for rc in "${_dotfiles_orig_home}/.zshrc.d"/*(N); do
@@ -112,7 +119,7 @@ if ! sudo grep -q 'DOTFILES_ROOT_MIRROR' /root/.config/fish/config.fish; then
 # $HOME-restore pattern as the bash/zsh blocks above.
 if set -q SUDO_USER
     set -l orig_home (getent passwd $SUDO_USER 2>/dev/null | cut -d: -f6)
-    if test -n "$orig_home"; and test -f "$orig_home/.config/fish/conf.d/aliases.fish"
+    if test -n "$orig_home"; and test -f "$orig_home/.local/share/dotfiles/managed-by-chezmoi"
         set -gx fish_function_path $fish_function_path "$orig_home/.config/fish/functions"
         set -l real_home $HOME
         set -gx HOME $orig_home

@@ -1,0 +1,12 @@
+This account's shell configuration (~/.bashrc.d, ~/.zshrc.d, ~/.config/fish)
+is managed by chezmoi from https://github.com/polachz/dotfiles.
+
+This file's sole purpose is to act as a canary: its presence, at this exact
+path, is how run_after_ensure-root-environment-mirror.sh.tmpl decides
+whether it's safe to mirror this account's shell config into /root when it
+runs `sudo <shell>` — checking for this dedicated marker instead of just
+"does ~/.bashrc.d exist" matters on a shared/multi-user machine, since
+~/.bashrc.d is a pre-existing Fedora/RHEL OS convention that an unrelated
+account could have for reasons that have nothing to do with this project.
+
+Deployed unconditionally (every OS/profile/role/GUI state) — do not remove.

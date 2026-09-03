@@ -327,6 +327,17 @@ resolve their config path correctly, then restoring `$HOME` to `/root`
 afterward. This adds no new privilege — a sudoer could already run anything
 from their own dotfiles as root manually; it just automates it.
 
+On a shared/multi-user machine, this mirroring must gate on more than bare
+`~/.bashrc.d` existence — that directory name is itself a pre-existing
+Fedora/RHEL OS convention (§4), so an unrelated account could have one for
+reasons that have nothing to do with this project, and mirroring it into
+root on their first `sudo <shell>` would be a surprising, unasked-for
+behavior change to their session. The mirror script instead checks for one
+dedicated canary file, `~/.local/share/dotfiles/managed-by-chezmoi`
+(deployed unconditionally, every OS/profile/role/GUI state) — this decouples
+the safety check from the alias/env rendering pipeline's own file names,
+which are an implementation detail that can change independently.
+
 **Ghostty** (macOS/Linux only, no Windows build) composes
 `common.conf` → `{profile}/common.conf` → `{profile}/{os}.conf` via its
 native `config-file = ?path` include (silent no-op on a missing fragment,
