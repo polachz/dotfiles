@@ -139,17 +139,27 @@ data:
     vm: false
     vm_type: none
 {{- end }}
-{{- $osReleaseId := index .chezmoi.osRelease "id" }}
-{{- if eq $osReleaseId "fedora" }}
-  package_manager: dnf
-{{- else if eq $osReleaseId "ubuntu" }}
-  package_manager: apt
-{{- else if eq $osReleaseId "debian" }}
-  package_manager: apt
-{{- else if eq .chezmoi.os "darwin" }}
+{{/*
+  Detected by actual binary presence (lookPath), not a hardcoded os-release "id" allowlist —
+  confirmed live on a real RHEL server ("id": "rhel", dnf-based like Fedora but not in the old
+  fedora/ubuntu/debian-only list): the missing entry left `package_manager` entirely absent from
+  this map, which crashed run_onchange_install-packages.sh.tmpl with "map has no entry for key
+  package_manager" the first time it read `.package_manager`. lookPath-based detection covers
+  every dnf-based distro (RHEL, CentOS, Rocky, AlmaLinux, Fedora, ...) and every apt-based one
+  (Debian, Ubuntu, Mint, ...) without needing to enumerate them. Falls back to "none" (that
+  script already treats any manager other than dnf/apt/brew as "install nothing", same graceful
+  default as vm_type above) rather than leaving the key missing.
+*/}}
+{{- if eq .chezmoi.os "darwin" }}
   package_manager: brew
 {{- else if eq .chezmoi.os "windows" }}
   package_manager: winget
+{{- else if lookPath "dnf" }}
+  package_manager: dnf
+{{- else if or (lookPath "apt-get") (lookPath "apt") }}
+  package_manager: apt
+{{- else }}
+  package_manager: none
 {{- end }}
   ejson_vault: {{ joinPath .chezmoi.sourceDir "secrets" $profile "evault" | quote }}
 encryption: 'age'
