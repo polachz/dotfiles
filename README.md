@@ -13,6 +13,7 @@ physically cannot decrypt work secrets, and vice versa. One data model drives
 | This file | First-time setup, what gets installed, day-to-day quick reference |
 | [`docs/DAILY_WORKFLOW.md`](docs/DAILY_WORKFLOW.md) | Doing anything day-to-day: changing a file, adding an alias, syncing machines, recovering from a broken state |
 | [`docs/ALIASES.md`](docs/ALIASES.md) | Looking up (or adding) an alias, environment variable, or shell function |
+| [`docs/SSH_HOSTS.md`](docs/SSH_HOSTS.md) | Adding or editing an SSH host, plain or encrypted |
 | [`docs/ENCRYPTION_SETUP.md`](docs/ENCRYPTION_SETUP.md) | Setting up encryption on a new profile, or rotating/recovering keys |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | You need the "why" behind a design decision |
 
@@ -598,7 +599,8 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 │   ├── ARCHITECTURE.md              # Design rationale — read this for the "why"
 │   ├── DAILY_WORKFLOW.md            # Operator runbook — day-to-day scenarios, recovery
 │   ├── ENCRYPTION_SETUP.md          # Key generation, verification, rotation
-│   └── ALIASES.md                   # Generated alias/env/function reference
+│   ├── ALIASES.md                   # Generated alias/env/function reference
+│   └── SSH_HOSTS.md                 # How-to: add/edit an SSH host, plain or encrypted
 ├── CONCEPT_ROADMAP.md               # Working notes for the ongoing rework — not final documentation
 ├── bootstrap.sh                     # Self-contained installer (curl/wget entry point, macOS/Linux)
 ├── bootstrap.ps1                    # Self-contained installer (Windows, PowerShell)
