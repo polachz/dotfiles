@@ -131,3 +131,10 @@ aliases:
             # itself has shipped natively since Windows 10 1803.
             windows: "curl.exe -s https://ifconfig.me"
           description: Show this machine's public IP address
+
+      virtualization:
+        - name: virtm-lab01
+          command:
+            default: skip
+            darwin: 'env XDG_DATA_DIRS="/opt/homebrew/share:$XDG_DATA_DIRS" virt-manager --connect="qemu+ssh://lab01/session"'
+          description: Open the lab01 libvirt connection in Virtual Machine Manager

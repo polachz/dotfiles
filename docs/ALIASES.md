@@ -101,6 +101,12 @@ regardless of `kind`.
 | `shutdownnow` | `sudo /sbin/shutdown -h now` | `sudo /sbin/shutdown -h now` | `Stop-Computer -Force` | abbr | Shut down the machine immediately |
 | `root` | `sudo $SHELL` | `sudo $SHELL` | `if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo pwsh } else { Start-Process pwsh -Verb RunAs }; $args \| Out-Null` | abbr | Start a root/elevated shell |
 | `reload` | `exec $SHELL -l` | `exec $SHELL -l` | `. $PROFILE; $args \| Out-Null` | abbr | Reload the shell (re-exec as a login shell; PowerShell re-sources $PROFILE instead) |
+
+### `virtualization`
+
+| Command | Linux | macOS | Windows | Kind | Description |
+|---|---|---|---|---|---|
+| `virtm-lab01` | — | `env XDG_DATA_DIRS="/opt/homebrew/share:$XDG_DATA_DIRS" virt-manager --connect="qemu+ssh://lab01/session"` | — | abbr | Open the lab01 libvirt connection in Virtual Machine Manager |
 <!-- GENERATED:aliases-doc-aliases:end -->
 
 **Not yet migrated to the YAML model** (need per-shell native syntax, not a
@@ -208,7 +214,7 @@ so each is hand-written once per shell: bash/zsh share
 | `gclean` | Delete local git branches already merged into the repo's default branch | Detects the default branch from `origin/HEAD`, falls back to `main`; the current branch and `main`/`master` are always excluded as an extra safety net regardless of what detection returns. |
 | `gnb <name> [base\|@]` | Create a new git branch and push it upstream (`-u origin`) in one step | Base branch: explicit `[base]` arg, `@` for the current branch (git's own HEAD shorthand), or (default) the repo's actual default branch — same `origin/HEAD` detection as `gclean`, falls back to `main`. Falls back to `origin/<base>` if `<base>` has no local tracking branch yet. |
 | `cheat <topic>` | Quick cheatsheet lookup via `curl cheat.sh/<topic>` | |
-| `ghi` | Search shell history for a pattern | The short name `gh` was removed 2026-09-03 (user's call) so it never shadows the real GitHub CLI's own `gh` binary — `ghi` is now the only name across every shell. |
+| `ghi` | Merge and regex-search Fish history for a pattern | The short name `gh` was removed 2026-09-03 (user's call) so it never shadows the real GitHub CLI's own `gh` binary — `ghi` is now the only name across every shell. Fish first merges history from other active sessions, then searches it with `grep`, retaining regular-expression support. |
 
 Deliberately **not yet implemented**: a random string/password generator —
 user has an existing implementation in another project to port the exact
