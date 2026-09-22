@@ -124,6 +124,23 @@ identical pattern: user/OS-owned file, one idempotent dot-source block
 appended by `run_after_ensure-powershell-profile-sourcing.ps1.tmpl`, pointing
 at a fully chezmoi-owned `Documents/PowerShell/dotfiles.d/`.
 
+### 4.1 Interactive shell identity and local PATH
+
+In this dotfiles setup, `SHELL` is session state, not the account's login-shell setting. The
+shell-specific fragments `dot_bashrc.d/10-shell.sh`,
+`dot_zshrc.d/10-shell.zsh`, and `dot_config/fish/conf.d/10-shell.fish` export
+the runtime-resolved executable only when their shell is interactive. A
+noninteractive script preserves its inherited value; a nested shell sets its
+own value and the parent naturally keeps its value after the child exits. No
+`chsh` or deployment login-shell setting is involved.
+
+The corresponding `10-path` fragments add `~/.local/bin` idempotently. Fish
+uses `fish_add_path --global --path`, so the change is limited to the current
+session and does not write fish universal variables. The explicit zsh shared
+loader list intentionally excludes bash-only fragments. Since
+`~/.local/bin` is source-managed and on PATH, tools installed there (including
+`uv` tools) do not need `uv tool update-shell` for this setup.
+
 ## 5. Git configuration
 
 ```

@@ -17,13 +17,18 @@
 # point, 2026-08-20). A plain `alias` can't express that conditional, so
 # `ch` is a function now; `chd` needs no such logic and stays an alias.
 function ch {
-  history -a
+  # Bash and zsh expose different history-write interfaces.
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    fc -AI
+  else
+    history -a
+  fi
   chezmoi "$@"
-  local status=$?
-  if [ "$1" = "update" ] && [ "$status" -eq 0 ]; then
+  local ch_status=$?
+  if [ "$1" = "update" ] && [ "$ch_status" -eq 0 ]; then
     exec "$SHELL" -l
   fi
-  return "$status"
+  return "$ch_status"
 }
 # Switch to chezmoi source directory — plain `cd`, NOT `chezmoi cd`.
 # `chezmoi cd` is chezmoi's own subcommand, a separate process — it can't
@@ -35,4 +40,8 @@ function ch {
 # no shell-spawning side effect), so capturing it ourselves and `cd`-ing in
 # the CURRENT shell avoids nesting entirely — same principle as why
 # edit-evault/gclean/etc. are functions here instead of external scripts.
-alias chd='history -a && cd "$(chezmoi source-path)"'
+if [ -n "${ZSH_VERSION:-}" ]; then
+  alias chd='fc -AI && cd "$(chezmoi source-path)"'
+else
+  alias chd='history -a && cd "$(chezmoi source-path)"'
+fi

@@ -36,4 +36,35 @@ fi
 unset rc
 EOF
 fi
+
+# Bash login shells read the first existing file in this order and stop:
+# ~/.bash_profile, ~/.bash_login, ~/.profile. Keep those files user-owned and
+# add only the bridge needed for interactive login shells to reach ~/.bashrc.
+# Create ~/.bash_profile when none exists, so a new login bash has a
+# deterministic, self-healing entry point.
+login_rc=""
+for candidate in "${HOME}/.bash_profile" "${HOME}/.bash_login" "${HOME}/.profile"; do
+    if [ -f "${candidate}" ] && [ -r "${candidate}" ]; then
+        login_rc="${candidate}"
+        break
+    fi
+done
+if [ -z "${login_rc}" ]; then
+    login_rc="${HOME}/.bash_profile"
+    touch "${login_rc}"
+fi
+
+if ! grep -Fq '# dotfiles bootstrap: load ~/.bashrc for interactive login shells' "${login_rc}" \
+    && ! grep -Ev '^[[:space:]]*#' "${login_rc}" | grep -Eq '(^|[[:space:];])([.]|source)[[:space:]]+[^#]*\.bashrc([^[:alnum:]_]|$)'; then
+    log_task "${login_rc} doesn't source ~/.bashrc for interactive login shells — adding it"
+    cat >> "${login_rc}" <<'EOF'
+
+# dotfiles bootstrap: load ~/.bashrc for interactive login shells
+if [ -n "${BASH_VERSION:-}" ]; then
+    case $- in
+        *i*) [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc" ;;
+    esac
+fi
+EOF
+fi
 {{- end -}}

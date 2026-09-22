@@ -52,6 +52,29 @@ model renders into all three. Native prompt (root=red/user=green) is
 universal; [Oh My Posh](https://ohmyposh.dev/) layers on top wherever it's
 installed (zsh/fish/PowerShell — not bash).
 
+### Shell session behavior
+
+In this dotfiles setup, each interactive bash, zsh, or fish session exports
+`SHELL` to the executable that started that session. This is session state used by aliases such as
+`reload`, `root`, and `ch update`; it does not change the account's login shell
+and does not run `chsh`. Noninteractive scripts keep their inherited `SHELL`,
+so invoking a script does not change how its child processes identify the
+calling shell. A nested shell sets its own value and the parent value returns
+when the nested shell exits.
+
+The shell-specific fragments are `~/.bashrc.d/10-shell.sh`,
+`~/.zshrc.d/10-shell.zsh`, and `~/.config/fish/conf.d/10-shell.fish`.
+`~/.bashrc` and the first effective bash login startup file are user-owned;
+chezmoi only maintains idempotent sourcing bridges. The zsh shared loader
+keeps an explicit compatible-file list, so bash-only fragments are not loaded
+into zsh.
+
+The matching `10-path` fragments add the source-managed `~/.local/bin` once.
+Fish uses `fish_add_path --global --path`, which updates only the current
+session and does not write a universal variable. The default `~/.local/bin`
+setup therefore already covers tools installed by `uv`; `uv tool update-shell`
+is unnecessary for this path.
+
 ---
 
 ## Prerequisites
