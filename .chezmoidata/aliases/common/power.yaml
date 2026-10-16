@@ -1,5 +1,5 @@
 # Migrated from dot_bashrc.d/50-aliases-power.sh 2026-08-18 (see
-# CONCEPT_ROADMAP.md §3.6) — that file was bash/zsh-only, missing entirely
+# docs/ARCHITECTURE.md §7) — that file was bash/zsh-only, missing entirely
 # from fish and PowerShell, the same class of gap the git aliases had before
 # their own migration.
 #
@@ -68,11 +68,11 @@ aliases:
             # override it) — paired with the new
             # run_after_ensure-root-environment-mirror.sh.tmpl, which
             # mirrors the invoking user's aliases/functions/prompt into
-            # /root via $SUDO_USER instead. See CONCEPT_ROADMAP.md §3.8 for
+            # /root via $SUDO_USER instead. See docs/ARCHITECTURE.md §8 for
             # the full reasoning and live verification.
             default: "sudo $SHELL"
             # Same native-sudo-first, RunAs-fallback concept as makeme/
-            # makeroot (see misc.yaml) — CONCEPT_ROADMAP.md §7. `sudo pwsh`
+            # makeroot (see misc.yaml) — docs/ARCHITECTURE.md §10. `sudo pwsh`
             # opens an elevated PowerShell (new window or inline, depending
             # on the machine's configured sudo mode); falls back to the old
             # RunAs popup on pre-24H2 Windows. Same caveats apply: needs a

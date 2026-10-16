@@ -478,7 +478,7 @@ log_task "Preparing Chezmoi run..."
 # package_manager entry, ...), pass --branch/-b explicitly or set
 # CHZ_BOOTSTRAP_BRANCH — don't bake a specific branch name into this
 # script's default, that doesn't scale past the current branch and has to
-# be remembered and reverted later. See CONCEPT_ROADMAP.md.
+# be remembered and reverted later. See docs/ARCHITECTURE.md.
 
 if [ -n "${bootstrap_chezmoi_reinit-}" ]; then
     chezmoi state delete-bucket --bucket=entryState >/dev/null 2>&1

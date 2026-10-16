@@ -1,5 +1,5 @@
 packages:
-  # Tool-first model (see CONCEPT_ROADMAP.md §7): one list per tool, with per-manager name
+  # Tool-first model (see docs/ARCHITECTURE.md §10): one list per tool, with per-manager name
   # overrides. `dnf`/`apt`/`brew` default to `name` when omitted; `winget` always needs an
   # explicit value (string ID or map — see render-winget-install), missing = not available.
   # `skip` = this manager doesn't have the tool, omit without error.
@@ -24,7 +24,7 @@ packages:
   workstation_tools:
     - name: fish
       roles: [workstation]
-      winget: skip # not a target shell on Windows in this project — PowerShell 7 covers that (see CONCEPT_ROADMAP.md §1)
+      winget: skip # not a target shell on Windows in this project — PowerShell 7 covers that (see docs/ARCHITECTURE.md §1)
     - name: oh-my-posh
       roles: [workstation]
       dnf: oh-my-posh # real Fedora package, Go SIG (verified via src.fedoraproject.org 2026-08-17)
@@ -42,7 +42,7 @@ packages:
       # instead (official GitHub-hosted .tar.gz, works on x64 AND arm64 — the
       # official .rpm/.deb are x64-only, Flatpak isn't Bitwarden's own build,
       # Snap needs adopting a whole new packaging ecosystem — see
-      # CONCEPT_ROADMAP.md §7 for the full reasoning, live-verified 2026-08-18).
+      # docs/ARCHITECTURE.md §10 for the full reasoning, live-verified 2026-08-18).
       apt: skip
       brew: bitwarden # cask, brew auto-detects (verified live)
       winget: Bitwarden.Bitwarden

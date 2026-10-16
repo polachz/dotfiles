@@ -4,7 +4,7 @@
 # files (99-prompt.sh: PS1 escapes, 01-bash-history.sh: HISTCONTROL/HISTFILESIZE
 # have no zsh equivalent). 80-functions-common.sh was excluded until
 # 2026-08-01 for using `export -f` (confirmed no-op/broken in zsh) — fixed,
-# now shared (see CONCEPT_ROADMAP.md §3.8.1). 50-aliases-power.sh removed
+# now shared (see docs/ARCHITECTURE.md §8). 50-aliases-power.sh removed
 # 2026-08-18 — migrated into the YAML alias model (power.yaml), now covered
 # by 50-aliases-generated.sh like everything else there. 85-functions-extra.sh
 # added 2026-08-18 (unpack/backup/serve/weather/gclone/pathlist/up/killport/

@@ -1,5 +1,5 @@
-# Migrated from dot_bashrc.d/50-aliases-ls.sh (see CONCEPT_ROADMAP.md §3.6).
-# `windows:` values added for PowerShell 7 (CONCEPT_ROADMAP.md §3.3) — real
+# Migrated from dot_bashrc.d/50-aliases-ls.sh (see docs/ARCHITECTURE.md §7).
+# `windows:` values added for PowerShell 7 (docs/ARCHITECTURE.md §7) — real
 # Get-ChildItem-based equivalents, verified live on winlab.local. PowerShell
 # doesn't distinguish a separate "long" view the way `ls -l` does (the
 # default table view already shows Mode/LastWriteTime/Length), so several

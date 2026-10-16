@@ -1,3 +1,3 @@
 #!/usr/bin/env zsh
 # Personal profile — empty scaffold, no personal machine exists yet
-# (see CONCEPT_ROADMAP.md §1).
+# (see docs/ARCHITECTURE.md §1).

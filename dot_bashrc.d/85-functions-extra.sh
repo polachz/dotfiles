@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared interactive bash+zsh function library, layer 2 extras (see
-# CONCEPT_ROADMAP.md §3.8.1 for the tier model — same rules as
+# docs/ARCHITECTURE.md §8 for the tier model — same rules as
 # 80-functions-common.sh: no `set -e`/`pipefail`, sourced into a live
 # interactive shell). Split into its own file rather than appended to
 # 80-functions-common.sh since these are optional conveniences, not the
@@ -44,7 +44,7 @@ function backup {
 
 # Serve the current directory over plain HTTP. Relies on python3 being on
 # PATH — not a tracked package in this repo (deliberately, see
-# CONCEPT_ROADMAP.md §7), so fail with a clear message rather than a cryptic
+# docs/ARCHITECTURE.md §10), so fail with a clear message rather than a cryptic
 # "command not found" three lines down.
 function serve {
   if ! command -v python3 >/dev/null 2>&1; then

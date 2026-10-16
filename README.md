@@ -165,7 +165,7 @@ encrypted evault chain (currently used only for per-profile git identity —
 specific, expected failure and works around it automatically — everything
 else (shell aliases/functions/prompt, Oh My Posh, winget packages) still
 ends up fully configured. Git identity itself stays unset until Windows
-EJSON support is built (tracked in [`CONCEPT_ROADMAP.md`](./CONCEPT_ROADMAP.md)).
+EJSON support is built (see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)).
 
 ---
 
@@ -624,7 +624,6 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 │   ├── ENCRYPTION_SETUP.md          # Key generation, verification, rotation
 │   ├── ALIASES.md                   # Generated alias/env/function reference
 │   └── SSH_HOSTS.md                 # How-to: add/edit an SSH host, plain or encrypted
-├── CONCEPT_ROADMAP.md               # Working notes for the ongoing rework — not final documentation
 ├── bootstrap.sh                     # Self-contained installer (curl/wget entry point, macOS/Linux)
 ├── bootstrap.ps1                    # Self-contained installer (Windows, PowerShell)
 ├── .chezmoi.yaml.tmpl               # Chezmoi config template (profile/role/has_gui, crypto vars)

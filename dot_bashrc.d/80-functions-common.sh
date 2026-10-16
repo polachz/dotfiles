@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared interactive bash+zsh function library (layer 2 — see
-# CONCEPT_ROADMAP.md §3.8.1). No `set -e`/`pipefail` here — this gets
+# docs/ARCHITECTURE.md §8). No `set -e`/`pipefail` here — this gets
 # sourced into a live interactive shell, unlike .chezmoitemplates/scripts-library.
 
 # ANSI color escape helper. Usage: color 0 31 (dark red)

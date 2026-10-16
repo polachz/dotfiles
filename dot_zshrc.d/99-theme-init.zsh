@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # Oh My Posh — optional layer on top of the classic prompt (99-prompt.zsh),
-# only if actually installed (see CONCEPT_ROADMAP.md §6). Named "theme-init",
+# only if actually installed (see docs/ARCHITECTURE.md §9). Named "theme-init",
 # not "ohmyposh-init" — confirmed live that "99-ohmyposh-init.zsh" sorts
 # BEFORE "99-prompt.zsh" alphabetically ('o' < 'p'), which would let the
 # classic prompt's PROMPT assignment load after and silently win back over

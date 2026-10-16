@@ -147,7 +147,7 @@ Env vars (same names as bootstrap.sh, for consistency):
     # set CHZ_BOOTSTRAP_BRANCH explicitly - don't bake a specific branch
     # name into this script's default, that doesn't scale past the current
     # branch and has to be remembered and reverted later. See
-    # CONCEPT_ROADMAP.md.
+    # docs/ARCHITECTURE.md.
     $bootstrapBranch   = if ($Branch)  { $Branch }  else { $env:CHZ_BOOTSTRAP_BRANCH }
     $dryRun            = $DryRun.IsPresent   -or ($env:CHZ_BOOTSTRAP_DRY_RUN -eq "1")
     $verboseOut        = $VerbosePreference -ne "SilentlyContinue" -or ($env:CHZ_BOOTSTRAP_VERBOSE -eq "1") -or $DebugAll.IsPresent

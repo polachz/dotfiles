@@ -35,7 +35,7 @@ if (-not (Test-Path $ageKeyFile)) {
     # without this upfront check the retry loop below would spin at
     # effectively zero cost per iteration (same class of bug as the bash
     # version's TTY check and the earlier PowerShell `ping` self-recursion
-    # finding - see CONCEPT_ROADMAP.md). Fail fast instead.
+    # finding - see docs/ARCHITECTURE.md). Fail fast instead.
     if ([Console]::IsInputRedirected) {
         Write-Host "❌ No interactive console available to prompt for the $profile Age passphrase. Run this from a real PowerShell session, not a non-interactive/redirected context." -ForegroundColor Red
         exit 1

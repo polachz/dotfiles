@@ -1,9 +1,9 @@
-# Migrated from dot_bashrc.d/50-aliases-misc.sh (see CONCEPT_ROADMAP.md §3.6).
-# `windows:` values added for PowerShell 7 (CONCEPT_ROADMAP.md §3.3) — real
+# Migrated from dot_bashrc.d/50-aliases-misc.sh (see docs/ARCHITECTURE.md §7).
+# `windows:` values added for PowerShell 7 (docs/ARCHITECTURE.md §7) — real
 # equivalents verified live on winlab.local, not guessed.
 #
 # Deliberately NOT migrated here (need per-shell native handling, not a plain
-# command string — see CONCEPT_ROADMAP.md §3.6):
+# command string — see docs/ARCHITECTURE.md §7):
 #   - `sudo='sudo '`      trailing-space trick, shell-specific idiom
 #   - `path` alias        bash parameter-expansion (${PATH//:/\n}), no fish equivalent string
 #   - power/reboot family runtime $UID branching, not an OS-time fact
@@ -42,7 +42,7 @@ aliases:
             # `sudo` fails fast with a clear "You are not allowed to run sudo"
             # error, while `Start-Process -Verb RunAs` silently never launches
             # anything at all (no error, no process). Neither is usable for
-            # unattended/headless bootstrap — see CONCEPT_ROADMAP.md's Windows
+            # unattended/headless bootstrap — see docs/ARCHITECTURE.md's Windows
             # user-scope/elevation section. `sudo.exe`/`takeown /F` syntax
             # verified live.
             windows: 'if (Get-Command sudo -ErrorAction SilentlyContinue) { sudo.exe takeown /F "$args" } else { Start-Process pwsh -Verb RunAs -ArgumentList ''-NoProfile'',''-Command'',"takeown /F `"$args`"" }'
@@ -105,7 +105,7 @@ aliases:
             # reference is an expression, not a command invocation, so the
             # renderer's auto-appended `@args` would hit the exact same
             # splatting parse error as `reload`/`root` in power.yaml (see
-            # CONCEPT_ROADMAP.md §3.3 bug #5). The `&` call operator makes
+            # docs/ARCHITECTURE.md §7 bug #5). The `&` call operator makes
             # this a real command invocation, which IS a valid splat target.
             windows: "& $env:EDITOR"
           description: Open $EDITOR
@@ -118,7 +118,7 @@ aliases:
             # Windows story at all today (bash doesn't run natively, and
             # nothing adds ~/.local/bin-equivalent to PATH on Windows
             # either). Not a syntax issue to work around — flagged as a
-            # separate, real gap (CONCEPT_ROADMAP.md §3.6), not silently
+            # separate, real gap (docs/ARCHITECTURE.md §7), not silently
             # stubbed here.
             windows: skip
           description: Edit git aliases (dev repo copy, validated + regenerates ALIASES.md)

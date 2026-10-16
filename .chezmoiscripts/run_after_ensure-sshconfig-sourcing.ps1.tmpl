@@ -6,7 +6,7 @@
 # live 2026-08-07 that Win32-OpenSSH's `Include` directive hangs ssh.exe indefinitely for both
 # absolute and tilde-style paths (confirmed on the in-box 9.5p2 AND the latest 10.0.0.0p2 GitHub
 # release, so it's a persistent bug in the port itself, not a version issue), and silently
-# no-ops for a path relative to the config file's own directory. See CONCEPT_ROADMAP.md §2.4/§7.
+# no-ops for a path relative to the config file's own directory. See docs/ARCHITECTURE.md §6/§10.
 #
 # Instead, the conf.d/*.conf fragment CONTENT is embedded directly into $HOME\.ssh\config, inside
 # a sentinel-delimited managed block that gets fully REGENERATED on every apply (not just

@@ -7,7 +7,7 @@
 # last conflicting value wins). Git for Windows honors $HOME (PowerShell 7 sets it automatically
 # to $env:USERPROFILE) ahead of %USERPROFILE% when locating the global .gitconfig, and tilde-
 # expands `path =` values itself, independent of shell — so the exact same fragment paths work
-# unchanged. See CONCEPT_ROADMAP.md §2.3/§7.
+# unchanged. See docs/ARCHITECTURE.md §5/§10.
 
 $gitconfig = Join-Path $HOME ".gitconfig"
 if (-not (Test-Path $gitconfig)) {

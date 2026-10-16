@@ -6,7 +6,7 @@
 # 2026-08-07: a real `chezmoi apply` fails with "%1 is not a valid Win32 application" on any
 # non-empty .sh.tmpl script). This file renders as nothing at all on non-Windows OSes (see the
 # outer os guard wrapping the whole file) so chezmoi skips executing it there too — see
-# CONCEPT_ROADMAP.md §7.
+# docs/ARCHITECTURE.md §10.
 
 {{- /*
   No requires_elevation handling here (removed 2026-08-20) - any tool needing an

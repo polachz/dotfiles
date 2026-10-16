@@ -7,7 +7,7 @@
 # 2026-08-07: a real `chezmoi apply` on winlab.local fails with "%1 is not a valid Win32
 # application" on any non-empty .sh.tmpl script). The whole file must therefore render as
 # nothing at all on Windows (not even a shebang) so chezmoi skips executing it — see the outer
-# {{ "{{- if ne .chezmoi.os \"windows\" -}}" }} guard wrapping this entire file (CONCEPT_ROADMAP.md §7).
+# {{ "{{- if ne .chezmoi.os \"windows\" -}}" }} guard wrapping this entire file (docs/ARCHITECTURE.md §10).
 
 {{ template "scripts-library" }}
 

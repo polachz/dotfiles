@@ -84,7 +84,7 @@ regardless of `kind`.
 | `hh` | `cd ~` | `cd ~` | `Set-Location ~` | abbr | Go to home directory |
 | `ee` | `cd /etc` | `cd /etc` | `Set-Location C:\Windows\System32\drivers\etc` | abbr | Go to /etc (Windows equivalent — hosts file, protocol/service definitions) |
 | `-` | `cd -` | `cd -` | — | abbr | Go to previous directory |
-| `d` | `cd ~/Devel` | `cd ~/Devel` | `Set-Location C:\Sources` | abbr | Go to the source-code working directory |
+| `d` | `cd ~/Devel` | `cd ~/Devel` | `Set-Location ~/Devel` | abbr | Go to the source-code working directory |
 | `dl` | `cd ~/Downloads` | `cd ~/Downloads` | `Set-Location ~/Downloads` | abbr | Go to the Downloads directory |
 | `dt` | `cd ~/Desktop` | `cd ~/Desktop` | `Set-Location ~/Desktop` | abbr | Go to the Desktop directory |
 | `loc` | `cd ~/.local` | `cd ~/.local` | — | abbr | Go to the user-local data directory |

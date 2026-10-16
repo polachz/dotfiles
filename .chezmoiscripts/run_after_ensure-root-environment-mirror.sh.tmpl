@@ -12,7 +12,7 @@
 # always_set_home` (verified live, `sudo -E` doesn't override it), so on
 # Linux even bare `sudo $SHELL` resets $HOME to /root, which has nothing
 # deployed to it at all (chezmoi only ever manages the invoking user's own
-# $HOME). See CONCEPT_ROADMAP.md §3.8 for the full investigation.
+# $HOME). See docs/ARCHITECTURE.md §8 for the full investigation.
 #
 # Design: NOT a duplicate copy of the dotfiles content into /root (would
 # need permanent double maintenance) — a small root-owned loader that reads

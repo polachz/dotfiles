@@ -9,7 +9,7 @@
 # ~/.bashrc has no such thing, and even Ubuntu 25.10's brief attempt at this
 # (bash 5.2.37-2ubuntu2) sourced a different, system-wide path
 # (/etc/bash.bashrc.d, not ~/.bashrc.d) and was reverted again in 26.04.
-# See CONCEPT_ROADMAP.md §2.1 for the full finding.
+# See docs/ARCHITECTURE.md §4 for the full finding.
 
 # {{ template "scripts-library" }}
 
@@ -25,7 +25,7 @@ if ! grep -q '\.bashrc\.d' "${bashrc}"; then
 
 # Added by dotfiles bootstrap — not every distro's default ~/.bashrc sources
 # ~/.bashrc.d/* the way Fedora's does (Ubuntu 24.04 LTS, for example, does
-# not) — see CONCEPT_ROADMAP.md §2.1.
+# not) — see docs/ARCHITECTURE.md §4.
 if [ -d ~/.bashrc.d ]; then
     for rc in ~/.bashrc.d/*; do
         if [ -f "$rc" ]; then

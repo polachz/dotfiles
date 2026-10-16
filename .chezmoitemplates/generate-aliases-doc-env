@@ -1,7 +1,7 @@
 {{- /*
   Generates the "<scope> scope — environment variables" sections of
   ALIASES.md from the YAML files under .chezmoidata/env/ — see
-  CONCEPT_ROADMAP.md §3.4.
+  docs/ARCHITECTURE.md §7.
 
   Regenerate via `edit-aliases-core` (no args = regen-only mode), which
   splices this output into ALIASES.md between the GENERATED:aliases-doc-env

@@ -6,9 +6,9 @@
 # ~/.ssh/config, like ~/.bashrc and ~/.zshrc, is NEVER fully owned/templated
 # by chezmoi — found real, load-bearing content in it during testing (GSSAPI
 # settings for *.redhat.com, UTM lab-VM Host shortcuts), same lesson as
-# ~/.zshrc (see CONCEPT_ROADMAP.md §2.1/§3.3). Only a small idempotent
+# ~/.zshrc (see docs/ARCHITECTURE.md §4/§7). Only a small idempotent
 # `Include` line gets appended if missing; everything else lives under the
-# safely-chezmoi-owned ~/.ssh/conf.d/ instead. See CONCEPT_ROADMAP.md §2.4.
+# safely-chezmoi-owned ~/.ssh/conf.d/ instead. See docs/ARCHITECTURE.md §6.
 
 # {{ template "scripts-library" }}
 
@@ -27,7 +27,7 @@ if ! grep -q '^Include ~/\.ssh/conf\.d/\*\.conf$' "${sshconfig}"; then
     cat >> "${sshconfig}" <<'EOF'
 
 # Added by dotfiles bootstrap — includes ~/.ssh/conf.d/*.conf (see
-# CONCEPT_ROADMAP.md §2.4). SSH matches first-occurrence-wins (unlike git),
+# docs/ARCHITECTURE.md §6). SSH matches first-occurrence-wins (unlike git),
 # so this Include only affects options not already set by whatever precedes
 # it in this file.
 #

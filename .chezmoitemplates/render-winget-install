@@ -1,5 +1,5 @@
 {{- /* Renders a full `winget install ...` command line for one packages.yaml tool entry */ -}}
-{{- /* (see CONCEPT_ROADMAP.md §7). Expects the tool entry dict itself as input (needs .name and */ -}}
+{{- /* (see docs/ARCHITECTURE.md §10). Expects the tool entry dict itself as input (needs .name and */ -}}
 {{- /* optionally .winget, either a bare ID string or a map with "id" plus any of the optional */ -}}
 {{- /* fields below). Returns the literal "skip" if .winget is absent or "skip", otherwise the */ -}}
 {{- /* full winget invocation with global unattended flags always included. */ -}}

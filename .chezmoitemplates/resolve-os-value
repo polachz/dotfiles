@@ -1,4 +1,4 @@
-{{- /* Shared OS-value resolution for aliases/env/packages data models (see CONCEPT_ROADMAP.md §3.2). */ -}}
+{{- /* Shared OS-value resolution for aliases/env/packages data models (see docs/ARCHITECTURE.md §7). */ -}}
 {{- /* Expects a dict as input with keys "value" (string or OS-map) and "os" (e.g. .chezmoi.os). */ -}}
 {{- /* Returns the resolved string, or the literal "skip" if nothing applies to this OS. */ -}}
 {{- $value := .value -}}

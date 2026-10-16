@@ -14,7 +14,7 @@
 # silently destroy. So ~/.zshrc, like ~/.bashrc, stays user/OS-owned — only a
 # small idempotent sourcing block gets appended if missing. Everything else
 # lives under the safely-chezmoi-owned ~/.zshrc.d/ instead.
-# See CONCEPT_ROADMAP.md §2.1/§3.3 for the full history of this correction.
+# See docs/ARCHITECTURE.md §4/§7 for the full history of this correction.
 
 # {{ template "scripts-library" }}
 
@@ -29,7 +29,7 @@ if ! grep -q '\.zshrc\.d' "${zshrc}"; then
     cat >> "${zshrc}" <<'EOF'
 
 # Added by dotfiles bootstrap — sources ~/.zshrc.d/*, the zsh-only
-# counterpart to ~/.bashrc.d/* (see CONCEPT_ROADMAP.md §2.1/§3.3). The (N)
+# counterpart to ~/.bashrc.d/* (see docs/ARCHITECTURE.md §4/§7). The (N)
 # glob qualifier is zsh-specific — without it, zsh treats a no-match glob
 # (e.g. no ~/.zshrc.d present) as a fatal error, unlike bash which no-ops.
 if [ -d ~/.zshrc.d ]; then

@@ -1,6 +1,6 @@
 {{- /*
   Generates the "<scope> scope — aliases" sections of ALIASES.md from the
-  YAML files under .chezmoidata/aliases/ — see CONCEPT_ROADMAP.md §3.4.
+  YAML files under .chezmoidata/aliases/ — see docs/ARCHITECTURE.md §7.
 
   Regenerate via `edit-aliases-core` (no args = regen-only mode), which
   splices this output into ALIASES.md between the

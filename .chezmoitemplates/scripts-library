@@ -239,7 +239,7 @@ function append_missing_packages_to_list() {
 # release, use the .chezmoitemplates/get-github-latest-verson chezmoi
 # template instead (resolved at apply-time via a redirect, no curl needed) —
 # this function is only for locating a specific downloadable asset, e.g. for
-# a GitHub-release package-manager fallback (see CONCEPT_ROADMAP.md §7).
+# a GitHub-release package-manager fallback (see docs/ARCHITECTURE.md §10).
 function github_release_asset_url() {
   local user_and_repo="$1"
   local grep_search_pattern="$2"

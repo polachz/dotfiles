@@ -119,7 +119,7 @@
   render time, not packages.yaml) by run_after_install-totalcmd-windows.ps1.tmpl and
   run_after_install-7zip-windows.ps1.tmpl, each choosing between a winget-install branch and a
   portable no-elevation fallback branch — see those files for why (2026-08-20 consolidation, see
-  CONCEPT_ROADMAP.md §7).
+  docs/ARCHITECTURE.md §10).
 */}}
 {{- $can_elevate := true -}}
 {{- if eq .chezmoi.os "windows" -}}

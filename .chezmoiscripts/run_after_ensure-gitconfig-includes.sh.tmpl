@@ -6,10 +6,10 @@
 #
 # ~/.gitconfig, like ~/.bashrc/~/.zshrc/~/.ssh/config, is NEVER fully
 # owned/templated by chezmoi — found real, load-bearing content in it during
-# testing (user identity), same lesson as those files (see CONCEPT_ROADMAP.md
-# §2.1/§3.3/§2.4). Only the needed [include]/[includeIf] blocks get appended
+# testing (user identity), same lesson as those files (see docs/ARCHITECTURE.md
+# §4/§7/§6). Only the needed [include]/[includeIf] blocks get appended
 # if missing; everything else lives under the safely-chezmoi-owned
-# ~/.config/git/ instead. See CONCEPT_ROADMAP.md §2.3.
+# ~/.config/git/ instead. See docs/ARCHITECTURE.md §5.
 #
 # Per-block (not whole-file) idempotency, because unlike SSH's
 # `Include *.conf` or bash's `source *`, git has no directory-glob include —
@@ -55,7 +55,7 @@ ensure_include_block '~/.config/git/{{ .deployment.profile }}/common.gitconfig' 
 # components" only kicks in with a `/` immediately before it) — the SCP
 # pattern below needed `*/**`, not `**`, verified against this dotfiles
 # repo's own real remote (`git@github.com:polachz/dotfiles.git`). See
-# CONCEPT_ROADMAP.md §2.3.
+# docs/ARCHITECTURE.md §5.
 ensure_include_block 'hasconfig:remote.*.url:git@github.com:*/**' '[includeIf "hasconfig:remote.*.url:git@github.com:*/**"]
     path = ~/.config/git/{{ .deployment.profile }}/hosts/github.gitconfig'
 

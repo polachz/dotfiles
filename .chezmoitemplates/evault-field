@@ -1,5 +1,5 @@
 {{- /* Decrypts one field out of a profile's EJSON evault at apply-time (first real use case */ -}}
-{{- /* for the evault-secret-injection mechanism sketched in CONCEPT_ROADMAP.md §4.2). */ -}}
+{{- /* for the evault-secret-injection mechanism sketched in docs/ARCHITECTURE.md §7). */ -}}
 {{- /* Expects a dict as input with keys "profile" (e.g. "work") and "path" — a dot-separated */ -}}
 {{- /* key path into the decrypted JSON, e.g. "git.github_email". Returns the string value. */ -}}
 {{- /* Requires the EJSON private key for that profile to already be unlocked at */ -}}

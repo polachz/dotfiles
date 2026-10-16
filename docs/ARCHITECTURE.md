@@ -5,8 +5,7 @@ Design rationale behind this dotfiles repo — chezmoi + Age + EJSON, multi-OS
 document describes the **current, stable design** and the reasoning behind
 it. It intentionally does not narrate how each piece was discovered, tested,
 or debugged — that history lives in `git log` (commit messages in this repo
-already explain "why", not just "what") and, while the rework is still
-active, in `../CONCEPT_ROADMAP.md`.
+already explain "why", not just "what").
 
 See [`../README.md`](../README.md) for day-one usage, [`DAILY_WORKFLOW.md`](./DAILY_WORKFLOW.md)
 for operator runbooks, [`ENCRYPTION_SETUP.md`](./ENCRYPTION_SETUP.md) for key
