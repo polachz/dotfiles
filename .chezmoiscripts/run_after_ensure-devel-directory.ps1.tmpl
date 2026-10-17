@@ -1,4 +1,4 @@
-{{- if eq .chezmoi.os "windows" -}}
+{{- if eq .chezmoi.os "windows" -}}{{ "\ufeff" }}
 # Ensures ~/Devel exists — idempotent, runs on every apply (plain `run_`
 # prefix). This is the source-code working directory the `d` alias
 # (.chezmoidata/aliases/common/nav.yaml, docs/ARCHITECTURE.md §7) cd's into.

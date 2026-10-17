@@ -1,4 +1,4 @@
-{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") -}}
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") -}}{{ "\ufeff" }}
 # Switch chezmoi source repo from https to ssh so future pushes work
 # without a browser-based GitHub Credential Manager prompt - Windows
 # counterpart of run_onchange_after_user-settings.sh.tmpl's identical

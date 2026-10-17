@@ -1,4 +1,4 @@
-{{- if eq .chezmoi.os "windows" -}}
+{{- if eq .chezmoi.os "windows" -}}{{ "\ufeff" }}
 # Ensures $PROFILE (CurrentUserCurrentHost) dot-sources
 # Documents\PowerShell\dotfiles.d\*.ps1 — idempotent, runs on every apply
 # (plain `run_` prefix). Targets PowerShell 7 (`pwsh`) — chezmoi's built-in

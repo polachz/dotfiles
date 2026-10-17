@@ -1,4 +1,4 @@
-{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}{{ "\ufeff" }}
 {{- if .deployment.can_elevate -}}
 # Installs Total Commander via winget (this account can elevate - real
 # Program Files install with proper uninstaller registration). Runs on

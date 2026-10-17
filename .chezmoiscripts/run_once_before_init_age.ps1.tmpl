@@ -1,4 +1,4 @@
-{{- if eq .chezmoi.os "windows" -}}
+{{- if eq .chezmoi.os "windows" -}}{{ "\ufeff" }}
 # Profile-aware Age + EJSON key bootstrap (interactive) — Windows counterpart
 # of run_once_before_init_age.sh.tmpl. Same flow, same data, same files -
 # only the shell differs. See that script for the full design rationale.

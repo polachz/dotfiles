@@ -1,4 +1,4 @@
-{{- if eq .chezmoi.os "windows" -}}
+{{- if eq .chezmoi.os "windows" -}}{{ "\ufeff" }}
 # Per-profile/role package installation via winget. Re-runs whenever packages.yaml changes.
 #
 # Separate from run_onchange_install-packages.sh.tmpl (dnf/apt/brew, bash) — bash doesn't run

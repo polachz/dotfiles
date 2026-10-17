@@ -1,4 +1,4 @@
-{{- if eq .chezmoi.os "windows" -}}
+{{- if eq .chezmoi.os "windows" -}}{{ "\ufeff" }}
 # Ensures $HOME\.gitconfig includes the dotfiles-managed git config fragments — idempotent PER
 # BLOCK (same as run_after_ensure-gitconfig-includes.sh.tmpl), runs on every apply.
 #

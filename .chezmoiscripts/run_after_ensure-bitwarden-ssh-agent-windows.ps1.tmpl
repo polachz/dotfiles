@@ -1,4 +1,4 @@
-{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}{{ "\ufeff" }}
 # Disables the Windows built-in ssh-agent service so Bitwarden's SSH agent
 # (packages.yaml's `bitwarden` — roles: [workstation], requires_gui, same
 # condition gating this whole script) can actually claim its named pipe.

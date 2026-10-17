@@ -347,6 +347,17 @@ Env vars (same names as bootstrap.sh, for consistency):
     $env:DOTFILES_ROLE = $deploymentRole
     $env:DOTFILES_HAS_GUI = if ($hasGuiChoice -eq "yes") { "true" } else { "false" }
 
+    # Fresh Windows installs default to the Restricted execution policy, which blocks the
+    # temp .ps1 files chezmoi generates for .chezmoiscripts/*.ps1.tmpl ("running scripts is
+    # disabled on this system"). Process scope only: inherited by chezmoi's child
+    # powershell processes via PSExecutionPolicyPreference, machine/user policy untouched.
+    # Has no effect if a Group Policy enforces a stricter policy.
+    try {
+        Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
+    } catch {
+        Write-LogWarn "Could not relax execution policy for this process ($($_.Exception.Message)) - PowerShell hook scripts may be blocked."
+    }
+
     Write-LogTask "Running 'chezmoi $($chezmoiArgs -join ' ')' (profile=$deploymentProfile, role=$deploymentRole, gui=$hasGuiChoice)"
 
     & chezmoi @chezmoiArgs
