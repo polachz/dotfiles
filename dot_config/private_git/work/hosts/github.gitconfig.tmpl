@@ -6,4 +6,6 @@
   (same across hosts, only email differs for GitHub).
 */ -}}
 [user]
-    email = {{ includeTemplate "evault-field" (dict "profile" "work" "path" "git.github_email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
+{{- with includeTemplate "evault-field" (dict "profile" "work" "path" "git.github_email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
+    email = {{ . }}
+{{- end }}

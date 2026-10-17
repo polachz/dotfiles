@@ -12,13 +12,25 @@
 {{- $path := .path -}}
 {{- $evaultFile := joinPath .sourceDir "secrets" $profile "evault" -}}
 {{- $decrypted := output "ejson" "-keydir" .keysDir "decrypt" $evaultFile | fromJson -}}
+{{- /* A missing key does NOT abort the apply: it prints a warning (warnf, stderr) and returns */ -}}
+{{- /* an empty string, so callers must guard against "" (e.g. skip the config line). Fix it */ -}}
+{{- /* with 'edit-evault <profile>' and re-run 'chezmoi apply'. A failing ejson decrypt itself */ -}}
+{{- /* (ejson/key missing) is still a hard error - that is a broken setup, not a missing value. */ -}}
 {{- $value := $decrypted -}}
+{{- $missing := false -}}
 {{- $walked := list -}}
 {{- range splitList "." $path -}}
+{{- if not $missing -}}
 {{- $walked = append $walked . -}}
-{{- if not (and (kindIs "map" $value) (hasKey $value .)) -}}
-{{- fail (printf "evault-field: %q has no key %q (walked: %s, profile: %s)" $path . (join "." $walked) $profile) -}}
-{{- end -}}
+{{- if and (kindIs "map" $value) (hasKey $value .) -}}
 {{- $value = index $value . -}}
+{{- else -}}
+{{- $missing = true -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if $missing -}}
+{{- warnf "evault-field: %q has no key %q in the %s evault - using an empty value. Add it with 'edit-evault %s' and re-run 'chezmoi apply'." $path (last $walked) $profile $profile -}}
+{{- else -}}
 {{- $value -}}
+{{- end -}}

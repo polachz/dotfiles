@@ -4,5 +4,9 @@
   plaintext. See .chezmoitemplates/evault-field and docs/ARCHITECTURE.md §7.
 */ -}}
 [user]
-    name = {{ includeTemplate "evault-field" (dict "profile" "personal" "path" "git.user" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
-    email = {{ includeTemplate "evault-field" (dict "profile" "personal" "path" "git.email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
+{{- with includeTemplate "evault-field" (dict "profile" "personal" "path" "git.user" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
+    name = {{ . }}
+{{- end }}
+{{- with includeTemplate "evault-field" (dict "profile" "personal" "path" "git.email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
+    email = {{ . }}
+{{- end }}
