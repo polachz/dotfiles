@@ -73,6 +73,10 @@ function Invoke-DotfilesBootstrap {
 
     $GithubUsername = "polachz"
 
+    # The progress bar of Invoke-WebRequest/Invoke-RestMethod (esp. Windows PowerShell 5.1)
+    # slows downloads dramatically. Scoped to this function, so the caller's session is untouched.
+    $ProgressPreference = 'SilentlyContinue'
+
     # ───── Helpers ─────────────────────────────────────────────────────────
 
     function Write-LogColor { param([string]$Color, [string]$Text) Write-Host $Text -ForegroundColor $Color }
