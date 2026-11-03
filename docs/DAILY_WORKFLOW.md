@@ -585,6 +585,15 @@ helpers/deploy-agent-rules.sh ~/Devel/some-repo          # uses agent-rules/redh
 helpers/deploy-agent-rules.sh ~/Devel/some-repo <name>   # uses agent-rules/<name>.md
 ```
 
+On Windows without bash (a `.sh` file isn't directly runnable from a plain
+PowerShell/cmd prompt), use the native PowerShell sibling instead, same
+behavior and flags:
+
+```powershell
+helpers\deploy-agent-rules.ps1 ~\Devel\some-repo
+helpers\deploy-agent-rules.ps1 ~\Devel\some-repo <name>
+```
+
 This copies the file to `<repo>/AGENTS.md` and adds `AGENTS.md` to that
 repo's `.git/info/exclude` (not `.gitignore` — `.git/info/exclude` lives
 inside `.git/` itself, is never tracked, and can't accidentally get
@@ -988,7 +997,8 @@ helpers/setup-encryption.sh        # generate / rotate keys
 ~/verify-encryption.sh <profile>   # standalone chain check
 
 # AI agent rules (see S14)
-helpers/deploy-agent-rules.sh <repo> [name]   # deploy agent-rules/<name>.md as <repo>/AGENTS.md, git-info-excluded
+helpers/deploy-agent-rules.sh <repo> [name]    # deploy agent-rules/<name>.md as <repo>/AGENTS.md, git-info-excluded
+helpers/deploy-agent-rules.ps1 <repo> [name]   # same, native PowerShell (no bash needed on Windows)
 ```
 
 ---

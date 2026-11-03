@@ -670,12 +670,13 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 │   ├── personal/evault              # EJSON-encrypted personal data
 │   └── work/evault                  # EJSON-encrypted work data
 ├── agent-rules/                     # Per-repo AI-agent rule sets, not applied by chezmoi
-│   └── redhat-repos.md              # deployed via helpers/deploy-agent-rules.sh, see docs/DAILY_WORKFLOW.md
+│   └── redhat-repos.md              # deployed via helpers/deploy-agent-rules.{sh,ps1}, see docs/DAILY_WORKFLOW.md
 ├── helpers/                         # Manual setup helpers (not applied by chezmoi;
 │   │                                 install-vscode.sh is legacy)
 │   ├── setup-encryption.sh
-│   └── deploy-agent-rules.sh        # Drop an agent-rules/<name>.md into a project as a
-│                                     # git-ignored AGENTS.md (see docs/DAILY_WORKFLOW.md)
+│   ├── deploy-agent-rules.sh        # Drop an agent-rules/<name>.md into a project as a
+│   │                                 git-ignored AGENTS.md (see docs/DAILY_WORKFLOW.md)
+│   └── deploy-agent-rules.ps1       # Same, native PowerShell (no bash needed on Windows)
 ├── ejson_key_personal.age           # Age-encrypted personal EJSON key
 ├── ejson_key_work.age               # Age-encrypted work EJSON key
 ├── age_key_personal.age             # Age-encrypted personal Age key (passphrase-protected)
