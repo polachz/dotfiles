@@ -651,7 +651,8 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 │   ├── resolve-package-entry        # dnf/apt/brew name resolution for packages.yaml
 │   ├── render-winget-install        # Full `winget install ...` command builder for packages.yaml
 │   ├── install-os-package           # Single-package install abstraction (dnf/apt/brew, used outside packages.yaml e.g. for `age`)
-│   └── get-github-{latest-verson,head-revision}
+│   ├── get-github-{latest-verson,head-revision}
+│   └── agent-rules-global           # Shared AI-agent global instructions (see dot_claude/, dot_codex/)
 ├── dot_bashrc.d/                    # Bash config → ~/.bashrc.d/
 ├── dot_zshrc.d/                     # Zsh config → ~/.zshrc.d/
 ├── dot_config/
@@ -659,6 +660,8 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 │   ├── private_ghostty/             # Ghostty config → ~/.config/ghostty/
 │   ├── private_git/                 # Git config fragments → ~/.config/git/
 │   └── oh-my-posh/atomic.omp.json   # → ~/.config/oh-my-posh/atomic.omp.json
+├── dot_claude/CLAUDE.md.tmpl        # Claude Code global instructions → ~/.claude/CLAUDE.md
+├── dot_codex/AGENTS.md.tmpl         # Codex CLI global instructions → ~/.codex/AGENTS.md
 ├── private_dot_ssh/conf.d/          # SSH config fragments → ~/.ssh/conf.d/
 ├── private_dot_local/bin/           # Utility scripts → ~/.local/bin/
 ├── Documents/PowerShell/dotfiles.d/ # PowerShell aliases/env/prompt (Windows only) → Documents\PowerShell\dotfiles.d\
@@ -666,9 +669,13 @@ key only, C: EJSON key with evault re-seal, D: full re-key).
 ├── secrets/
 │   ├── personal/evault              # EJSON-encrypted personal data
 │   └── work/evault                  # EJSON-encrypted work data
+├── agent-rules/                     # Per-repo AI-agent rule sets, not applied by chezmoi
+│   └── redhat-repos.md              # deployed via helpers/deploy-agent-rules.sh, see docs/DAILY_WORKFLOW.md
 ├── helpers/                         # Manual setup helpers (not applied by chezmoi;
 │   │                                 install-vscode.sh is legacy)
-│   └── setup-encryption.sh
+│   ├── setup-encryption.sh
+│   └── deploy-agent-rules.sh        # Drop an agent-rules/<name>.md into a project as a
+│                                     # git-ignored AGENTS.md (see docs/DAILY_WORKFLOW.md)
 ├── ejson_key_personal.age           # Age-encrypted personal EJSON key
 ├── ejson_key_work.age               # Age-encrypted work EJSON key
 ├── age_key_personal.age             # Age-encrypted personal Age key (passphrase-protected)

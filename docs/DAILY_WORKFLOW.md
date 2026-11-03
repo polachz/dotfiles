@@ -563,6 +563,39 @@ the target format.
 
 ---
 
+### S14. Share rules with AI coding agents (Claude Code, Codex)
+
+Two separate mechanisms, both reusing the fact that Claude Code and Codex CLI
+both natively read a file named `AGENTS.md` (Claude Code accepts it "in
+place of" `CLAUDE.md`; it's Codex's primary instructions file):
+
+**A. Global rules** (apply in every project, both agents) — edit
+`.chezmoitemplates/agent-rules-global`, then `chezmoi apply`. It renders into
+both `dot_claude/CLAUDE.md.tmpl` → `~/.claude/CLAUDE.md` and
+`dot_codex/AGENTS.md.tmpl` → `~/.codex/AGENTS.md`, so one edit updates what
+both agents see everywhere, immediately.
+
+**B. Per-repo rules that must never reach a shared/upstream repo's commit
+history** (e.g. personal workflow preferences for a work driver repo) — edit
+or add `agent-rules/<name>.md` here, then deploy it into the target repo's
+working tree:
+
+```sh
+helpers/deploy-agent-rules.sh ~/Devel/some-repo          # uses agent-rules/redhat-repos.md
+helpers/deploy-agent-rules.sh ~/Devel/some-repo <name>   # uses agent-rules/<name>.md
+```
+
+This copies the file to `<repo>/AGENTS.md` and adds `AGENTS.md` to that
+repo's `.git/info/exclude` (not `.gitignore` — `.git/info/exclude` lives
+inside `.git/` itself, is never tracked, and can't accidentally get
+committed/pushed even by a careless `git add -A`). Re-run after editing the
+source file to push the update out; re-running against the same repo is a
+no-op for the exclude entry. This has to be run once per target repo — there
+is no mechanism to apply it repo-wide from here, by design, since the whole
+point is that nothing about this touches the target repo's tracked history.
+
+---
+
 ## Edge cases
 
 ### E1. Edit managed file directly in HOME
@@ -953,6 +986,9 @@ chezmoi state dump | jq            # internal state
 chezmoi init                       # re-prompt profile
 helpers/setup-encryption.sh        # generate / rotate keys
 ~/verify-encryption.sh <profile>   # standalone chain check
+
+# AI agent rules (see S14)
+helpers/deploy-agent-rules.sh <repo> [name]   # deploy agent-rules/<name>.md as <repo>/AGENTS.md, git-info-excluded
 ```
 
 ---
