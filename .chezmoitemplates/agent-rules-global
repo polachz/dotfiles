@@ -1,0 +1,4 @@
+{{- /* Shared global instructions for AI coding agents (Claude Code, Codex), rendered into both ~/.claude/CLAUDE.md and ~/.codex/AGENTS.md (see dot_claude/CLAUDE.md.tmpl, dot_codex/AGENTS.md.tmpl). Edit here, not in the rendered targets. */ -}}
+# Global instructions
+
+- Respond to the user in Czech, regardless of the language of the surrounding code, comments, or documentation.
