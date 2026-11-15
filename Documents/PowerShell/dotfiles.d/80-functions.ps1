@@ -1,4 +1,4 @@
-# Shared interactive PowerShell function library — mirrors
+﻿# Shared interactive PowerShell function library — mirrors
 # dot_bashrc.d/80-functions-common.sh's role for bash/zsh.
 #
 # Every function here uses `function global:<name>`, not plain `function
@@ -364,4 +364,34 @@ function global:edit-evault {
         }
         Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
     }
+}
+
+# Expose Git for Windows' bundled nano.exe in PowerShell without adding all of
+# Git\usr\bin to PATH (which would shadow native Windows find.exe, sort.exe,
+# and ssh.exe). Falls back to notepad if neither PATH nano nor Git is present
+# (e.g. role=server where Git is not installed).
+function global:nano {
+    $nativeNano = Get-Command -Name "nano" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($nativeNano) {
+        & $nativeNano.Source @args
+        return
+    }
+
+    $gitCmd = Get-Command -Name "git" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($gitCmd) {
+        $gitRoot = Split-Path (Split-Path $gitCmd.Source -Parent) -Parent
+        $bundledNano = Join-Path $gitRoot "usr\bin\nano.exe"
+        if (Test-Path $bundledNano) {
+            & $bundledNano @args
+            return
+        }
+    }
+
+    if (Get-Command -Name "notepad" -CommandType Application -ErrorAction SilentlyContinue) {
+        Write-Warning "nano not found (install Git for Windows or GNU nano) — falling back to notepad."
+        & notepad @args
+        return
+    }
+
+    Write-Error "nano not found on PATH and no Git-bundled nano.exe or notepad available."
 }
