@@ -8,7 +8,25 @@
 # clones with) pops up Git Credential Manager's "Sign in to GitHub"
 # browser dialog instead of using the SSH agent (Bitwarden) already set up.
 $gitLocalDir = "{{ joinPath .chezmoi.sourceDir ".git" }}"
+
+# Refresh PATH from registry: Git.Git may have just been installed by
+# run_onchange_install-packages.ps1 in this same `chezmoi apply` run, and this
+# script inherits chezmoi's pre-install PATH.
+$env:Path = @(
+    [System.Environment]::GetEnvironmentVariable("Path", "Machine"),
+    [System.Environment]::GetEnvironmentVariable("Path", "User")
+) -join ";"
+
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host "SKIP: git not found on PATH - cannot switch chezmoi source remote to ssh." -ForegroundColor Yellow
+    exit 0
+}
+
 $gitRepoUrl = git --git-dir="$gitLocalDir" remote get-url origin
+if ($LASTEXITCODE -ne 0 -or -not $gitRepoUrl) {
+    Write-Host "SKIP: could not read origin remote URL from $gitLocalDir." -ForegroundColor Yellow
+    exit 0
+}
 
 if ($gitRepoUrl -notmatch '^git') {
     Write-Host "-> Changing chezmoi source remote repo access from https to ssh" -ForegroundColor Blue
