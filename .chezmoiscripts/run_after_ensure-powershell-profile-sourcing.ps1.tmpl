@@ -13,7 +13,12 @@
 # lives under the safely-chezmoi-owned Documents\PowerShell\dotfiles.d\
 # instead. See docs/ARCHITECTURE.md §7.
 
-$profilePath = $PROFILE
+# Explicit path to PowerShell 7's CurrentUserCurrentHost profile rather than
+# `$PROFILE`: on a fresh Windows box where `pwsh` was just installed during the
+# same `chezmoi apply` (or isn't on chezmoi's PATH yet), chezmoi runs `.ps1`
+# scripts with `powershell.exe` 5.1, where `$PROFILE` points to
+# `Documents\WindowsPowerShell\...` instead of `Documents\PowerShell\...`.
+$profilePath = Join-Path $HOME "Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
 
 if (-not (Test-Path $profilePath)) {
     New-Item -ItemType File -Path $profilePath -Force | Out-Null
