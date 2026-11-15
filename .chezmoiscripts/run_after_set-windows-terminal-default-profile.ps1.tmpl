@@ -31,6 +31,30 @@ $candidatePaths = @(
     (Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal\settings.json")
 )
 
+# On a fresh Windows machine where Windows Terminal was just installed and never
+# launched yet, settings.json does not exist yet. Briefly launch wt.exe once to
+# let it generate its default settings.json, then close only the process we started.
+$hasSettings = $candidatePaths | Where-Object { Test-Path $_ }
+if (-not $hasSettings) {
+    $wtAlias = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\wt.exe"
+    if ((Test-Path $wtAlias) -and -not (Get-Process -Name "WindowsTerminal" -ErrorAction SilentlyContinue)) {
+        Write-Host "-> Initializing Windows Terminal settings.json..." -ForegroundColor Blue
+        try {
+            $proc = Start-Process -FilePath $wtAlias -PassThru -ErrorAction Stop
+            for ($i = 0; $i -lt 20; $i++) {
+                Start-Sleep -Milliseconds 250
+                if ($candidatePaths | Where-Object { Test-Path $_ }) { break }
+            }
+            Get-Process -Name "WindowsTerminal" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            if ($proc -and -not $proc.HasExited) {
+                $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+        } catch {
+            Write-Host "SKIP: could not launch Windows Terminal to initialize settings.json ($($_.Exception.Message))." -ForegroundColor Yellow
+        }
+    }
+}
+
 $foundAny = $false
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
