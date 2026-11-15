@@ -18,6 +18,9 @@ packages:
       # helpers/setup-encryption.sh is a bash script anyway.
       roles: [workstation]
       winget: skip
+    - name: micro
+      roles: [workstation]
+      winget: zyedidia.micro
   personal: []
   work: []
   # Tools independent of profile, gated by role/GUI/platform instead.
