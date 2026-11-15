@@ -205,4 +205,16 @@ diff:
 */}}
 cd:
   command: pwsh
+interpreters:
+  ps1:
+{{- if lookPath "pwsh" }}
+    command: pwsh
+{{- else }}
+    command: powershell
+{{- end }}
+    args:
+      - -NoLogo
+      - -ExecutionPolicy
+      - Bypass
+      - -File
 {{- end }}
