@@ -26,18 +26,18 @@
 # can-elevate branch; the other branch just tells the user what to do
 # manually (see .deployment.can_elevate's own doc comment in
 # .chezmoi.yaml.tmpl for how that fact is computed).
-{{- if .deployment.can_elevate }}
 $sshAgentSvc = Get-Service -Name ssh-agent -ErrorAction SilentlyContinue
 if (-not $sshAgentSvc) {
     Write-Host "OK: no built-in ssh-agent service found (OpenSSH Client feature not installed) - nothing to disable" -ForegroundColor Green
-} elseif ($sshAgentSvc.StartType -eq "Disabled") {
+} elseif ($sshAgentSvc.StartType -eq "Disabled" -and $sshAgentSvc.Status -eq "Stopped") {
     Write-Host "OK: Windows built-in ssh-agent service already disabled" -ForegroundColor Green
 } else {
+{{- if .deployment.can_elevate }}
     Stop-Service -Name ssh-agent -Force -ErrorAction SilentlyContinue
     Set-Service -Name ssh-agent -StartupType Disabled
     Write-Host "OK: Windows built-in ssh-agent service stopped and disabled (Bitwarden's SSH agent needs the named pipe it was holding)" -ForegroundColor Green
-}
 {{- else }}
-Write-Host "MANUAL ACTION: this account can't elevate, so the built-in Windows ssh-agent service can't be disabled automatically - if Bitwarden's SSH agent doesn't work, an admin needs to run: Stop-Service ssh-agent; Set-Service ssh-agent -StartupType Disabled" -ForegroundColor Yellow
+    Write-Host "MANUAL ACTION: this account can't elevate, so the built-in Windows ssh-agent service (Status=$($sshAgentSvc.Status), StartType=$($sshAgentSvc.StartType)) can't be disabled automatically - if Bitwarden's SSH agent doesn't work, an admin needs to run: Stop-Service ssh-agent; Set-Service ssh-agent -StartupType Disabled" -ForegroundColor Yellow
 {{- end }}
+}
 {{- end -}}
