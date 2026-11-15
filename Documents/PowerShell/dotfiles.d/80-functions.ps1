@@ -67,7 +67,7 @@ function global:unpack {
     }
     switch -Regex ($Path) {
         '\.(tar|tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz)$' { tar.exe xf $Path }
-        '\.zip$' { Expand-Archive -Path $Path -DestinationPath . -Force }
+        '\.zip$' { $ProgressPreference = 'SilentlyContinue'; Expand-Archive -Path $Path -DestinationPath . -Force }
         '\.7z$' { & 7z x $Path }
         '\.rar$' { & unrar x $Path }
         default { Write-Error "unpack: don't know how to extract '$Path'" }

@@ -4,4 +4,6 @@
   evault (git.github_email, edit via 'edit-evault personal').
 */ -}}
 [user]
-    email = {{ includeTemplate "evault-field" (dict "profile" "personal" "path" "git.github_email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
+{{- with includeTemplate "evault-field" (dict "profile" "personal" "path" "git.github_email" "sourceDir" .chezmoi.sourceDir "keysDir" .crypt.keys_dir) }}
+    email = {{ . }}
+{{- end }}

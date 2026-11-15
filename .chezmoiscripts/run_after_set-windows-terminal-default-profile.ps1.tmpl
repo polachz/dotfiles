@@ -1,0 +1,79 @@
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") .deployment.has_gui -}}{{ "\ufeff" }}
+# Sets PowerShell 7 as the defaultProfile in Windows Terminal's settings.json
+# when it is still set to the stock Windows PowerShell 5.1 GUID. Runs on every
+# apply (plain `run_after_` prefix), idempotent, and leaves any other custom
+# defaultProfile (e.g. WSL, cmd) untouched.
+#
+# Windows Terminal JSON fragments (AppData/.../Fragments/dotfiles/profile.json)
+# cannot set `defaultProfile` — only settings.json itself can. Using a targeted
+# regex replacement instead of ConvertFrom-Json/ConvertTo-Json preserves any
+# JSONC comments, trailing commas, key order, and formatting in settings.json.
+
+$ErrorActionPreference = "Stop"
+
+# Refresh PATH from registry: pwsh may have just been installed in this same
+# `chezmoi apply` run, and this script inherits chezmoi's pre-install PATH.
+$env:Path = @(
+    [System.Environment]::GetEnvironmentVariable("Path", "Machine"),
+    [System.Environment]::GetEnvironmentVariable("Path", "User")
+) -join ";"
+
+if (-not (Get-Command pwsh -ErrorAction SilentlyContinue)) {
+    Write-Host "SKIP: pwsh not found yet - leaving Windows Terminal defaultProfile unchanged." -ForegroundColor Yellow
+    return
+}
+
+$ps5Guid = "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}"
+$pwsh7Guid = "{574e775e-4f2a-5b96-ac1e-a2962a402336}"
+
+$candidatePaths = @(
+    (Join-Path $env:LOCALAPPDATA "Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"),
+    (Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal\settings.json")
+)
+
+# On a fresh Windows machine where Windows Terminal was just installed and never
+# launched yet, settings.json does not exist yet. Briefly launch wt.exe once to
+# let it generate its default settings.json, then close only the process we started.
+$hasSettings = $candidatePaths | Where-Object { Test-Path $_ }
+if (-not $hasSettings) {
+    $wtAlias = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\wt.exe"
+    if ((Test-Path $wtAlias) -and -not (Get-Process -Name "WindowsTerminal" -ErrorAction SilentlyContinue)) {
+        Write-Host "-> Initializing Windows Terminal settings.json..." -ForegroundColor Blue
+        try {
+            $proc = Start-Process -FilePath $wtAlias -PassThru -ErrorAction Stop
+            for ($i = 0; $i -lt 20; $i++) {
+                Start-Sleep -Milliseconds 250
+                if ($candidatePaths | Where-Object { Test-Path $_ }) { break }
+            }
+            Get-Process -Name "WindowsTerminal" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            if ($proc -and -not $proc.HasExited) {
+                $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+        } catch {
+            Write-Host "SKIP: could not launch Windows Terminal to initialize settings.json ($($_.Exception.Message))." -ForegroundColor Yellow
+        }
+    }
+}
+
+$foundAny = $false
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
+foreach ($settingsPath in $candidatePaths) {
+    if (-not (Test-Path $settingsPath)) {
+        continue
+    }
+    $foundAny = $true
+
+    $content = [System.IO.File]::ReadAllText($settingsPath, [System.Text.Encoding]::UTF8)
+    $pattern = '("defaultProfile"\s*:\s*")' + [regex]::Escape($ps5Guid) + '(")'
+    if ($content -match $pattern) {
+        $updated = [regex]::Replace($content, $pattern, "`${1}$pwsh7Guid`${2}", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        [System.IO.File]::WriteAllText($settingsPath, $updated, $utf8NoBom)
+        Write-Host "OK: Windows Terminal defaultProfile switched to PowerShell 7 ($settingsPath)" -ForegroundColor Green
+    }
+}
+
+if (-not $foundAny) {
+    Write-Host "SKIP: Windows Terminal settings.json not found yet (launch Windows Terminal once, then re-run 'chezmoi apply')." -ForegroundColor Yellow
+}
+{{- end -}}
