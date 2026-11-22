@@ -26,10 +26,11 @@ find_managed_version() {
 }
 
 should_install() {
+    local existing_bw
     installed_version=$(find_managed_version) || installed_version=''
     if [[ -n "$installed_version" ]]; then
         [[ "$mode" == upgrade || ! -f "$bw_path" || ! -x "$bw_path" ]]
-    elif PATH="$bin_dir:$PATH" command -v bw >/dev/null 2>&1; then
+    elif existing_bw=$(PATH="$bin_dir:$PATH" command -v bw 2>/dev/null) && [[ -f "$existing_bw" && -x "$existing_bw" ]]; then
         if [[ "$mode" == upgrade ]]; then
             printf 'Bitwarden CLI: existing installation is managed elsewhere. Skipping.\n'
         fi
