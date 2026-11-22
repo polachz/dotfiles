@@ -264,6 +264,33 @@ See `dot_config/fish/conf.d/chezmoi-aliases.fish` and
 
 ---
 
+## Bitwarden CLI session
+
+`unlock-bw` and `lock-bw` work in bash, zsh, fish, and PowerShell 7 on
+Windows. Sign in once with `bw login` using the appropriate account and
+server. Then use `unlock-bw` to set `BW_SESSION` for the current shell and
+its child processes. `lock-bw` calls `bw lock` and clears the key from the
+current shell even if the CLI reports an error.
+
+On machines configured with `role: workstation`, a full `chezmoi apply`
+installs `bw` if it is missing. It uses Homebrew on macOS, WinGet on Windows,
+and the official Linux archive on x64 or arm64, including WSL2 and headless
+workstations. This step works with an existing installation from any
+source. Machines with `role: server` can use an existing `bw` installation.
+Installation does not log in or unlock a vault.
+
+### Updating installed tools
+
+On Linux, run `update-tools` to upgrade the Bitwarden CLI installed by
+dotfiles. It verifies the new release before switching the `~/.local/bin/bw`
+link. An installation from another source stays under that source's control.
+Run `update-tools --system` to also upgrade system packages through DNF or
+APT with the package manager's usual confirmation. Desktop and font
+downloads continue to update during `chezmoi apply`.
+
+On macOS and Windows, use `brew upgrade bitwarden-cli` or
+`winget upgrade --id Bitwarden.CLI --exact`, respectively.
+
 ## Personal scope (`~/.bashrc.d/personal/`)
 
 Now an empty placeholder (`.gitkeep`, mirrors `work/`) — the former

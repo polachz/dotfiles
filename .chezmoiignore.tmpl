@@ -74,6 +74,12 @@ age_key_work.age
 Documents
 {{ end }}
 
+{{ if ne .chezmoi.os "linux" }}
+.local/bin/update-tools
+{{ end }}
+{{ if or (ne .chezmoi.os "linux") (ne .deployment.role "workstation") }}
+.local/libexec
+{{ end }}
 
 {{/*
   Windows Terminal fragment: GUI-only and Windows-only (same has_gui/OS gating as Ghostty above,

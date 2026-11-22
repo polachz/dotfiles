@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:-}
+case "$mode" in
+    ensure|upgrade) ;;
+    *) printf 'Usage: %s {ensure|upgrade}\n' "${0##*/}" >&2; exit 2 ;;
+esac
+
+bin_dir="$HOME/.local/bin"
+bw_path="$bin_dir/bw"
+install_dir="$HOME/.local/share/dotfiles/bitwarden-cli"
+
+fail() {
+    printf 'Bitwarden CLI: %s\n' "$*" >&2
+    exit 1
+}
+
+find_managed_version() {
+    local link
+    [[ -L "$bw_path" ]] || return 1
+    link=$(readlink "$bw_path") || return 1
+    [[ "$link" == "$install_dir/"* ]] || return 1
+    [[ ${link#"$install_dir"/} =~ ^([0-9]+\.[0-9]+\.[0-9]+)/bw$ ]] || return 1
+    printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+should_install() {
+    local existing_bw
+    installed_version=$(find_managed_version) || installed_version=''
+    if [[ -n "$installed_version" ]]; then
+        [[ "$mode" == upgrade || ! -f "$bw_path" || ! -x "$bw_path" ]]
+    elif existing_bw=$(PATH="$bin_dir:$PATH" command -v bw 2>/dev/null) && [[ -f "$existing_bw" && -x "$existing_bw" ]]; then
+        if [[ "$mode" == upgrade ]]; then
+            printf 'Bitwarden CLI: existing installation is managed elsewhere. Skipping.\n'
+        fi
+        return 1
+    elif [[ -e "$bw_path" || -L "$bw_path" ]]; then
+        fail "$bw_path exists and is not managed by dotfiles."
+    elif [[ "$mode" == upgrade ]]; then
+        printf 'Bitwarden CLI: no managed installation. Run chezmoi apply to install it.\n'
+        return 1
+    fi
+}
+
+should_install || exit 0
+
+case "$(uname -m)" in
+    x86_64) suffix='' ;;
+    aarch64|arm64) suffix=-arm64 ;;
+    *) fail 'Supported Linux architectures are x86_64 and arm64.' ;;
+esac
+for tool in curl jq unzip sha256sum timeout flock; do
+    command -v "$tool" >/dev/null 2>&1 || fail "$tool is required."
+done
+
+mkdir -p "$install_dir" "$bin_dir"
+exec 9>"$install_dir/update.lock"
+flock -w 10 9 || fail 'Another install or update is running.'
+should_install || exit 0
+
+# The upstream repository publishes desktop and browser releases too.
+release=$(curl -fsSL --connect-timeout 5 --max-time 20 \
+    'https://api.github.com/repos/bitwarden/clients/releases?per_page=50' |
+    jq -cer '
+        map(select(.draft == false and .prerelease == false
+            and (.tag_name | test("^cli-v[0-9]+\\.[0-9]+\\.[0-9]+$"))))
+        | max_by(.tag_name | ltrimstr("cli-v") | split(".") | map(tonumber))
+        | select(. != null)
+    ') || fail 'Could not resolve a stable release. Rerun when GitHub is reachable.'
+version=$(jq -er '.tag_name | ltrimstr("cli-v")' <<< "$release")
+if [[ -n "$installed_version" ]]; then
+    if [[ "$(printf '%s\n' "$installed_version" "$version" | sort -V | tail -n 1)" != "$version" ]]; then
+        fail "Installed version $installed_version is newer than $version. Leaving it in place."
+    fi
+    if [[ "$installed_version" == "$version" && -f "$bw_path" && -x "$bw_path" ]]; then
+        printf 'Bitwarden CLI %s is up to date.\n' "$version"
+        exit 0
+    fi
+fi
+
+asset=$(jq -cer --arg suffix "$suffix" --arg version "$version" '
+    .assets | map(select(.state == "uploaded" and
+        (.name == "bw-bit-linux\($suffix)-\($version).zip"
+         or .name == "bw-linux\($suffix)-\($version).zip")))
+    | first | select(. != null)
+' <<< "$release") || fail "Release $version has no archive for this architecture."
+filename=$(jq -er '.name' <<< "$asset")
+digest=$(jq -er '.digest | select(type == "string" and test("^sha256:[a-fA-F0-9]{64}$")) | ltrimstr("sha256:") | ascii_downcase' <<< "$asset") \
+    || fail "Release $version does not provide a SHA-256 digest."
+
+stage=$(mktemp -d "$install_dir/.install.XXXXXX")
+link_stage=''
+trap 'rm -rf -- "$stage"; if [[ -n "$link_stage" ]]; then rm -rf -- "$link_stage"; fi' EXIT
+printf 'Bitwarden CLI: downloading %s\n' "$version"
+curl -fsSL --connect-timeout 5 --max-time 120 --retry 2 -o "$stage/bw.zip" \
+    "https://github.com/bitwarden/clients/releases/download/cli-v$version/$filename" \
+    || fail "Could not download release $version."
+actual_digest=$(sha256sum "$stage/bw.zip")
+[[ ${actual_digest%% *} == "$digest" ]] || fail "Archive checksum did not match for release $version."
+unzip -p "$stage/bw.zip" bw > "$stage/bw" || fail 'Could not extract bw from the official archive.'
+chmod 0755 "$stage/bw"
+mkdir "$stage/appdata"
+# A version check initializes CLI state. Keep it away from the user's vault and session.
+actual_version=$(
+    unset BW_SESSION BW_PASSWORD BW_CLIENTID BW_CLIENTSECRET
+    BITWARDENCLI_APPDATA_DIR="$stage/appdata" BW_NOINTERACTION=true timeout 20 "$stage/bw" --version 2>/dev/null
+) || fail "The $version binary could not run on this system."
+[[ "$actual_version" == "$version" ]] || fail "The binary did not report the expected version $version."
+
+mkdir -p "$install_dir/$version"
+mv -Tf -- "$stage/bw" "$install_dir/$version/bw"
+if [[ -n "$installed_version" ]]; then
+    [[ $(find_managed_version) == "$installed_version" ]] || fail "$bw_path changed during the update."
+    link_stage=$(mktemp -d "$bin_dir/.bw-link.XXXXXX")
+    ln -s -- "$install_dir/$version/bw" "$link_stage/bw"
+    mv -Tf -- "$link_stage/bw" "$bw_path"
+else
+    ln -sT -- "$install_dir/$version/bw" "$bw_path" || fail "$bw_path changed during installation."
+fi
+if [[ -n "$installed_version" && "$installed_version" != "$version" ]]; then
+    rm -f -- "$install_dir/$installed_version/bw"
+    rmdir -- "$install_dir/$installed_version" 2>/dev/null || true
+fi
+printf 'Bitwarden CLI %s is available at %s.\n' "$version" "$bw_path"

@@ -18,15 +18,26 @@
 # same `chezmoi apply` (or isn't on chezmoi's PATH yet), chezmoi runs `.ps1`
 # scripts with `powershell.exe` 5.1, where `$PROFILE` points to
 # `Documents\WindowsPowerShell\...` instead of `Documents\PowerShell\...`.
-$profilePath = Join-Path $HOME "Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+$documentsPath = [Environment]::GetFolderPath('MyDocuments')
+if (-not $documentsPath) {
+    $documentsPath = Join-Path $HOME 'Documents'
+}
+$profilePath = Join-Path $documentsPath 'PowerShell/Microsoft.PowerShell_profile.ps1'
 
 if (-not (Test-Path $profilePath)) {
+    New-Item -ItemType Directory -Path (Split-Path -Parent $profilePath) -Force | Out-Null
     New-Item -ItemType File -Path $profilePath -Force | Out-Null
 }
 
-$existingContent = Get-Content -Path $profilePath -Raw -ErrorAction SilentlyContinue
+$existingContent = Get-Content -LiteralPath $profilePath -Raw -Encoding UTF8 -ErrorAction Stop
+$legacyPath = '$dotfilesD = Join-Path (Split-Path $PROFILE) ''dotfiles.d'''
+$managedPath = '$dotfilesD = Join-Path $HOME ''Documents/PowerShell/dotfiles.d'''
 
-if (-not $existingContent -or $existingContent -notmatch 'dotfiles\.d') {
+if ($existingContent -and $existingContent.Contains($legacyPath) -and
+    $existingContent.Contains('# Added by dotfiles bootstrap - sources Documents')) {
+    # The profile itself can be in redirected Documents, while chezmoi's target is under HOME.
+    Set-Content -LiteralPath $profilePath -Encoding UTF8 -NoNewline -Value ($existingContent.Replace($legacyPath, $managedPath))
+} elseif (-not $existingContent -or $existingContent -notmatch 'dotfiles\.d') {
     Write-Host "`$PROFILE doesn't source dotfiles.d\ - adding it" -ForegroundColor Blue
 
     $block = @'
@@ -34,7 +45,7 @@ if (-not $existingContent -or $existingContent -notmatch 'dotfiles\.d') {
 # Added by dotfiles bootstrap - sources Documents\PowerShell\dotfiles.d\*.ps1
 # (see docs/ARCHITECTURE.md §4/§5/§6/§7 for why this file itself is never
 # fully owned by chezmoi).
-$dotfilesD = Join-Path (Split-Path $PROFILE) 'dotfiles.d'
+$dotfilesD = Join-Path $HOME 'Documents/PowerShell/dotfiles.d'
 if (Test-Path $dotfilesD) {
     Get-ChildItem "$dotfilesD\*.ps1" | ForEach-Object { . $_.FullName }
 }

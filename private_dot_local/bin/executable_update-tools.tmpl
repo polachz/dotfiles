@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    printf '%s\n' 'Usage: update-tools [--system]' \
+        'Update directly installed tools managed by dotfiles on Linux.' \
+        'With --system, also upgrade system packages through DNF or APT.'
+}
+
+case "$#:${1:-}" in
+    0:) system=false ;;
+    1:--system) system=true ;;
+    1:--help|1:-h) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+esac
+
+upgrade_system() {
+    local elevate=()
+    if (( EUID != 0 )); then
+        elevate=(sudo)
+    fi
+    if command -v dnf >/dev/null 2>&1; then
+        "${elevate[@]}" dnf upgrade --refresh
+    elif command -v apt-get >/dev/null 2>&1; then
+        "${elevate[@]}" apt-get update && "${elevate[@]}" apt-get upgrade
+    else
+        printf '%s\n' 'System upgrade requires dnf or apt-get.' >&2
+        return 1
+    fi
+}
+
+result=0
+if "$system"; then
+    upgrade_system || result=1
+fi
+{{- if eq .deployment.role "workstation" }}
+if ! "$HOME/.local/libexec/dotfiles/bitwarden-cli" upgrade; then
+    result=1
+fi
+{{- else }}
+printf '%s\n' 'No directly installed tools are configured for the server role.'
+{{- end }}
+exit "$result"
