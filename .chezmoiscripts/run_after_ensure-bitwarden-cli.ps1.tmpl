@@ -1,0 +1,30 @@
+{{- if and (eq .chezmoi.os "windows") (eq .deployment.role "workstation") -}}
+$ErrorActionPreference = 'Stop'
+
+# WinGet updates the user's PATH, which a running process may not have inherited.
+function Add-UserPathToProcess {
+    $entries = $env:Path -split ';'
+    foreach ($entry in ([Environment]::GetEnvironmentVariable('Path', 'User') -split ';')) {
+        if ($entry -and $entry -notin $entries) { $entries += $entry }
+    }
+    $env:Path = $entries -join ';'
+}
+
+Add-UserPathToProcess
+if (Get-Command bw -CommandType Application,ExternalScript -ErrorAction SilentlyContinue) {
+    return
+}
+
+$winget = Get-Command winget.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $winget) { throw 'WinGet is required to install Bitwarden CLI on Windows.' }
+
+Write-Host 'Installing Bitwarden CLI with WinGet (current user)'
+& $winget install --exact --id Bitwarden.CLI --source winget --scope user `
+    --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
+if ($LASTEXITCODE -ne 0) { throw "WinGet installation of Bitwarden CLI failed (exit code $LASTEXITCODE)." }
+
+Add-UserPathToProcess
+if (-not (Get-Command bw -CommandType Application,ExternalScript -ErrorAction SilentlyContinue)) {
+    throw 'WinGet installed Bitwarden CLI, but bw could not be found on the user PATH.'
+}
+{{- end -}}

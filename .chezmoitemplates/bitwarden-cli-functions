@@ -1,0 +1,35 @@
+# Interactive Bitwarden CLI commands shared by bash and zsh.
+unlock-bw() {
+    case $- in
+        *x*) printf '%s\n' 'Disable shell tracing before unlocking.' >&2; return 1 ;;
+    esac
+    if ! command -v bw >/dev/null 2>&1; then
+        printf '%s\n' 'Bitwarden CLI (bw) is required.' >&2
+        return 127
+    fi
+    if [ -n "${BW_SESSION:-}" ] && command bw unlock --check >/dev/null 2>&1; then
+        return 0
+    fi
+    if ! command bw login --check >/dev/null; then
+        printf '%s\n' 'Check your Bitwarden CLI login with bw login.' >&2
+        return 1
+    fi
+
+    local bw_key
+    bw_key=$(command bw unlock --raw) || return "$?"
+    case "$bw_key" in
+        ''|*[!a-zA-Z0-9+/=_-]*) printf '%s\n' 'Invalid Bitwarden session response.' >&2; return 1 ;;
+    esac
+    if ! (export BW_SESSION="$bw_key"; command bw unlock --check >/dev/null 2>&1); then
+        printf '%s\n' 'Bitwarden CLI did not accept the new session key.' >&2
+        return 1
+    fi
+    export BW_SESSION="$bw_key"
+}
+
+lock-bw() {
+    local bw_lock_rc=0
+    command bw lock || bw_lock_rc=$?
+    unset BW_SESSION || return "$?"
+    return "$bw_lock_rc"
+}

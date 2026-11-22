@@ -37,6 +37,10 @@ packages:
     - name: jq
       roles: [workstation] # deliberately NOT server — user's explicit call, keep server footprint minimal
       winget: skip # PowerShell's native ConvertFrom-Json/ConvertTo-Json covers the `json` function there, no external tool needed
+    - name: unzip
+      roles: [workstation] # Bitwarden CLI and font downloads on Linux
+      brew: skip
+      winget: skip
     - name: bitwarden
       roles: [workstation]
       requires_gui: true

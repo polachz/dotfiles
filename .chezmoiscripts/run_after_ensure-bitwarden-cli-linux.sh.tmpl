@@ -1,0 +1,4 @@
+{{- if and (eq .chezmoi.os "linux") (eq .deployment.role "workstation") -}}
+#!/usr/bin/env bash
+exec "$HOME/.local/libexec/dotfiles/bitwarden-cli" ensure
+{{- end -}}

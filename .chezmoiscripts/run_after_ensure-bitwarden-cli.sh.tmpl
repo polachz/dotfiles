@@ -1,0 +1,30 @@
+{{- if and (eq .chezmoi.os "darwin") (eq .deployment.role "workstation") -}}
+#!/usr/bin/env bash
+{{ template "scripts-library" }}
+
+ensure_path_entry "$HOME/.local/bin"
+if command -v bw >/dev/null 2>&1; then
+    exit 0
+fi
+
+# Bootstrap installs Homebrew. Apply can run with a smaller PATH than usual.
+if ! command -v brew >/dev/null 2>&1; then
+    for brew_dir in /opt/homebrew/bin /usr/local/bin; do
+        if [[ -x "$brew_dir/brew" ]]; then
+            ensure_path_entry "$brew_dir"
+            break
+        fi
+    done
+fi
+if ! command -v brew >/dev/null 2>&1; then
+    error 'Homebrew is required to install Bitwarden CLI on macOS.'
+fi
+brew_prefix=$(brew --prefix)
+ensure_path_entry "$brew_prefix/bin"
+if command -v bw >/dev/null 2>&1; then
+    exit 0
+fi
+log_task 'Installing Bitwarden CLI with Homebrew'
+HOMEBREW_NO_ASK=1 brew install bitwarden-cli
+command -v bw >/dev/null 2>&1 || error 'Homebrew installed Bitwarden CLI, but bw could not be found on PATH.'
+{{- end -}}
